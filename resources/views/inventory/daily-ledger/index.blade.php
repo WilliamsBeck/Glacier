@@ -1,0 +1,721 @@
+@extends('layouts.app')
+@section('title', 'Pencatatan Harian')
+
+@section('content')
+<div class="page-header d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="page-title">Pencatatan Harian</h4>
+        <p class="text-muted small mb-0">Rekap pemakaian &amp; pembelian bahan per hari</p>
+    </div>
+    @if(request('store_id') && request('month') && request('year'))
+    <div class="d-flex gap-2">
+        <a href="{{ route('inventory.daily-ledger.export-template', request()->only('store_id','month','year')) }}"
+           class="btn btn-success btn-sm">
+            <i class="bi bi-file-earmark-excel me-1"></i>Download Template
+        </a>
+        <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalImportUsage">
+            <i class="bi bi-upload me-1"></i>Import Excel
+        </button>
+    </div>
+    @endif
+</div>
+
+{{-- ═══════════ MODAL IMPORT EXCEL ═══════════ --}}
+@if(request('store_id') && request('month') && request('year'))
+<div class="modal fade" id="modalImportUsage" tabindex="-1">
+    <div class="modal-dialog">
+        <form method="POST" action="{{ route('inventory.daily-ledger.import-usage') }}" enctype="multipart/form-data">
+            @csrf
+            <input type="hidden" name="store_id" value="{{ request('store_id') }}">
+            <input type="hidden" name="month"    value="{{ request('month') }}">
+            <input type="hidden" name="year"     value="{{ request('year') }}">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-upload me-2"></i>Import Pemakaian Harian</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info small py-2">
+                        <i class="bi bi-info-circle me-1"></i>
+                        <strong>Cara pakai:</strong>
+                        <ol class="mb-0 mt-1 ps-3">
+                            <li>Klik <strong>"Download Template"</strong> dulu untuk dapat file Excel</li>
+                            <li>Buka file di Excel, isi qty pemakaian di kolom tanggal (1–31)</li>
+                            <li>Simpan file, lalu upload di sini</li>
+                            <li>Cell kosong = tidak ada pemakaian (data lama yang sudah ada akan dihapus)</li>
+                        </ol>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label fw-semibold">Pilih File Excel <span class="text-danger">*</span></label>
+                        <input type="file" name="file" class="form-control" accept=".xlsx,.xls" required>
+                        <div class="form-text">Format: .xlsx atau .xls — pastikan struktur kolom sama dengan template.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-upload me-1"></i>Upload &amp; Import
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+@endif
+
+{{-- FORM FILTER --}}
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <form method="GET" class="row g-2 align-items-end" id="ledgerFilterForm">
+            <div class="col-md-6">
+                <label class="form-label small fw-semibold mb-1">Toko</label>
+                <select name="store_id" class="form-select form-select-sm filter-auto" required>
+                    <option value="">— Pilih Toko —</option>
+                    @foreach($stores as $s)
+                        <option value="{{ $s->id }}" {{ request('store_id') == $s->id ? 'selected' : '' }}>
+                            {{ $s->name }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-semibold mb-1">Bulan</label>
+                <select name="month" class="form-select form-select-sm filter-auto">
+                    @foreach(['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'] as $i => $bln)
+                        <option value="{{ $i+1 }}" {{ request('month', date('n')) == $i+1 ? 'selected' : '' }}>{{ $bln }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-semibold mb-1">Tahun</label>
+                <select name="year" class="form-select form-select-sm filter-auto">
+                    @for($y = date('Y'); $y >= date('Y')-3; $y--)
+                        <option value="{{ $y }}" {{ request('year', date('Y')) == $y ? 'selected' : '' }}>{{ $y }}</option>
+                    @endfor
+                </select>
+            </div>
+        </form>
+        <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var form = document.getElementById('ledgerFilterForm');
+            if (!form) return;
+            form.querySelectorAll('.filter-auto').forEach(function(sel) {
+                sel.addEventListener('change', function() {
+                    if (form.querySelector('[name=store_id]').value) form.submit();
+                });
+            });
+        });
+        </script>
+    </div>
+</div>
+
+@if($tableData === false)
+    <div class="text-center py-5 text-muted">
+        <i class="bi bi-calendar3 fs-1 d-block mb-2"></i>
+        Pilih toko, bulan, dan tahun untuk menampilkan data.
+    </div>
+
+@elseif(count($tableData) === 0)
+    <div class="alert alert-info">Tidak ada data untuk periode ini.</div>
+
+@else
+@php
+    $monthNames = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+
+    // Helper: base → DUS (1 desimal jika ada sisa)
+    $toDus = function($base, $packaging) {
+        if ($base <= 0) return '';
+        if (!$packaging || !$packaging->crate_to_pack || !$packaging->pack_to_base) return '';
+        $ctb = $packaging->crate_to_pack * $packaging->pack_to_base;
+        if ($ctb <= 0) return '';
+        $v = $base / $ctb;
+        return $v >= 0.05 ? round($v, 1) : '';
+    };
+
+    // Helper: base → DUS+PACK array untuk stok awal/akhir
+    $toDusPack = function($base, $packaging) {
+        // Tangani negatif: hitung pada nilai mutlak lalu beri tanda minus.
+        $neg = $base < 0;
+        $b   = abs($base);
+        if (!$packaging || !$packaging->crate_to_pack || !$packaging->pack_to_base) {
+            $p = (int)round($b);
+            return ['dus' => 0, 'pack' => $neg ? -$p : $p];
+        }
+        $ctb  = $packaging->crate_to_pack * $packaging->pack_to_base;
+        $dus  = (int)floor($b / $ctb);
+        $pack = (int)floor(($b - $dus * $ctb) / $packaging->pack_to_base);
+        return ['dus' => $neg ? -$dus : $dus, 'pack' => $neg ? -$pack : $pack];
+    };
+
+    $sectionLabels = [
+        'zhisheng' => 'PEMBELIAN ZHISHENG',
+        'supplier' => 'PEMBELIAN SUPPLIER',
+        'int_in'   => 'PEMBELIAN INTERNAL',
+        'int_out'  => 'PENJUALAN INTERNAL',
+        'waste'    => 'WASTE',
+    ];
+
+    $sectionH1 = [
+        'zhisheng' => '#1a4a6b', 'supplier' => '#1a4a6b',
+        'int_in'   => '#1a4a6b', 'int_out'  => '#7b2d3a',
+        'waste'    => '#6d3a00',
+    ];
+    $sectionH2 = [
+        'zhisheng' => '#2980b9', 'supplier' => '#2980b9',
+        'int_in'   => '#2980b9', 'int_out'  => '#c0392b',
+        'waste'    => '#c06a00',
+    ];
+    $sectionCell = [
+        'zhisheng' => '#e8f4fd', 'supplier' => '#e8f4fd',
+        'int_in'   => '#e8f4fd', 'int_out'  => '#fde8ea',
+        'waste'    => '#fff3e0',
+    ];
+
+    $saveUrl = route('inventory.daily-ledger.save-usage');
+    $csrf    = csrf_token();
+@endphp
+
+{{-- JUDUL --}}
+<div class="mb-2 d-flex justify-content-between align-items-center">
+    <div class="text-muted small">
+        Toko: <strong>{{ $store->name }}</strong> &nbsp;|&nbsp;
+        Periode: <strong>{{ $monthNames[$month] }} {{ $year }}</strong>
+        @if($prevOpname)
+            &nbsp;|&nbsp;
+            <span class="badge bg-success">
+                <i class="bi bi-clipboard-check me-1"></i>
+                Stok awal dari SO {{ \Carbon\Carbon::create($prevOpname->period_year, $prevOpname->period_month, 1)->isoFormat('MMMM Y') }}
+            </span>
+        @else
+            &nbsp;|&nbsp;
+            <span class="badge bg-secondary">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                Tidak ada opname akhir bulan lalu
+            </span>
+        @endif
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+        <span id="saveStatus" class="text-muted small"></span>
+        <button onclick="window.print()" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-printer me-1"></i> Print
+        </button>
+    </div>
+</div>
+
+{{-- Banner lock / grace period / extension --}}
+@if($approvedExtension)
+<div class="alert alert-success py-2 small mb-2 d-flex align-items-center gap-2">
+    <i class="bi bi-unlock-fill"></i>
+    <span>
+        Perpanjangan edit <strong>disetujui</strong> — data <strong>{{ $monthNames[$month] }} {{ $year }}</strong>
+        dapat diedit hingga <strong>{{ $approvedExtension->new_lock_until->isoFormat('D MMMM Y') }}</strong>.
+    </span>
+</div>
+@elseif($isLocked)
+    @if($editRequest && $editRequest->isPending())
+    <div class="alert alert-info py-2 small mb-2 d-flex align-items-center gap-2">
+        <i class="bi bi-hourglass-split"></i>
+        <span>
+            Data <strong>{{ $monthNames[$month] }} {{ $year }}</strong> terkunci.
+            Request perpanjangan <strong>sedang menunggu persetujuan</strong> Super Admin
+            (+{{ $editRequest->extra_days }} hari diminta).
+        </span>
+    </div>
+    @elseif($editRequest && $editRequest->isRejected())
+    <div class="alert alert-danger py-2 small mb-2 d-flex justify-content-between align-items-center">
+        <span>
+            <i class="bi bi-lock-fill me-1"></i>
+            Data <strong>{{ $monthNames[$month] }} {{ $year }}</strong> terkunci.
+            Request sebelumnya <strong>ditolak</strong>
+            @if($editRequest->admin_notes) — "{{ $editRequest->admin_notes }}"@endif.
+        </span>
+        <button class="btn btn-outline-danger btn-sm ms-3 flex-shrink-0"
+                data-bs-toggle="modal" data-bs-target="#modalRequestEdit">
+            <i class="bi bi-send me-1"></i>Request Lagi
+        </button>
+    </div>
+    @else
+    <div class="alert alert-secondary py-2 small mb-2 d-flex justify-content-between align-items-center">
+        <span>
+            <i class="bi bi-lock-fill me-1"></i>
+            Data <strong>{{ $monthNames[$month] }} {{ $year }}</strong> sudah <strong>terkunci</strong>
+            (batas edit {{ $lastEditDay->isoFormat('D MMMM Y') }}).
+            Ada kebutuhan mendesak?
+        </span>
+        <button class="btn btn-outline-secondary btn-sm ms-3 flex-shrink-0"
+                data-bs-toggle="modal" data-bs-target="#modalRequestEdit">
+            <i class="bi bi-send me-1"></i>Request Perpanjangan
+        </button>
+    </div>
+    @endif
+@endif
+
+{{-- Modal Request Perpanjangan Edit --}}
+@if($isLocked && (!$editRequest || $editRequest->isRejected()))
+<div class="modal fade" id="modalRequestEdit" tabindex="-1">
+    <div class="modal-dialog">
+        <form method="POST" action="{{ route('inventory.daily-ledger.request-extension') }}">
+            @csrf
+            <input type="hidden" name="store_id" value="{{ $storeId }}">
+            <input type="hidden" name="month"    value="{{ $month }}">
+            <input type="hidden" name="year"     value="{{ $year }}">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-send me-1"></i>Request Perpanjangan Edit
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-light py-2 small mb-3">
+                        Data <strong>{{ $monthNames[$month] }} {{ $year }}</strong> — Toko <strong>{{ $store->name }}</strong>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">
+                            Tambahan hari yang diminta <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group input-group-sm">
+                            <input type="number" name="extra_days" class="form-control"
+                                   min="1" max="30" placeholder="mis. 3" required>
+                            <span class="input-group-text">hari</span>
+                        </div>
+                        <div class="form-text">Maksimal 30 hari tambahan.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">
+                            Alasan / Keperluan <span class="text-danger">*</span>
+                        </label>
+                        <textarea name="reason" class="form-control form-control-sm" rows="3"
+                            placeholder="Jelaskan kebutuhan edit data ini..." required maxlength="500"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="bi bi-send me-1"></i>Kirim Request
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+@endif
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-bordered mb-0 daily-ledger-table">
+                <thead>
+                    {{-- ROW 1: section group headers --}}
+                    <tr class="text-center" style="font-size:0.68rem;font-weight:700">
+                        <th rowspan="2" class="align-middle sticky-col" style="min-width:150px;background:#1a3a5c;color:#fff">NAMA BAHAN</th>
+                        <th colspan="2" style="background:#1a6b3c;color:#fff">STOK AWAL</th>
+                        <th colspan="{{ $daysInMonth + 1 }}" style="background:#c0392b;color:#fff">PEMAKAIAN HARIAN (PACK)</th>
+                        <th colspan="2" style="background:#1a6b3c;color:#fff"
+                            title="Dus dihitung dengan konversi standar (kemasan pertama bahan). Untuk rincian per kemasan fisik, lihat halaman Saldo Stok.">
+                            STOK AKHIR <i class="bi bi-info-circle" style="font-size:.7rem;opacity:.7"></i>
+                        </th>
+                        @foreach($sectionLabels as $key => $label)
+                            @if(count($activeDays[$key]) > 0)
+                                <th colspan="{{ count($activeDays[$key]) }}"
+                                    style="background:{{ $sectionH1[$key] }};color:#fff">
+                                    {{ $label }} (DUS)
+                                </th>
+                            @endif
+                        @endforeach
+                    </tr>
+                    {{-- ROW 2: sub-headers --}}
+                    <tr class="text-center" style="font-size:0.63rem;font-weight:600">
+                        <th style="background:#27ae60;color:#fff">DUS</th>
+                        <th style="background:#27ae60;color:#fff">PACK</th>
+                        @for($d = 1; $d <= $daysInMonth; $d++)
+                        @php
+                            $isConfirmed = isset($confirmedDates[$d]);
+                            $dateStr     = sprintf('%04d-%02d-%02d', $year, $month, $d);
+                        @endphp
+                        <th class="{{ $isLocked ? '' : 'confirm-date-th' }}"
+                            data-date="{{ $dateStr }}"
+                            data-store="{{ $storeId }}"
+                            data-confirmed="{{ $isConfirmed ? '1' : '0' }}"
+                            style="background:{{ $isConfirmed ? '#1a7a3c' : '#e74c3c' }};color:#fff;min-width:30px;{{ $isLocked ? 'cursor:not-allowed;opacity:0.75' : 'cursor:pointer' }};user-select:none"
+                            title="{{ $isLocked ? 'Data terkunci' : ($isConfirmed ? 'Sudah dikonfirmasi — klik untuk batalkan' : 'Klik untuk konfirmasi tgl '.$d) }}">
+                            {{ $d }}
+                            <div class="confirm-icon" style="font-size:0.55rem;line-height:1.2">{{ $isConfirmed ? '✓' : '·' }}</div>
+                        </th>
+                        @endfor
+                        <th style="background:#922b21;color:#fff">TOT</th>
+                        <th style="background:#27ae60;color:#fff">DUS</th>
+                        <th style="background:#27ae60;color:#fff">PACK</th>
+                        @foreach($sectionLabels as $key => $label)
+                            @foreach($activeDays[$key] as $d)
+                                <th style="background:{{ $sectionH2[$key] }};color:#fff;min-width:30px">{{ $d }}</th>
+                            @endforeach
+                        @endforeach
+                    </tr>
+                </thead>
+                <tbody style="font-size:0.7rem">
+                    @php $no = 1; $prevIngId = null; @endphp
+                    @foreach($tableRows as $trow)
+                        @php
+                            $ingId   = $trow['ing_id'];
+                            $pkgId   = $trow['pkg_id'];
+                            $ing     = $ingredients[$ingId];
+                            $pkg     = $trow['packaging'];
+                            $isFirst = $trow['is_first'];
+                            $row     = $tableData[$ingId];
+                            $ptb     = $pkg ? (float)$pkg->pack_to_base : 1;
+                            $ctb     = $pkg ? (float)($pkg->crate_to_pack * $pkg->pack_to_base) : 0;
+
+                            // Total pemakaian baris ini (pack)
+                            $totalPack = collect($trow['days'])->sum('pemakaian');
+
+                            // pkgKey: kunci packaging untuk lookup di tableData
+                            $pkgKey = $pkgId ? (string)$pkgId : 'null';
+
+                            // Stok Awal PER KEMASAN (tiap baris punya stok awalnya sendiri)
+                            $opening     = $toDusPack($trow['opening_base'], $pkg);
+                            // totalInBase = net mutasi masuk-keluar bulan ini (semua pkg, hanya utk fallback closing bulan lalu)
+                            $totalInBase = $isFirst
+                                ? collect($row['days'])->sum(fn($d) =>
+                                    array_sum($d['zhisheng']) + array_sum($d['supplier']) + array_sum($d['int_in'])
+                                    - array_sum($d['int_out']))
+                                : 0;
+
+                            // ── Stok akhir per KEMASAN (boleh MINUS, pemakaian tdk pengaruhi kemasan lain) ──
+                            $usageBase = $totalPack * $ptb;
+                            if ($isCurrentMonth && isset($closingBreakdown[$ingId][$pkgId])) {
+                                // Bulan berjalan: pakai saldo bertanda yang SAMA dengan halaman Saldo Stok
+                                $closingBase = (float) $closingBreakdown[$ingId][$pkgId];
+                                $availBase   = $closingBase + $usageBase; // utk recompute live di JS
+                            } else {
+                                // Bulan lain: alur bulanan per kemasan (opening hanya di baris pertama)
+                                $inPkg = 0.0; $outPkg = 0.0; $wastePkg = 0.0;
+                                foreach ($row['days'] as $dd) {
+                                    $inPkg    += ($dd['zhisheng'][$pkgKey] ?? 0) + ($dd['supplier'][$pkgKey] ?? 0) + ($dd['int_in'][$pkgKey] ?? 0);
+                                    $outPkg   += ($dd['int_out'][$pkgKey] ?? 0);
+                                    $wastePkg += ($dd['waste'][$pkgKey] ?? 0);
+                                }
+                                $availBase   = (float)$trow['opening_base'] + $inPkg - $outPkg - $wastePkg;
+                                $closingBase = $availBase - $usageBase;
+                            }
+                            $closing = $toDusPack($closingBase, $pkg);
+                        @endphp
+
+                        {{-- Separator jika pindah ingredient --}}
+                        @if($isFirst && $prevIngId !== null)
+                            <tr style="height:2px;background:#ddd"><td colspan="999"></td></tr>
+                        @endif
+                        @php $prevIngId = $ingId; @endphp
+                        <tr data-opening="{{ $trow['opening_base'] }}"
+                            data-in="{{ $trow['opening_base'] }}"
+                            data-avail="{{ $availBase }}"
+                            data-ptb="{{ $ptb }}"
+                            data-ctb="{{ $ctb }}"
+                            data-ing="{{ $ingId }}"
+                            data-pkg="{{ $pkgId ?? '' }}"
+                            data-is-first="{{ $isFirst ? '1' : '0' }}">
+
+                            {{-- Nama Bahan / Kemasan --}}
+                            <td class="sticky-col" style="background:#fff;font-size:0.7rem">
+                                @if($isFirst)
+                                    <span class="fw-semibold">{{ $no++ }}. {{ $ing->name }}</span>
+                                @endif
+                                @if($pkg)
+                                    <div class="text-muted" style="font-size:0.62rem;line-height:1.2">
+                                        {{ $pkg->packaging_name }}
+                                        <span class="ms-1">(1 Pack = {{ number_format($pkg->pack_to_base,0,'.','.') }} {{ $ing->unit_base }})</span>
+                                    </div>
+                                @endif
+                            </td>
+
+                            {{-- Stok Awal per kemasan --}}
+                            <td class="text-center" style="background:#eafaf1">{{ $opening['dus'] ?: '' }}</td>
+                            <td class="text-center" style="background:#eafaf1">{{ $opening['pack'] ?: '' }}</td>
+
+                            {{-- Pemakaian per hari — EDITABLE --}}
+                            @for($d = 1; $d <= $daysInMonth; $d++)
+                                @php $val = $trow['days'][$d]['pemakaian']; @endphp
+                                <td class="p-0 td-usage-cell" style="{{ $val > 0 ? 'background:#fdecea' : '' }}">
+                                    <input type="number"
+                                           class="usage-input"
+                                           data-store="{{ $storeId }}"
+                                           data-ing="{{ $ingId }}"
+                                           data-pkg="{{ $pkgId ?? '' }}"
+                                           data-date="{{ sprintf('%04d-%02d-%02d', $year, $month, $d) }}"
+                                           value="{{ $val > 0 ? (int)$val : '' }}"
+                                           min="0" step="1"
+                                           {{ $isLocked ? 'disabled' : '' }}
+                                           style="width:100%;border:none;background:transparent;text-align:center;font-size:0.7rem;padding:2px 1px{{ $isLocked ? ';cursor:not-allowed;opacity:0.6' : '' }}">
+                                </td>
+                            @endfor
+
+                            {{-- Total pemakaian baris ini --}}
+                            <td class="text-center fw-bold td-total" style="background:#fad7d7">
+                                {{ $totalPack > 0 ? (int)$totalPack : '' }}
+                            </td>
+
+                            {{-- Stok Akhir: bulan ini → per packaging; bulan lalu → hanya baris pertama --}}
+                            @if($isCurrentMonth)
+                                <td class="text-center fw-semibold td-closing-dus" style="background:#eafaf1">{{ $closing['dus'] }}</td>
+                                <td class="text-center fw-semibold td-closing-pack" style="background:#eafaf1">{{ $closing['pack'] }}</td>
+                            @elseif($isFirst)
+                                <td class="text-center fw-semibold td-closing-dus" style="background:#eafaf1">{{ $closing['dus'] ?: '' }}</td>
+                                <td class="text-center fw-semibold td-closing-pack" style="background:#eafaf1">{{ $closing['pack'] ?: '' }}</td>
+                            @else
+                                <td style="background:#f8f9fa"></td>
+                                <td style="background:#f8f9fa"></td>
+                            @endif
+
+                            {{-- Pembelian/Penjualan sparse — per baris packaging --}}
+                            @foreach($sectionLabels as $key => $label)
+                                @foreach($activeDays[$key] as $d)
+                                    @php $v = $toDus($row['days'][$d][$key][$pkgKey] ?? 0, $pkg); @endphp
+                                    <td class="text-center" style="{{ $v ? 'background:'.$sectionCell[$key] : '' }}">{{ $v }}</td>
+                                @endforeach
+                            @endforeach
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+@endif
+@endsection
+
+@push('styles')
+<style>
+.daily-ledger-table th, .daily-ledger-table td {
+    padding: 2px 4px !important;
+    white-space: nowrap;
+    border-color: #ccc !important;
+    vertical-align: middle;
+}
+.daily-ledger-table .sticky-col {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    border-right: 2px solid #666 !important;
+}
+.daily-ledger-table thead .sticky-col { z-index: 3; }
+.usage-input:focus {
+    outline: 2px solid #3498db;
+    background: #ebf5fb !important;
+}
+/* Hilangkan panah spinner */
+.usage-input::-webkit-inner-spin-button,
+.usage-input::-webkit-outer-spin-button { display: none; }
+.usage-input { -moz-appearance: textfield; }
+/* Overstock alert */
+.input-overstock {
+    background: #f8d7da !important;
+    outline: 2px solid #dc3545 !important;
+}
+.overstock-alert {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 0.72rem;
+    color: #856404;
+}
+.confirm-date-th:hover { opacity: 0.85; }
+@media print {
+    .page-header, .card:first-of-type { display: none !important; }
+    .table-responsive { overflow: visible !important; }
+    .daily-ledger-table { font-size: 7pt !important; }
+    .sticky-col { position: static !important; }
+    .usage-input { border: none !important; }
+}
+</style>
+@endpush
+
+@push('scripts')
+<script>
+var saveUrl     = '{{ route("inventory.daily-ledger.save-usage") }}';
+var confirmUrl  = '{{ route("inventory.daily-ledger.confirm-date") }}';
+var csrfToken   = '{{ csrf_token() }}';
+var saveTimers  = {};
+
+// ── Kumpulkan semua input pemakaian ────────────────────────────
+var allInputs = Array.from(document.querySelectorAll('.usage-input'));
+
+allInputs.forEach(function(input, globalIdx) {
+    input.dataset.saved = input.value; // nilai terakhir valid (untuk revert bila ditolak server)
+
+    // ── Input realtime: update tampilan stok akhir (boleh minus) ────────
+    input.addEventListener('input', function() {
+        checkOverstock(this.closest('tr'), this);
+        updateRowSummary(this.closest('tr'));
+    });
+
+    // ── Change: simpan ke server ──────────────────────────────
+    input.addEventListener('change', function() {
+        var el      = this;
+        var ingId   = el.dataset.ing;
+        var qtyPack = parseFloat(el.value) || 0;
+
+        // Peringatan jika melebihi stok — TAPI tetap disimpan (stok akhir jadi minus)
+        checkOverstock(el.closest('tr'), el);
+
+        el.closest('td').style.background = qtyPack > 0 ? '#fdecea' : '';
+
+        clearTimeout(saveTimers[ingId + el.dataset.date]);
+        document.getElementById('saveStatus').textContent = 'Menyimpan...';
+
+        saveTimers[ingId + el.dataset.date] = setTimeout(function() {
+            fetch(saveUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    store_id:      el.dataset.store,
+                    ingredient_id: ingId,
+                    packaging_id:  el.dataset.pkg || null,
+                    date:          el.dataset.date,
+                    qty_pack:      qtyPack
+                })
+            })
+            .then(function(r) { return r.json().then(function(d){ return { ok: r.ok, data: d }; }); })
+            .then(function(res) {
+                if (!res.ok || (res.data && res.data.error)) {
+                    // mis. periode sudah ditutup opname → tampilkan pesan, kembalikan nilai
+                    document.getElementById('saveStatus').textContent = '⚠ ' + ((res.data && res.data.error) || 'Gagal simpan');
+                    el.value = el.dataset.saved || '';
+                    el.closest('td').style.background = (parseFloat(el.value) || 0) > 0 ? '#fdecea' : '';
+                    updateRowSummary(el.closest('tr'));
+                    return;
+                }
+                el.dataset.saved = el.value;
+                document.getElementById('saveStatus').textContent = 'Tersimpan ✓';
+                setTimeout(function() {
+                    document.getElementById('saveStatus').textContent = '';
+                }, 1500);
+                updateRowSummary(el.closest('tr'));
+            })
+            .catch(function() {
+                document.getElementById('saveStatus').textContent = '⚠ Gagal simpan';
+            });
+        }, 500);
+    });
+
+    // ── Enter: pindah ke cell bawah di kolom yang sama ────────
+    input.addEventListener('keydown', function(e) {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+
+        // Cari index input ini di antara semua input pemakaian di tabel
+        var colInputs = allInputs.filter(function(i) {
+            return i.dataset.date === input.dataset.date;
+        });
+        var curIdx = colInputs.indexOf(input);
+        if (curIdx >= 0 && curIdx < colInputs.length - 1) {
+            colInputs[curIdx + 1].focus();
+            colInputs[curIdx + 1].select();
+        }
+    });
+});
+
+// ── Over-stok DIBIARKAN: pemakaian boleh melebihi stok → stok akhir minus (per kemasan).
+//    Tidak ada peringatan; fungsi ini hanya membersihkan sisa alert/highlight lama.
+function checkOverstock(tr, changedInput) {
+    var alertRow = tr.nextElementSibling;
+    if (alertRow && alertRow.classList.contains('overstock-alert-row')) alertRow.remove();
+    tr.querySelectorAll('.usage-input').forEach(function(i) { i.classList.remove('input-overstock'); });
+    return true;
+}
+
+// ── Update TOT + Stok Akhir setelah save ──────────────────────
+// data-avail = total stok masuk (opening + pembelian/transfer in) minus deductions
+// selain pemakaian harian (sales, waste, dll) — sudah dihitung server-side.
+// Stok akhir estimasi = data-avail - (totalPack * ptb)
+function updateRowSummary(tr) {
+    var inputs    = tr.querySelectorAll('.usage-input');
+    var totalPack = 0;
+    inputs.forEach(function(i) { totalPack += parseFloat(i.value) || 0; });
+
+    // Update TOT
+    var tdTot = tr.querySelector('.td-total');
+    if (tdTot) tdTot.textContent = totalPack > 0 ? Math.round(totalPack) : '';
+
+    // Update stok akhir
+    var availBase   = parseFloat(tr.dataset.avail) || 0;
+    var ptb         = parseFloat(tr.dataset.ptb)   || 1;
+    var ctb         = parseFloat(tr.dataset.ctb)   || 0;
+    // Boleh negatif: kalau pemakaian melebihi stok, stok akhir tampil minus
+    var closingBase = availBase - (totalPack * ptb);
+    var dp          = toDusPack(closingBase, ctb, ptb);
+
+    var tdDus  = tr.querySelector('.td-closing-dus');
+    var tdPack = tr.querySelector('.td-closing-pack');
+    if (tdDus)  tdDus.textContent  = dp.dus;
+    if (tdPack) tdPack.textContent = dp.pack;
+}
+
+function toDusPack(base, ctb, ptb) {
+    // Tangani nilai negatif: hitung pada nilai mutlak lalu beri tanda minus.
+    var neg = base < 0;
+    var b   = Math.abs(base);
+    if (!ctb || !ptb) {
+        var p = Math.round(b);
+        return { dus: 0, pack: neg ? -p : p };
+    }
+    var dus  = Math.floor(b / ctb);
+    var pack = Math.floor((b - dus * ctb) / ptb);
+    return { dus: neg ? -dus : dus, pack: neg ? -pack : pack };
+}
+
+document.querySelectorAll('.confirm-date-th').forEach(function(th) {
+    th.addEventListener('click', function() {
+        var el      = this;
+        var date    = el.dataset.date;
+        var storeId = el.dataset.store;
+
+        fetch(confirmUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ store_id: storeId, date: date })
+        })
+        .then(function(r) {
+            return r.json().then(function(data) {
+                return { ok: r.ok, data: data };
+            });
+        })
+        .then(function(res) {
+            var st  = document.getElementById('saveStatus');
+            var day = parseInt(date.split('-')[2]);
+
+            if (!res.ok) {
+                // Tampilkan pesan error dari server (mis. urutan belum benar)
+                st.style.color  = '#dc3545';
+                st.textContent  = '⚠ ' + (res.data.error || 'Tidak bisa dikonfirmasi');
+                setTimeout(function() { st.textContent = ''; st.style.color = ''; }, 5000);
+                return;
+            }
+
+            var confirmed = res.data.status === 'confirmed';
+            el.dataset.confirmed = confirmed ? '1' : '0';
+            el.style.background  = confirmed ? '#1a7a3c' : '#e74c3c';
+            el.title = confirmed
+                ? 'Sudah dikonfirmasi — klik untuk batalkan'
+                : 'Klik untuk konfirmasi tgl ' + day;
+            el.querySelector('.confirm-icon').textContent = confirmed ? '✓' : '·';
+
+            st.style.color  = confirmed ? '#198754' : '#6c757d';
+            st.textContent  = confirmed ? 'Tgl ' + day + ' dikonfirmasi ✓' : 'Konfirmasi tgl ' + day + ' dibatalkan';
+            setTimeout(function() { st.textContent = ''; st.style.color = ''; }, 2000);
+        })
+        .catch(function() {
+            document.getElementById('saveStatus').textContent = '⚠ Gagal terhubung ke server';
+        });
+    });
+});
+</script>
+@endpush

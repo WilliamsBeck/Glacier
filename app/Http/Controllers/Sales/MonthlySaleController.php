@@ -1,0 +1,481 @@
+<?php
+namespace App\Http\Controllers\Sales;
+use App\Http\Controllers\Controller;
+use App\Models\{MonthlySale, MonthlyRevenue, Store, Menu, Ingredient};
+use App\Services\MonthLockService;
+use App\Exports\ArrayExport;
+use Maatwebsite\Excel\Facades\Excel;
+use Illuminate\Http\Request;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx as XlsxWriter;
+use PhpOffice\PhpSpreadsheet\Style\{Fill, Alignment};
+
+class MonthlySaleController extends Controller
+{
+    public function index(Request $request)
+    {
+        $storeIds = auth()->user()->accessibleStoreIds();
+        $stores   = auth()->user()->accessibleStores();
+
+        $query = MonthlySale::selectRaw('store_id, month, year, period_type, COUNT(*) as menu_count, SUM(total_sold) as total_sold')
+            ->whereIn('store_id', $storeIds)
+            ->groupBy('store_id', 'month', 'year', 'period_type');
+
+        if ($request->store_id) {
+            $query->where('store_id', $request->store_id);
+        }
+
+        // Filter by date range — konversi ke year*100+month untuk perbandingan
+        if ($request->date_from) {
+            $from = \Carbon\Carbon::parse($request->date_from);
+            $query->whereRaw('(year * 100 + month) >= ?', [$from->year * 100 + $from->month]);
+        }
+        if ($request->date_to) {
+            $to = \Carbon\Carbon::parse($request->date_to);
+            $query->whereRaw('(year * 100 + month) <= ?', [$to->year * 100 + $to->month]);
+        }
+
+        $groups = $query->orderByDesc('year')->orderByDesc('month')->orderByDesc('period_type')->get();
+
+        // Ambil omset per group
+        $revenueMap = MonthlyRevenue::whereIn('store_id', $storeIds)->get()
+            ->keyBy(fn($r) => "{$r->store_id}_{$r->month}_{$r->year}_{$r->period_type}");
+
+        return view('sales.index', compact('groups', 'stores', 'revenueMap'));
+    }
+
+    public function create()
+    {
+        $stores = auth()->user()->accessibleStores();
+        $menus  = Menu::where('is_active',true)->orderBy('name')->get();
+        return view('sales.create', compact('stores','menus'));
+    }
+
+    public function store(Request $request)
+    {
+        $request->validate([
+            'store_id'      => 'required|exists:stores,id',
+            'month'         => 'required|integer|between:1,12',
+            'year'          => 'required|integer|min:2020',
+            'period_type'   => 'required|in:end_month,mid_month',
+            'total_revenue' => 'nullable|numeric|min:0',
+            'items'         => 'required|array|min:1',
+            'items.*.menu_id'    => 'required|exists:menus,id',
+            'items.*.total_sold' => 'required|integer|min:0',
+        ]);
+
+        $periodType = $request->period_type;
+        $month      = (int)$request->month;
+        $year       = (int)$request->year;
+
+        // ── Lock check ──────────────────────────────────────────────────────────
+        if (MonthLockService::isPastLock($month, $year)) {
+            // Cari MonthlyRevenue yg sudah ada untuk cek unlock per record
+            $existingRevenue = MonthlyRevenue::where([
+                'store_id'    => $request->store_id,
+                'month'       => $month,
+                'year'        => $year,
+                'period_type' => $periodType,
+            ])->first();
+
+            $isLocked = $existingRevenue
+                ? MonthLockService::isLocked('monthly_sale', $existingRevenue->id, $month, $year)
+                : !auth()->user()->isSuperAdmin();
+
+            if ($isLocked) {
+                return back()->withInput()
+                    ->with('error', MonthLockService::lockMessage($month, $year));
+            }
+        }
+
+        // Simpan omset per periode
+        $revenue = (float)($request->total_revenue ?? 0);
+        if ($revenue > 0) {
+            MonthlyRevenue::updateOrCreate(
+                ['store_id'    => $request->store_id,
+                 'month'       => $request->month,
+                 'year'        => $request->year,
+                 'period_type' => $periodType],
+                ['total_revenue' => $revenue,
+                 'recorded_by'   => auth()->id()]
+            );
+        }
+
+        // Simpan qty terjual per menu
+        foreach ($request->items as $item) {
+            $qty = (int)($item['total_sold'] ?? 0);
+            if ($qty === 0) continue;
+
+            MonthlySale::updateOrCreate(
+                ['store_id'    => $request->store_id,
+                 'menu_id'     => $item['menu_id'],
+                 'month'       => $request->month,
+                 'year'        => $request->year,
+                 'period_type' => $periodType],
+                ['total_sold'  => $qty,
+                 'recorded_by' => auth()->id()]
+            );
+        }
+
+        return redirect()->route('sales.hpp.index', [
+            'store_id'    => $request->store_id,
+            'month'       => $request->month,
+            'year'        => $request->year,
+            'period_type' => $periodType,
+        ])->with('success', 'Data penjualan & omset disimpan.');
+    }
+
+    // ── Helper: ambil params group dari request ──────────────────────────────
+    private function groupParams(Request $request): array
+    {
+        return [
+            'store_id'    => (int)$request->store_id,
+            'month'       => (int)$request->month,
+            'year'        => (int)$request->year,
+            'period_type' => $request->period_type,
+        ];
+    }
+
+    private function groupSales(array $p)
+    {
+        return MonthlySale::with('menu')
+            ->where($p)->get();
+    }
+
+    // ── Show detail group ─────────────────────────────────────────────────────
+    public function periodShow(Request $request)
+    {
+        $p      = $this->groupParams($request);
+        $sales  = $this->groupSales($p);
+        if ($sales->isEmpty()) abort(404);
+        $store   = Store::findOrFail($p['store_id']);
+        $revenue = MonthlyRevenue::where($p)->first();
+        return view('sales.show', compact('sales', 'store', 'revenue', 'p'));
+    }
+
+    // ── Edit group ────────────────────────────────────────────────────────────
+    public function periodEdit(Request $request)
+    {
+        $p      = $this->groupParams($request);
+        $sales  = $this->groupSales($p);
+        if ($sales->isEmpty()) abort(404);
+        $store   = Store::findOrFail($p['store_id']);
+        $revenue = MonthlyRevenue::where($p)->first();
+        $menus   = Menu::where('is_active', true)->orderBy('name')->get();
+        return view('sales.edit', compact('sales', 'store', 'revenue', 'menus', 'p'));
+    }
+
+    // ── Update group ──────────────────────────────────────────────────────────
+    public function periodUpdate(Request $request)
+    {
+        $request->validate([
+            'store_id'      => 'required|exists:stores,id',
+            'month'         => 'required|integer|between:1,12',
+            'year'          => 'required|integer|min:2020',
+            'period_type'   => 'required|in:end_month,mid_month',
+            'total_revenue' => 'nullable|numeric|min:0',
+            'items'         => 'required|array|min:1',
+            'items.*.menu_id'    => 'required|exists:menus,id',
+            'items.*.total_sold' => 'required|integer|min:0',
+        ]);
+
+        $p = $this->groupParams($request);
+
+        if (MonthLockService::isPastLock($p['month'], $p['year'])) {
+            if (!auth()->user()->isSuperAdmin()) {
+                return back()->with('error', MonthLockService::lockMessage($p['month'], $p['year']));
+            }
+        }
+
+        // Update omset
+        $revenue = (float)($request->total_revenue ?? 0);
+        MonthlyRevenue::updateOrCreate($p, [
+            'total_revenue' => $revenue,
+            'recorded_by'   => auth()->id(),
+        ]);
+
+        // Hapus semua record lama lalu simpan ulang
+        MonthlySale::where($p)->delete();
+        foreach ($request->items as $item) {
+            $qty = (int)($item['total_sold'] ?? 0);
+            if ($qty === 0) continue;
+            MonthlySale::create(array_merge($p, [
+                'menu_id'     => $item['menu_id'],
+                'total_sold'  => $qty,
+                'recorded_by' => auth()->id(),
+            ]));
+        }
+
+        return redirect()->route('sales.monthly.index', [
+            'month' => $p['month'], 'year' => $p['year'],
+        ])->with('success', 'Data penjualan berhasil diupdate.');
+    }
+
+    // ── Destroy group ─────────────────────────────────────────────────────────
+    public function periodDestroy(Request $request)
+    {
+        $p = $this->groupParams($request);
+
+        if (MonthLockService::isPastLock($p['month'], $p['year'])) {
+            if (!auth()->user()->isSuperAdmin()) {
+                return back()->with('error', MonthLockService::lockMessage($p['month'], $p['year']));
+            }
+        }
+
+        MonthlySale::where($p)->delete();
+        MonthlyRevenue::where($p)->delete();
+
+        return redirect()->route('sales.monthly.index', [
+            'month' => $p['month'], 'year' => $p['year'],
+        ])->with('success', 'Data penjualan berhasil dihapus.');
+    }
+
+    public function export(Request $request)
+    {
+        $storeIds = auth()->user()->accessibleStoreIds();
+        $query    = MonthlySale::with(['store','menu.menuCategory'])->whereIn('store_id', $storeIds);
+        if ($request->store_id)    $query->where('store_id', $request->store_id);
+        if ($request->month)       $query->where('month', $request->month);
+        if ($request->year)        $query->where('year', $request->year);
+        if ($request->period_type) $query->where('period_type', $request->period_type);
+        $sales = $query->orderBy('year')->orderBy('month')->orderBy('store_id')->get();
+
+        $data = [['Toko', 'Bulan', 'Tahun', 'Periode', 'Kategori', 'Menu', 'Qty Terjual', 'Pendapatan']];
+        foreach ($sales as $s) {
+            $data[] = [
+                $s->store->name,
+                \Carbon\Carbon::create($s->year, $s->month)->isoFormat('MMMM'),
+                $s->year,
+                $s->period_type === 'mid_month' ? 'Tengah Bulan' : 'Akhir Bulan',
+                $s->menu?->menuCategory?->name ?? '-',
+                $s->menu?->name ?? '-',
+                $s->total_sold,
+                $s->total_revenue ?? 0,
+            ];
+        }
+
+        return Excel::download(new ArrayExport($data), 'penjualan_' . now()->format('Y-m-d') . '.xlsx');
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  TEMPLATE DOWNLOAD
+    // ═══════════════════════════════════════════════════════════════════════
+    public function downloadTemplate(Request $request)
+    {
+        $request->validate([
+            'store_id'    => 'required|exists:stores,id',
+            'month'       => 'required|integer|between:1,12',
+            'year'        => 'required|integer|min:2020',
+            'period_type' => 'required|in:mid_month,end_month',
+        ]);
+
+        $storeId     = (int)$request->store_id;
+        $month       = (int)$request->month;
+        $year        = (int)$request->year;
+        $periodType  = $request->period_type;
+        $store       = Store::findOrFail($storeId);
+        $periodLabel = $periodType === 'mid_month' ? 'Tengah Bulan (1-15)' : 'Akhir Bulan (1-30/31)';
+        $monthNames  = ['','Januari','Februari','Maret','April','Mei','Juni',
+                        'Juli','Agustus','September','Oktober','November','Desember'];
+
+        // Existing qty untuk pre-fill
+        $existingMap = MonthlySale::where([
+                'store_id' => $storeId, 'month' => $month,
+                'year' => $year, 'period_type' => $periodType,
+            ])->pluck('total_sold', 'menu_id');
+
+        $existingRevenue = MonthlyRevenue::where([
+                'store_id' => $storeId, 'month' => $month,
+                'year' => $year, 'period_type' => $periodType,
+            ])->value('total_revenue') ?? 0;
+
+        $menus = Menu::where('is_active', true)->with('menuCategory')->orderBy('name')->get();
+
+        // ── Build spreadsheet ───────────────────────────────────────────────
+        $ss = new Spreadsheet();
+        $ws = $ss->getActiveSheet();
+        $ws->setTitle('Penjualan');
+
+        // Baris 1: metadata
+        $ws->setCellValue('A1', 'METADATA');
+        $ws->setCellValue('B1', $storeId);
+        $ws->setCellValue('C1', $month);
+        $ws->setCellValue('D1', $year);
+        $ws->setCellValue('E1', $periodType);
+        $ws->setCellValue('F1', $existingRevenue);
+        $ws->getStyle('A1:F1')->applyFromArray([
+            'font' => ['size' => 8, 'color' => ['rgb' => 'AAAAAA']],
+        ]);
+
+        // Baris 2: judul
+        $title = "TEMPLATE PENJUALAN — {$store->name} — {$monthNames[$month]} {$year} — {$periodLabel}";
+        $ws->setCellValue('A2', $title);
+        $ws->mergeCells('A2:E2');
+        $ws->getStyle('A2')->getFont()->setBold(true)->setSize(12);
+        $ws->getStyle('A2')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+        // Baris 3: omset
+        $ws->setCellValue('A3', 'Total Omset Periode (Rp):');
+        $ws->setCellValue('B3', $existingRevenue ?: '');
+        $ws->getStyle('A3')->getFont()->setBold(true);
+        $ws->getStyle('B3')->applyFromArray([
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'color' => ['rgb' => 'FFFDE7']],
+            'font' => ['bold' => true],
+        ]);
+
+        // Baris 4: header kolom
+        $ws->setCellValue('A4', 'ID Menu (jgn ubah)');
+        $ws->setCellValue('B4', 'Nama Menu');
+        $ws->setCellValue('C4', 'Kategori');
+        $ws->setCellValue('D4', 'QTY TERJUAL (pcs) ✏');
+        $ws->getStyle('A4:D4')->applyFromArray([
+            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'color' => ['rgb' => '1e3a5f']],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+        ]);
+
+        // Baris 5+: menu
+        $rowNum = 5;
+        foreach ($menus as $menu) {
+            $ws->setCellValueByColumnAndRow(1, $rowNum, $menu->id);
+            $ws->setCellValueByColumnAndRow(2, $rowNum, $menu->name);
+            $ws->setCellValueByColumnAndRow(3, $rowNum, $menu->menuCategory?->name ?? '-');
+            $ws->setCellValueByColumnAndRow(4, $rowNum, $existingMap[$menu->id] ?? '');
+
+            $ws->getStyle("A{$rowNum}:C{$rowNum}")->applyFromArray([
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'color' => ['rgb' => 'F2F2F2']],
+                'font' => ['color' => ['rgb' => '888888']],
+            ]);
+            $ws->getStyle("D{$rowNum}")->applyFromArray([
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'color' => ['rgb' => 'FFFDE7']],
+                'font' => ['bold' => true],
+            ]);
+            $rowNum++;
+        }
+
+        $ws->getColumnDimension('A')->setWidth(18);
+        $ws->getColumnDimension('B')->setWidth(36);
+        $ws->getColumnDimension('C')->setWidth(20);
+        $ws->getColumnDimension('D')->setWidth(22);
+        $ws->freezePane('D5');
+
+        $filename = "template_penjualan_{$store->name}_{$year}-{$month}_{$periodType}.xlsx";
+        $writer   = new XlsxWriter($ss);
+
+        return response()->streamDownload(function () use ($writer) {
+            $writer->save('php://output');
+        }, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  IMPORT FORM
+    // ═══════════════════════════════════════════════════════════════════════
+    public function importForm()
+    {
+        $stores = auth()->user()->accessibleStores();
+        return view('sales.import', compact('stores'));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  IMPORT PROCESS
+    // ═══════════════════════════════════════════════════════════════════════
+    public function import(Request $request)
+    {
+        $request->validate(['file' => 'required|file|mimes:xlsx,xls|max:5120']);
+
+        $path = $request->file('file')->getRealPath();
+        $ss   = \PhpOffice\PhpSpreadsheet\IOFactory::load($path);
+        $ws   = $ss->getActiveSheet();
+
+        // ── Baca metadata ────────────────────────────────────────────────────
+        if ($ws->getCell('A1')->getValue() !== 'METADATA') {
+            return back()->withErrors(['file' => 'File tidak valid: pastikan menggunakan template yang benar.']);
+        }
+        $storeId    = (int)$ws->getCell('B1')->getValue();
+        $month      = (int)$ws->getCell('C1')->getValue();
+        $year       = (int)$ws->getCell('D1')->getValue();
+        $periodType = $ws->getCell('E1')->getValue();
+        $revenue    = (float)($ws->getCell('F1')->getValue() ?? 0);
+
+        // Baca omset dari baris 3 kolom B (user mungkin update)
+        $revenueFromCell = $ws->getCell('B3')->getValue();
+        if (is_numeric($revenueFromCell) && (float)$revenueFromCell > 0) {
+            $revenue = (float)$revenueFromCell;
+        }
+
+        // Validasi metadata
+        $storeIds = auth()->user()->accessibleStoreIds();
+        if (!in_array($storeId, $storeIds)) {
+            return back()->withErrors(['file' => 'Toko tidak ditemukan atau tidak dapat diakses.']);
+        }
+        if (!in_array($periodType, ['mid_month', 'end_month'])) {
+            return back()->withErrors(['file' => 'Tipe periode tidak valid dalam file.']);
+        }
+        if ($month < 1 || $month > 12 || $year < 2020) {
+            return back()->withErrors(['file' => 'Bulan/tahun tidak valid dalam file.']);
+        }
+
+        // Cek lock
+        if (!auth()->user()->isSuperAdmin() && MonthLockService::isPastLock($month, $year)) {
+            return back()->withErrors(['file' => MonthLockService::lockMessage($month, $year)]);
+        }
+
+        // ── Baca baris menu (mulai baris 5) ─────────────────────────────────
+        $errors   = [];
+        $items    = [];
+        $menuIds  = Menu::where('is_active', true)->pluck('id')->all();
+        $rowNum   = 5;
+        $maxRow   = $ws->getHighestDataRow();
+
+        while ($rowNum <= $maxRow) {
+            $menuId = $ws->getCellByColumnAndRow(1, $rowNum)->getValue();
+            $qty    = $ws->getCellByColumnAndRow(4, $rowNum)->getValue();
+            $rowNum++;
+
+            if ($menuId === '' || $menuId === null) continue;
+            $menuId = (int)$menuId;
+
+            if (!in_array($menuId, $menuIds)) {
+                $errors[] = "Baris {$rowNum}: menu ID {$menuId} tidak ditemukan atau tidak aktif.";
+                continue;
+            }
+            if ($qty !== '' && $qty !== null && (!is_numeric($qty) || (int)$qty < 0)) {
+                $errors[] = "Baris {$rowNum}: qty harus angka ≥ 0 (dapat dikosongkan).";
+                continue;
+            }
+
+            $qty = ($qty !== '' && $qty !== null) ? (int)$qty : 0;
+            if ($qty > 0) $items[] = ['menu_id' => $menuId, 'total_sold' => $qty];
+        }
+
+        if (!empty($errors)) {
+            return back()->withErrors(['file' => implode(' | ', $errors)]);
+        }
+
+        // ── Simpan data ──────────────────────────────────────────────────────
+        $p = ['store_id' => $storeId, 'month' => $month, 'year' => $year, 'period_type' => $periodType];
+
+        // Omset
+        if ($revenue > 0) {
+            MonthlyRevenue::updateOrCreate($p, [
+                'total_revenue' => $revenue,
+                'recorded_by'   => auth()->id(),
+            ]);
+        }
+
+        // Hapus data lama lalu simpan ulang
+        MonthlySale::where($p)->delete();
+        foreach ($items as $item) {
+            MonthlySale::create(array_merge($p, [
+                'menu_id'     => $item['menu_id'],
+                'total_sold'  => $item['total_sold'],
+                'recorded_by' => auth()->id(),
+            ]));
+        }
+
+        return redirect()->route('sales.monthly.index', ['month' => $month, 'year' => $year])
+            ->with('success', 'Data penjualan berhasil diimport.');
+    }
+}
