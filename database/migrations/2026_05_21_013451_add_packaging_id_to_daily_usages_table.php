@@ -6,8 +6,12 @@ use Illuminate\Support\Facades\DB;
 
 return new class extends Migration {
     public function up(): void {
-        // Kolom packaging_id & FK sudah ada (dari percobaan partial sebelumnya)
-        // Hanya pastikan unique index baru sudah benar
+        if (!Schema::hasColumn('daily_usages', 'packaging_id')) {
+            Schema::table('daily_usages', function (Blueprint $table) {
+                $table->foreignId('packaging_id')->nullable()->after('ingredient_id')
+                      ->constrained('ingredient_packagings')->nullOnDelete();
+            });
+        }
         if (!$this->indexExists('daily_usages', 'daily_usages_unique')) {
             DB::statement('ALTER TABLE daily_usages ADD UNIQUE INDEX daily_usages_unique (store_id, ingredient_id, packaging_id, usage_date)');
         }

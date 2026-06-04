@@ -1,4 +1,4 @@
-?php
+<?php
 namespace App\Http\Controllers\MasterData;
 use App\Http\Controllers\Controller;
 use App\Models\{Menu, MenuCategory, Recipe, Ingredient, Store};

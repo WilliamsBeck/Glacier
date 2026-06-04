@@ -1,27 +1,29 @@
 <?php
+
 namespace Database\Seeders;
 
-use App\Models\User;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        // Buat Super Admin
-        User::updateOrCreate(
-            ['email' => 'admin@mixue.id'],
-            [
-                'name'     => 'Super Admin',
-                'email'    => 'admin@mixue.id',
-                'password' => Hash::make('Admin123!'),
-                'role'     => 'super_admin',
-            ]
-        );
+        $this->call([
+            UserSeeder::class,
+            StoreSeeder::class,
+            SupplierSeeder::class,
+            MenuCategorySeeder::class,
+            IngredientSeeder::class,
+            IngredientCompositionSeeder::class,
+            MenuSeeder::class,
+            StoreStockSeeder::class,
+            MonthlySaleSeeder::class,
+            TransactionSeeder::class,
+            HppReportSeeder::class,
+        ]);
 
-        echo "✅ Super Admin dibuat:\n";
-        echo "   Email   : admin@mixue.id\n";
-        echo "   Password: Admin123!\n";
+        $this->command->info('');
+        $this->command->info('=== Glacier dummy data ready ===');
+        $this->command->info('Login: admin@glacier.id / Admin123!');
     }
 }
