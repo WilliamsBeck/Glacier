@@ -58,7 +58,7 @@
                         <i class="bi bi-pencil me-1"></i>Edit
                     </button>
                     <form method="POST"
-                          action="{{ route('master.menus.recipe-version.destroy', [$menu, $groupId]) }}"
+                          action="{{ route('master.menus.recipe-version.destroy', ['menu' => $menu->id, 'group' => $first->recipe_group_id ?? 'kosong']) }}"
                           onsubmit="return confirm('Hapus versi resep {{ $formatID($date) }}?')">
                         @csrf @method('DELETE')
                         <button type="submit" class="btn btn-sm btn-outline-danger">
