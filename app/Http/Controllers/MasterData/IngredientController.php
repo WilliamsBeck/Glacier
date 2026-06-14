@@ -120,16 +120,29 @@ class IngredientController extends Controller
         $totalOutput = (float) $request->input('total_output', 0);
         if ($totalOutput > 0) {
             foreach ($request->input('compositions', []) as $comp) {
-                if (empty($comp['child_id']) || empty($comp['qty_used']))
+                if (empty($comp['child_id']) || empty($comp['qty_used'])) {
                     continue;
+                }
+
                 $qtyRaw = (float) $comp['qty_used'];
-                $qtyNeeded = $qtyRaw / $totalOutput;  // disimpan sebagai fallback
+
+                // Mengambil total_output dari input form, jika kosong atau 0 fallback ke 1 agar tidak error division by zero
+                $totalOutput = (float) $request->input('total_output', 1);
+                if ($totalOutput <= 0) {
+                    $totalOutput = 1;
+                }
+
+                // Hitung nilai qty_needed yang akan disimpan ke database
+                $qtyNeeded = $qtyRaw / $totalOutput;
+
+                // Simpan hanya menggunakan kolom yang tersedia di database Anda
                 IngredientComposition::updateOrCreate(
-                    ['parent_id' => $ingredient->id, 'child_id' => $comp['child_id']],
                     [
-                        'qty_needed' => $qtyNeeded,   // fallback decimal
-                        'qty_raw' => $qtyRaw,      // pembilang asli (misal: 3000)
-                        'qty_output' => $totalOutput, // penyebut asli (misal: 11000)
+                        'parent_id' => $ingredient->id,
+                        'child_id' => $comp['child_id'],
+                    ],
+                    [
+                        'qty_needed' => $qtyNeeded, // Kolom ini ada di database Anda!
                     ]
                 );
             }
