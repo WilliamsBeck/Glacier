@@ -1,648 +1,850 @@
 ﻿@extends('layouts.app')
 @section('title', isset($ingredient) ? 'Edit Bahan' : 'Tambah Bahan')
+
 @section('content')
-<div class="page-header d-flex justify-content-between align-items-center">
-    <h4 class="page-title">{{ isset($ingredient) ? 'Edit Bahan: '.$ingredient->name : 'Tambah Bahan Baru' }}</h4>
-    <a href="{{ route('master.ingredients.index') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Kembali</a>
-</div>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
 
-<form id="ingredientForm" method="POST" action="{{ isset($ingredient) ? route('master.ingredients.update', $ingredient) : route('master.ingredients.store') }}">
-    @csrf @if(isset($ingredient)) @method('PUT') @endif
+    <style>
+        .web3-form-container {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
 
-    <div class="row g-3">
-        {{-- KOLOM KIRI: Info Dasar --}}
-        <div class="col-lg-5">
-            <div class="card h-100"><div class="card-header fw-semibold">Info Dasar Bahan</div><div class="card-body">
-                <div class="mb-3">
-                    <label class="form-label fw-semibold">Nama Bahan *</label>
-                    <input type="text" name="name" class="form-control" value="{{ old('name', $ingredient->name ?? '') }}" required>
-                </div>
-<div class="mb-3">
-                    <label class="form-label fw-semibold">Tipe *</label>
-                    <select name="type" id="typeSelect" class="form-select" required onchange="onTypeChange()">
-                        <option value="">— Pilih —</option>
-                        <option value="raw"           {{ old('type', $ingredient->type ?? '')==='raw'?'selected':'' }}>Baku</option>
-                        <option value="semi_finished" {{ old('type', $ingredient->type ?? '')==='semi_finished'?'selected':'' }}>Setengah Jadi</option>
-                    </select>
-                </div>
-                <div class="mb-3" id="wrapCategory" style="{{ old('type', $ingredient->type ?? '') === 'semi_finished' ? 'display:none' : '' }}">
-                    <label class="form-label fw-semibold">Kategori</label>
-                    <select name="category" class="form-select">
-                        <option value="">— Pilih Kategori —</option>
-                        @foreach($categories as $cat)
-                        <option value="{{ $cat->name }}" {{ old('category', $ingredient->category ?? '') === $cat->name ? 'selected' : '' }}>
-                            {{ $cat->label }}
-                        </option>
-                        @endforeach
-                    </select>
-                    <div class="form-text">
-                        <a href="{{ route('master.categories.index') }}" target="_blank" class="text-decoration-none">
-                            <i class="bi bi-plus-circle me-1"></i>Kelola kategori
-                        </a>
-                    </div>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label fw-semibold">Satuan Dasar *</label>
-                    <select name="unit_base" id="unitBase" class="form-select" required>
-                        <option value="">— Pilih —</option>
-                        <option value="gram" {{ old('unit_base', $ingredient->unit_base ?? '')==='gram'?'selected':'' }}>Gram</option>
-                        <option value="pcs"  {{ old('unit_base', $ingredient->unit_base ?? '')==='pcs'?'selected':'' }}>Pcs</option>
-                    </select>
-                </div>
-                <div class="mb-3"><div class="form-check form-switch">
-                    <input class="form-check-input" type="checkbox" name="is_active" value="1" id="actIng" {{ old('is_active', $ingredient->is_active ?? true)?'checked':'' }}>
-                    <label class="form-check-label fw-semibold" for="actIng">Bahan Aktif</label>
-                </div></div>
-            </div></div>
+        /* CARD KONTEN: Dipecah menjadi card-card yang melayang elegan */
+        .web3-form-card {
+            background-color: #ffffff;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.01);
+            border: 1px solid #e2e8f0;
+            padding: 28px;
+            height: 100%;
+        }
+
+        .section-title {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex;
+            align-items: center;
+        }
+
+        /* LABEL INPUT */
+        .premium-label {
+            font-weight: 600;
+            color: #0f172a;
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        /* INPUT FIELD UTAMA */
+        .premium-input {
+            border-radius: 12px !important;
+            background-color: #f8fafc !important;
+            border: 1px solid #cbd5e1 !important;
+            font-size: 0.95rem !important;
+            padding: 12px 16px !important;
+            color: #0f172a !important;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .premium-input:focus {
+            background-color: #ffffff !important;
+            border-color: #0f172a !important;
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05) !important;
+            outline: none;
+        }
+
+        /* INPUT FIELD SMALL (Untuk baris dinamis Kemasan & Komposisi) */
+        .premium-input-sm {
+            border-radius: 8px !important;
+            background-color: #f8fafc !important;
+            border: 1px solid #cbd5e1 !important;
+            font-size: 0.85rem !important;
+            padding: 8px 12px !important;
+            color: #0f172a !important;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .premium-input-sm:focus {
+            background-color: #ffffff !important;
+            border-color: #0f172a !important;
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05) !important;
+            outline: none;
+        }
+
+        .premium-input::placeholder,
+        .premium-input-sm::placeholder {
+            color: #94a3b8 !important;
+        }
+
+        /* TOGGLE SWITCH */
+        .form-switch .form-check-input {
+            width: 2.6em;
+            height: 1.3em;
+            cursor: pointer;
+            border: 1px solid #cbd5e1;
+            background-color: #f1f5f9;
+        }
+
+        .form-switch .form-check-input:checked {
+            background-color: #16a34a;
+            border-color: #16a34a;
+        }
+
+        /* Gaya khusus Baris Kemasan & Komposisi */
+        .dynamic-row-box {
+            background-color: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            position: relative;
+        }
+
+        .pkg-inactive {
+            opacity: 0.65;
+        }
+
+        .pkg-inactive::before {
+            content: '⏸ NONAKTIF';
+            position: absolute;
+            top: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: #64748b;
+            letter-spacing: 1px;
+            pointer-events: none;
+            background: #f1f5f9;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+    </style>
+
+    <div class="web3-form-container pb-5">
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h3 class="fw-700 mb-1" style="font-weight: 700; color: #0f172a; letter-spacing: -0.5px;">
+                    {{ isset($ingredient) ? 'Edit Bahan: ' . $ingredient->name : 'Tambah Bahan Baru' }}
+                </h3>
+                <p class="text-muted small mb-0" style="font-size: 0.88rem;">Lengkapi data dasar, kemasan, atau komposisi
+                    bahan</p>
+            </div>
+            <a href="{{ route('master.ingredients.index') }}"
+                class="btn btn-link text-secondary text-decoration-none fw-semibold small">
+                <i class="bi bi-arrow-left me-1"></i> Kembali
+            </a>
         </div>
 
-        {{-- KOLOM KANAN: Kemasan / Komposisi --}}
-        <div class="col-lg-7">
-            {{-- Bagian Kemasan: hanya untuk Raw --}}
-            <div id="sectionPackaging" style="{{ (old('type', $ingredient->type ?? '') === 'semi_finished') ? 'display:none' : '' }}">
-            <div class="card"><div class="card-header fw-semibold d-flex justify-content-between align-items-center">
-                @php
-                    $currentUnit = old('unit_base', $ingredient->unit_base ?? '');
-                    $unitLabel   = $currentUnit === 'gram' ? 'Gram' : ($currentUnit === 'pcs' ? 'Pcs' : 'Satuan');
-                @endphp
-                <span>Kemasan (Dus / Pack / <span id="headerUnitLabel">{{ $unitLabel }}</span>)</span>
-            </div><div class="card-body">
+        <form id="ingredientForm" method="POST"
+            action="{{ isset($ingredient) ? route('master.ingredients.update', $ingredient) : route('master.ingredients.store') }}">
+            @csrf @if(isset($ingredient)) @method('PUT') @endif
 
-                {{-- Kemasan yg sudah ada — EDITABLE --}}
-                @if(isset($ingredient) && $ingredient->packagings->count())
-                <div class="mb-3">
-                    <div class="text-muted small fw-semibold mb-2">Kemasan tersimpan (bisa langsung diedit):</div>
-                    @foreach($ingredient->packagings as $pack)
-                    <div class="existing-packaging-row border rounded p-3 mb-2 position-relative {{ !$pack->is_active ? 'pkg-inactive' : '' }}"
-                         id="pkgRow-{{ $pack->id }}"
-                         style="background:{{ $pack->is_active ? '#f8f9ff' : '#f3f4f6' }}">
-                        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-                            <div class="d-flex align-items-center gap-2">
-                                <span class="badge bg-primary" style="font-size:0.7rem">Kemasan #{{ $loop->iteration }}</span>
-                                <span class="badge pkg-status-badge {{ $pack->is_active ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary' }}"
-                                      id="pkgStatusBadge-{{ $pack->id }}"
-                                      style="font-size:0.65rem">
-                                    {{ $pack->is_active ? 'Aktif' : 'Nonaktif' }}
-                                </span>
-                            </div>
-                            <div class="d-flex align-items-center gap-2">
-                                <div class="form-check form-switch m-0">
-                                    <input class="form-check-input pkg-toggle-active" type="checkbox"
-                                           id="pkgToggle-{{ $pack->id }}"
-                                           data-packaging-id="{{ $pack->id }}"
-                                           {{ $pack->is_active ? 'checked' : '' }}>
-                                    <label class="form-check-label small fw-semibold" for="pkgToggle-{{ $pack->id }}"
-                                           style="cursor:pointer">Tampilkan di Saldo Stok</label>
-                                </div>
-                                <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2"
-                                        onclick="deletePackaging({{ $pack->id }}, this)">
-                                    <i class="bi bi-trash"></i> Hapus
-                                </button>
+            <div class="row g-4">
+                {{-- KOLOM KIRI: Info Dasar --}}
+                <div class="col-lg-4">
+                    <div class="web3-form-card">
+                        <div class="section-title">
+                            <i class="bi bi-info-circle-fill me-2 text-primary"></i> Info Dasar
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="premium-label">Nama Bahan <span class="text-danger">*</span></label>
+                            <input type="text" name="name" class="form-control premium-input"
+                                value="{{ old('name', $ingredient->name ?? '') }}" placeholder="Contoh: Susu Full Cream"
+                                required>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="premium-label">Tipe Bahan <span class="text-danger">*</span></label>
+                            <select name="type" id="typeSelect" class="form-select premium-input" required
+                                onchange="onTypeChange()">
+                                <option value="">— Pilih Tipe —</option>
+                                <option value="raw" {{ old('type', $ingredient->type ?? '') === 'raw' ? 'selected' : '' }}>
+                                    Bahan
+                                    Baku (Raw)</option>
+                                <option value="semi_finished" {{ old('type', $ingredient->type ?? '') === 'semi_finished' ? 'selected' : '' }}>Setengah Jadi (Semi)</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-4" id="wrapCategory"
+                            style="{{ old('type', $ingredient->type ?? '') === 'semi_finished' ? 'display:none' : '' }}">
+                            <label class="premium-label">Kategori</label>
+                            <select name="category" class="form-select premium-input">
+                                <option value="">— Pilih Kategori —</option>
+                                @foreach($categories as $cat)
+                                    <option value="{{ $cat->name }}" {{ old('category', $ingredient->category ?? '') === $cat->name ? 'selected' : '' }}>
+                                        {{ $cat->label }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <div class="form-text mt-2 fw-medium text-primary" style="font-size: 0.8rem;">
+                                <a href="{{ route('master.categories.index') }}" target="_blank"
+                                    class="text-decoration-none">
+                                    <i class="bi bi-plus-circle me-1"></i>Kelola master kategori
+                                </a>
                             </div>
                         </div>
-                        <div class="row g-2">
-                            <div class="col-md-6">
-                                <label class="form-label small fw-semibold">Nama Kemasan</label>
-                                <input type="text"
-                                       name="existing_packagings[{{ $pack->id }}][packaging_name]"
-                                       class="form-control form-control-sm packaging-name-input"
-                                       value="{{ $pack->packaging_name }}" required>
+
+                        <div class="mb-4">
+                            <label class="premium-label">Satuan Dasar <span class="text-danger">*</span></label>
+                            <select name="unit_base" id="unitBase" class="form-select premium-input" required>
+                                <option value="">— Pilih Satuan —</option>
+                                <option value="gram" {{ old('unit_base', $ingredient->unit_base ?? '') === 'gram' ? 'selected' : '' }}>Gram</option>
+                                <option value="pcs" {{ old('unit_base', $ingredient->unit_base ?? '') === 'pcs' ? 'selected' : '' }}>Pcs</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-2 pt-2 border-top">
+                            <div class="form-check form-switch d-flex align-items-center gap-3 ps-0 mt-3">
+                                <input class="form-check-input m-0" type="checkbox" name="is_active" value="1" id="actIng"
+                                    {{ old('is_active', $ingredient->is_active ?? true) ? 'checked' : '' }}>
+                                <label class="form-check-label premium-label mb-0" for="actIng" style="cursor: pointer;">Set
+                                    Bahan Aktif</label>
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label small fw-semibold">Supplier</label>
-                                <select name="existing_packagings[{{ $pack->id }}][supplier_id]"
-                                        class="form-select form-select-sm packaging-supplier-input">
-                                    <option value="">— Tidak Ada —</option>
-                                    @foreach($suppliers as $s)
-                                        <option value="{{ $s->id }}" {{ $pack->supplier_id == $s->id ? 'selected' : '' }}>
-                                            {{ $s->name }}
-                                        </option>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- KOLOM KANAN: Kemasan / Komposisi --}}
+                <div class="col-lg-8">
+
+                    {{-- BAGIAN KEMASAN (HANYA RAW) --}}
+                    <div id="sectionPackaging"
+                        style="{{ (old('type', $ingredient->type ?? '') === 'semi_finished') ? 'display:none' : '' }}">
+                        <div class="web3-form-card">
+                            <div class="section-title d-flex justify-content-between align-items-center">
+                                <div><i class="bi bi-box-seam-fill me-2 text-primary"></i> Data Kemasan</div>
+                                @php
+                                    $currentUnit = old('unit_base', $ingredient->unit_base ?? '');
+                                    $unitLabel = $currentUnit === 'gram' ? 'Gram' : ($currentUnit === 'pcs' ? 'Pcs' : 'Satuan');
+                                @endphp
+                                <span class="badge bg-light text-dark border px-3 py-2 fw-semibold"
+                                    style="font-size: 0.85rem;">Format: Dus / Pack / <span
+                                        id="headerUnitLabel">{{ $unitLabel }}</span></span>
+                            </div>
+
+                            {{-- Kemasan yg sudah ada — EDITABLE --}}
+                            @if(isset($ingredient) && $ingredient->packagings->count())
+                                <div class="mb-4">
+                                    <div class="text-secondary small fw-bold mb-3 text-uppercase"
+                                        style="letter-spacing: 0.5px;">Kemasan Tersimpan:</div>
+                                    @foreach($ingredient->packagings as $pack)
+                                        <div class="dynamic-row-box {{ !$pack->is_active ? 'pkg-inactive' : '' }}"
+                                            id="pkgRow-{{ $pack->id }}"
+                                            style="background:{{ $pack->is_active ? '#ffffff' : '#f8fafc' }}">
+                                            <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <span class="badge bg-dark text-white rounded-pill px-2 py-1"
+                                                        style="font-size:0.7rem">#{{ $loop->iteration }}</span>
+                                                    <span
+                                                        class="badge pkg-status-badge {{ $pack->is_active ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary' }}"
+                                                        id="pkgStatusBadge-{{ $pack->id }}" style="font-size:0.7rem">
+                                                        {{ $pack->is_active ? 'Aktif' : 'Nonaktif' }}
+                                                    </span>
+                                                </div>
+                                                <div class="d-flex align-items-center gap-3">
+                                                    <div class="form-check form-switch m-0 d-flex align-items-center gap-2 ps-0">
+                                                        <input class="form-check-input pkg-toggle-active m-0" type="checkbox"
+                                                            id="pkgToggle-{{ $pack->id }}" data-packaging-id="{{ $pack->id }}" {{ $pack->is_active ? 'checked' : '' }}>
+                                                        <label class="form-check-label small fw-semibold"
+                                                            for="pkgToggle-{{ $pack->id }}" style="cursor:pointer">Tampil di
+                                                            Stok</label>
+                                                    </div>
+                                                    <button type="button" class="btn btn-sm btn-light text-danger border fw-medium"
+                                                        onclick="deletePackaging({{ $pack->id }}, this)">
+                                                        <i class="bi bi-trash"></i> Hapus
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div class="row g-3">
+                                                <div class="col-md-6">
+                                                    <label class="premium-label" style="font-size: 0.8rem;">Nama Kemasan</label>
+                                                    <input type="text" name="existing_packagings[{{ $pack->id }}][packaging_name]"
+                                                        class="form-control premium-input-sm packaging-name-input"
+                                                        value="{{ $pack->packaging_name }}" required>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="premium-label" style="font-size: 0.8rem;">Supplier</label>
+                                                    <select name="existing_packagings[{{ $pack->id }}][supplier_id]"
+                                                        class="form-select premium-input-sm packaging-supplier-input">
+                                                        <option value="">— Tidak Ada —</option>
+                                                        @foreach($suppliers as $s)
+                                                            <option value="{{ $s->id }}" {{ $pack->supplier_id == $s->id ? 'selected' : '' }}>{{ $s->name }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label class="premium-label" style="font-size: 0.8rem;">Jml Pack per Dus</label>
+                                                    <input type="number" name="existing_packagings[{{ $pack->id }}][crate_to_pack]"
+                                                        class="form-control premium-input-sm crate-input"
+                                                        value="{{ $pack->crate_to_pack }}" min="1" required>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label class="premium-label" style="font-size: 0.8rem;">Isi per Pack (<span
+                                                            class="unit-label">{{ ucfirst($ingredient->unit_base) }}</span>)</label>
+                                                    <input type="number" name="existing_packagings[{{ $pack->id }}][pack_to_base]"
+                                                        class="form-control premium-input-sm pack-input"
+                                                        value="{{ (int) $pack->pack_to_base }}" step="1" min="1" required>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label class="premium-label" style="font-size: 0.8rem;">Total Isi per
+                                                        Dus</label>
+                                                    <input type="text"
+                                                        class="form-control premium-input-sm bg-light text-muted fw-bold total-display"
+                                                        value="{{ number_format((int) ($pack->crate_to_pack * $pack->pack_to_base), 0, ',', '.') }} {{ ucfirst($ingredient->unit_base) }}"
+                                                        readonly>
+                                                </div>
+                                            </div>
+                                        </div>
                                     @endforeach
-                                </select>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label small fw-semibold">Jumlah Pack per Dus</label>
-                                <input type="number"
-                                       name="existing_packagings[{{ $pack->id }}][crate_to_pack]"
-                                       class="form-control form-control-sm crate-input"
-                                       value="{{ $pack->crate_to_pack }}" min="1" required>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label small fw-semibold">Isi per Pack (<span class="unit-label">{{ ucfirst($ingredient->unit_base) }}</span>)</label>
-                                <input type="number"
-                                       name="existing_packagings[{{ $pack->id }}][pack_to_base]"
-                                       class="form-control form-control-sm pack-input"
-                                       value="{{ (int)$pack->pack_to_base }}" step="1" min="1" required>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label small fw-semibold">Total Isi per Dus</label>
-                                <input type="text" class="form-control form-control-sm bg-light total-display"
-                                       value="{{ number_format((int)($pack->crate_to_pack * $pack->pack_to_base), 0, ',', '.') }} {{ ucfirst($ingredient->unit_base) }}" readonly>
-                            </div>
-                        </div>
-                    </div>
-                    @endforeach
-                </div>
-                @endif
+                                </div>
+                            @endif
 
-                @php $hasExistingPack = isset($ingredient) && $ingredient->packagings->count(); @endphp
+                            @php $hasExistingPack = isset($ingredient) && $ingredient->packagings->count(); @endphp
 
-                {{-- Form tambah kemasan baru --}}
-                <div id="packagingRows">
-                    @unless($hasExistingPack)
-                    <div class="packaging-row border rounded p-3 mb-2 position-relative">
-                        <button type="button" class="btn-close position-absolute top-0 end-0 m-2 remove-row" style="display:none"></button>
-                        <div class="row g-2">
-                            <div class="col-md-6">
-                                <label class="form-label small fw-semibold">Nama Kemasan</label>
-                                <input type="text" name="packagings[0][packaging_name]" class="form-control form-control-sm packaging-name-input" placeholder="Contoh: Dus Zhisheng">
+                            {{-- Form tambah kemasan baru --}}
+                            <div class="text-secondary small fw-bold mb-2 text-uppercase" style="letter-spacing: 0.5px;">
+                                {{ $hasExistingPack ? 'Tambah Kemasan Baru:' : 'Data Kemasan:' }}
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label small fw-semibold">Supplier</label>
-                                <select name="packagings[0][supplier_id]" class="form-select form-select-sm packaging-supplier-input">
-                                    <option value="">— Tidak Ada —</option>
-                                    @foreach($suppliers as $s)<option value="{{ $s->id }}">{{ $s->name }}</option>@endforeach
-                                </select>
+                            <div id="packagingRows">
+                                @unless($hasExistingPack)
+                                    <div class="dynamic-row-box packaging-row">
+                                        <button type="button" class="btn-close position-absolute top-0 end-0 m-3 remove-row"
+                                            style="display:none"></button>
+                                        <div class="row g-3">
+                                            <div class="col-md-6">
+                                                <label class="premium-label" style="font-size: 0.8rem;">Nama Kemasan</label>
+                                                <input type="text" name="packagings[0][packaging_name]"
+                                                    class="form-control premium-input-sm packaging-name-input"
+                                                    placeholder="Contoh: Dus Zhisheng">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="premium-label" style="font-size: 0.8rem;">Supplier</label>
+                                                <select name="packagings[0][supplier_id]"
+                                                    class="form-select premium-input-sm packaging-supplier-input">
+                                                    <option value="">— Tidak Ada —</option>
+                                                    @foreach($suppliers as $s)<option value="{{ $s->id }}">{{ $s->name }}
+                                                    </option>@endforeach
+                                                </select>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="premium-label" style="font-size: 0.8rem;">Jml Pack per Dus</label>
+                                                <input type="number" name="packagings[0][crate_to_pack]"
+                                                    class="form-control premium-input-sm crate-input" min="1"
+                                                    placeholder="Contoh: 12">
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="premium-label" style="font-size: 0.8rem;">Isi per Pack (<span
+                                                        class="unit-label">satuan</span>)</label>
+                                                <input type="number" name="packagings[0][pack_to_base]"
+                                                    class="form-control premium-input-sm pack-input" step="1" min="1"
+                                                    placeholder="Contoh: 500">
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="premium-label" style="font-size: 0.8rem;">Total Isi per
+                                                    Dus</label>
+                                                <input type="text"
+                                                    class="form-control premium-input-sm bg-light text-muted fw-bold total-display"
+                                                    readonly placeholder="Dihitung otomatis">
+                                            </div>
+                                        </div>
+                                    </div>
+                                @endunless
                             </div>
-                            <div class="col-md-4">
-                                <label class="form-label small fw-semibold">Jumlah Pack per Dus</label>
-                                <input type="number" name="packagings[0][crate_to_pack]" class="form-control form-control-sm crate-input" min="1" placeholder="Contoh: 12">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label small fw-semibold">Isi per Pack (<span class="unit-label">satuan</span>)</label>
-                                <input type="number" name="packagings[0][pack_to_base]" class="form-control form-control-sm pack-input" step="1" min="1" placeholder="Contoh: 500">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label small fw-semibold">Total Isi per Dus</label>
-                                <input type="text" class="form-control form-control-sm bg-light total-display" readonly placeholder="Dihitung otomatis">
-                            </div>
-                        </div>
-                    </div>
-                    @endunless
-                </div>
-                <button type="button" id="addPackaging" class="btn btn-outline-secondary btn-sm mt-1">
-                    <i class="bi bi-plus-circle me-1"></i>Tambah Kemasan{{ $hasExistingPack ? ' Baru' : '' }}
-                </button>
-                @unless($hasExistingPack)
-                <div class="text-muted small mt-2">Kosongkan jika data kemasan belum tersedia.</div>
-                @endunless
-            </div></div>
-            </div>{{-- end sectionPackaging --}}
 
-            {{-- Bagian Komposisi: hanya untuk Semi Finished --}}
-            <div id="sectionComposition" style="{{ (old('type', $ingredient->type ?? '') !== 'semi_finished') ? 'display:none' : '' }}">
-            @if(true)
-            <div class="card mt-3">
-                <div class="card-header fw-semibold">Komposisi Bahan Baku</div>
-                <div class="card-body">
-
-                    {{-- Komposisi tersimpan (hanya mode edit) --}}
-                    @if(isset($ingredient) && $ingredient->compositions->count())
-                    <div class="mb-3">
-                        <div class="text-muted small mb-2">Komposisi tersimpan:</div>
-                        @foreach($ingredient->compositions as $comp)
-                        <div class="d-flex align-items-center gap-2 mb-2 p-2 border rounded bg-light">
-                            <div class="flex-grow-1 small">
-                                <strong>{{ $comp->child->name }}</strong>
-                                <span class="text-muted">
-                                    — {{ number_format($comp->qty_needed, 4, ',', '.') }} {{ $comp->child->unit_base }} per 1 {{ $ingredient->unit_base }}
-                                </span>
-                            </div>
-                            <button type="button" class="btn btn-sm btn-outline-danger"
-                                onclick="if(confirm('Hapus komposisi ini?')) { document.getElementById('delComp{{ $comp->id }}').click() }">
-                                <i class="bi bi-trash"></i>
+                            <button type="button" id="addPackaging"
+                                class="btn btn-dark btn-sm rounded-pill px-3 py-2 mt-2 fw-medium"
+                                style="background-color: #0f172a;">
+                                <i class="bi bi-plus-lg me-1"></i> Tambah Baris Kemasan
                             </button>
-                            <input type="checkbox" name="delete_compositions[]" value="{{ $comp->id }}"
-                                id="delComp{{ $comp->id }}" style="display:none" form="ingredientForm">
                         </div>
-                        @endforeach
-                        <hr class="my-3">
-                    </div>
-                    @endif
+                    </div>{{-- end sectionPackaging --}}
 
-                    {{-- Form tambah komposisi baru --}}
-                    <div class="mb-2">
-                        <label class="form-label small fw-semibold">
-                            Jika membuat
-                            <input type="text" name="total_output" id="totalOutput"
-                                class="form-control form-control-sm d-inline-block mx-1 num-fmt"
-                                style="width:100px"
-                                placeholder="cth: 11.000">
-                            <span id="unitLabelComp">{{ $ingredient->unit_base ?? 'gram' }}</span> {{ $ingredient->name ?? 'ini' }}, butuh bahan:
-                        </label>
-                    </div>
+                    {{-- BAGIAN KOMPOSISI (HANYA SEMI FINISHED) --}}
+                    <div id="sectionComposition"
+                        style="{{ (old('type', $ingredient->type ?? '') !== 'semi_finished') ? 'display:none' : '' }}">
+                        <div class="web3-form-card">
+                            <div class="section-title"><i class="bi bi-layers-fill me-2 text-primary"></i> Komposisi Bahan
+                                Baku</div>
 
-                    {{-- Header label baris (hanya tampil sekali sebagai judul kolom) --}}
-                    <div class="row g-2 mb-1 px-1">
-                        <div class="col-5"><span class="form-label small fw-semibold mb-0">Bahan Baku</span></div>
-                        <div class="col-3"><span class="form-label small fw-semibold mb-0">Qty digunakan</span></div>
-                        <div class="col-3"><span class="form-label small fw-semibold mb-0">Per 1 <span id="perUnitHeaderLabel">{{ $ingredient->unit_base ?? 'gram' }}</span></span></div>
-                        <div class="col-1"></div>
-                    </div>
-
-                    <div id="compositionRows">
-                        <div class="composition-row row g-2 mb-2 align-items-center">
-                            <div class="col-5">
-                                <select name="compositions[0][child_id]" class="form-select form-select-sm child-select">
-                                    <option value="">— Pilih Bahan —</option>
-                                    @foreach($rawIngredients as $raw)
-                                        <option value="{{ $raw->id }}" data-unit="{{ $raw->unit_base }}">{{ $raw->name }}</option>
+                            {{-- Komposisi tersimpan (hanya mode edit) --}}
+                            @if(isset($ingredient) && $ingredient->compositions->count())
+                                <div class="mb-4">
+                                    <div class="text-secondary small fw-bold mb-3 text-uppercase"
+                                        style="letter-spacing: 0.5px;">Komposisi Tersimpan:</div>
+                                    @foreach($ingredient->compositions as $comp)
+                                        <div class="d-flex justify-content-between align-items-center mb-2 p-3 border rounded"
+                                            style="background-color: #f8fafc; border-color: #e2e8f0;">
+                                            <div class="flex-grow-1">
+                                                <div class="fw-bold text-dark" style="font-size: 0.95rem;">{{ $comp->child->name }}
+                                                </div>
+                                                <div class="text-muted small fw-medium mt-1">
+                                                    <i class="bi bi-arrow-return-right me-1"></i>
+                                                    {{ number_format($comp->qty_needed, 4, ',', '.') }}
+                                                    {{ $comp->child->unit_base }} per 1 {{ $ingredient->unit_base }}
+                                                </div>
+                                            </div>
+                                            <button type="button" class="btn btn-sm btn-light text-danger border fw-medium px-3"
+                                                onclick="if(confirm('Hapus komposisi ini?')) { document.getElementById('delComp{{ $comp->id }}').click() }">
+                                                <i class="bi bi-trash"></i> Hapus
+                                            </button>
+                                            <input type="checkbox" name="delete_compositions[]" value="{{ $comp->id }}"
+                                                id="delComp{{ $comp->id }}" style="display:none" form="ingredientForm">
+                                        </div>
                                     @endforeach
-                                </select>
+                                    <hr class="my-4" style="border-color: #e2e8f0;">
+                                </div>
+                            @endif
+
+                            {{-- Form tambah komposisi baru --}}
+                            <div class="mb-4 bg-light p-3 rounded border" style="border-color: #e2e8f0 !important;">
+                                <label class="premium-label d-flex align-items-center mb-0 gap-2">
+                                    Jika membuat
+                                    <input type="text" name="total_output" id="totalOutput"
+                                        class="form-control premium-input-sm text-center num-fmt" style="width:110px"
+                                        placeholder="cth: 11.000">
+                                    <span class="badge bg-white text-dark border px-2 py-1"><span
+                                            id="unitLabelComp">{{ $ingredient->unit_base ?? 'gram' }}</span>
+                                        {{ $ingredient->name ?? 'ini' }}</span>, butuh bahan:
+                                </label>
                             </div>
-                            <div class="col-3">
-                                <div class="input-group input-group-sm">
-                                    <input type="text" name="compositions[0][qty_used]" class="form-control qty-used-input num-fmt" placeholder="cth: 3.000">
-                                    <span class="input-group-text small unit-label-comp">satuan</span>
+
+                            <div class="row g-2 mb-2 px-1">
+                                <div class="col-5"><span class="premium-label text-muted" style="font-size: 0.8rem;">Bahan
+                                        Baku Master</span></div>
+                                <div class="col-3"><span class="premium-label text-muted" style="font-size: 0.8rem;">Qty
+                                        digunakan</span></div>
+                                <div class="col-3"><span class="premium-label text-muted" style="font-size: 0.8rem;">Per 1
+                                        <span id="perUnitHeaderLabel">{{ $ingredient->unit_base ?? 'gram' }}</span></span>
+                                </div>
+                                <div class="col-1"></div>
+                            </div>
+
+                            <div id="compositionRows">
+                                <div class="composition-row row g-2 mb-3 align-items-center">
+                                    <div class="col-5">
+                                        <select name="compositions[0][child_id]"
+                                            class="form-select premium-input-sm child-select">
+                                            <option value="">— Pilih Bahan —</option>
+                                            @foreach($rawIngredients as $raw)
+                                                <option value="{{ $raw->id }}" data-unit="{{ $raw->unit_base }}">
+                                                    {{ $raw->name }}
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div class="col-3">
+                                        <div class="input-group input-group-sm">
+                                            <input type="text" name="compositions[0][qty_used]"
+                                                class="form-control premium-input-sm qty-used-input num-fmt"
+                                                placeholder="cth: 3.000"
+                                                style="border-right: 0; border-radius: 8px 0 0 8px !important;">
+                                            <span
+                                                class="input-group-text bg-white small unit-label-comp text-muted fw-semibold"
+                                                style="border: 1px solid #cbd5e1; border-left: 0; border-radius: 0 8px 8px 0;">satuan</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-3">
+                                        <input type="text"
+                                            class="form-control premium-input-sm bg-light per-unit-display text-muted fw-bold"
+                                            readonly placeholder="—">
+                                    </div>
+                                    <div class="col-1 d-flex justify-content-center">
+                                        <button type="button"
+                                            class="btn btn-light text-danger border btn-sm remove-comp-row"
+                                            style="display:none; border-radius: 8px;">
+                                            <i class="bi bi-x-lg"></i>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="col-3">
-                                <input type="text" class="form-control form-control-sm bg-light per-unit-display text-muted" readonly placeholder="—">
-                            </div>
-                            <div class="col-1 d-flex justify-content-center">
-                                <button type="button" class="btn btn-outline-danger btn-sm remove-comp-row" style="display:none">
-                                    <i class="bi bi-x"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
 
-                    <button type="button" id="addComposition" class="btn btn-outline-secondary btn-sm mt-1">
-                        <i class="bi bi-plus-circle me-1"></i>Tambah Bahan Lagi
-                    </button>
-                    <div class="text-muted small mt-2">Kosongkan jika tidak ada perubahan komposisi.</div>
+                            <button type="button" id="addComposition"
+                                class="btn btn-dark btn-sm rounded-pill px-3 py-2 mt-2 fw-medium"
+                                style="background-color: #0f172a;">
+                                <i class="bi bi-plus-lg me-1"></i> Tambah Bahan Lagi
+                            </button>
+                        </div>
+                    </div>{{-- end sectionComposition --}}
+
                 </div>
             </div>
-            @endif
-            </div>{{-- end sectionComposition --}}
-        </div>
+
+            <div class="d-flex gap-3 mt-4 pt-4 border-top">
+                <button type="submit" name="action" value="save" class="btn btn-dark px-5 py-2.5 fw-bold"
+                    style="background-color: #0f172a; border-radius: 12px; font-size: 0.95rem;">
+                    <i class="bi bi-save me-1"></i> Simpan Data Bahan
+                </button>
+                @unless(isset($ingredient))
+                    <button type="submit" name="action" value="save_and_new"
+                        class="btn btn-light border px-4 py-2.5 fw-semibold text-secondary"
+                        style="background-color: #ffffff; border-radius: 12px; font-size: 0.95rem;">
+                        <i class="bi bi-plus-circle me-1"></i> Simpan & Tambah Baru
+                    </button>
+                @endunless
+            </div>
+        </form>
     </div>
 
-    <div class="mt-3 d-flex gap-2">
-        <button type="submit" name="action" value="save" class="btn btn-primary px-4">
-            <i class="bi bi-save me-1"></i>Simpan
-        </button>
-        @unless(isset($ingredient))
-        <button type="submit" name="action" value="save_and_new" class="btn btn-outline-primary px-4">
-            <i class="bi bi-plus-circle me-1"></i>Simpan &amp; Tambah Lagi
-        </button>
-        @endunless
-    </div>
-</form>
-
-<template id="packagingTemplate">
-    <div class="packaging-row border rounded p-3 mb-2 position-relative">
-        <button type="button" class="btn-close position-absolute top-0 end-0 m-2 remove-row"></button>
-        <div class="row g-2">
-            <div class="col-md-6">
-                <label class="form-label small fw-semibold">Nama Kemasan</label>
-                <input type="text" name="" class="form-control form-control-sm packaging-name-input" placeholder="Contoh: Dus Zhisheng">
-            </div>
-            <div class="col-md-6">
-                <label class="form-label small fw-semibold">Supplier</label>
-                <select name="" class="form-select form-select-sm packaging-supplier-input">
-                    <option value="">— Tidak Ada —</option>
-                    @foreach($suppliers as $s)<option value="{{ $s->id }}">{{ $s->name }}</option>@endforeach
-                </select>
-            </div>
-            <div class="col-md-4">
-                <label class="form-label small fw-semibold">Jumlah Pack per Dus</label>
-                <input type="number" name="" class="form-control form-control-sm crate-input" min="1" placeholder="Contoh: 12">
-            </div>
-            <div class="col-md-4">
-                <label class="form-label small fw-semibold">Isi per Pack (<span class="unit-label">satuan</span>)</label>
-                <input type="number" name="" class="form-control form-control-sm pack-input" step="1" min="1" placeholder="Contoh: 500">
-            </div>
-            <div class="col-md-4">
-                <label class="form-label small fw-semibold">Total Isi per Dus</label>
-                <input type="text" class="form-control form-control-sm bg-light total-display" readonly placeholder="Dihitung otomatis">
+    <template id="packagingTemplate">
+        <div class="dynamic-row-box packaging-row">
+            <button type="button" class="btn-close position-absolute top-0 end-0 m-3 remove-row"></button>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="premium-label" style="font-size: 0.8rem;">Nama Kemasan</label>
+                    <input type="text" name="" class="form-control premium-input-sm packaging-name-input"
+                        placeholder="Contoh: Dus Zhisheng">
+                </div>
+                <div class="col-md-6">
+                    <label class="premium-label" style="font-size: 0.8rem;">Supplier</label>
+                    <select name="" class="form-select premium-input-sm packaging-supplier-input">
+                        <option value="">— Tidak Ada —</option>
+                        @foreach($suppliers as $s)<option value="{{ $s->id }}">{{ $s->name }}</option>@endforeach
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="premium-label" style="font-size: 0.8rem;">Jml Pack per Dus</label>
+                    <input type="number" name="" class="form-control premium-input-sm crate-input" min="1"
+                        placeholder="Contoh: 12">
+                </div>
+                <div class="col-md-4">
+                    <label class="premium-label" style="font-size: 0.8rem;">Isi per Pack (<span
+                            class="unit-label">satuan</span>)</label>
+                    <input type="number" name="" class="form-control premium-input-sm pack-input" step="1" min="1"
+                        placeholder="Contoh: 500">
+                </div>
+                <div class="col-md-4">
+                    <label class="premium-label" style="font-size: 0.8rem;">Total Isi per Dus</label>
+                    <input type="text" class="form-control premium-input-sm bg-light text-muted fw-bold total-display"
+                        readonly placeholder="Dihitung otomatis">
+                </div>
             </div>
         </div>
-    </div>
-</template>
+    </template>
 
-<script>
-// ── Hapus kemasan via AJAX (hindari nested form) ───────────
-function deletePackaging(packId, btn) {
-    if (!confirm('Hapus kemasan ini?')) return;
-    const row = btn.closest('.existing-packaging-row');
-    row.style.opacity = '0.5';
-    btn.disabled = true;
-
-    fetch('{{ url("master/packagings") }}/' + packId, {
-        method: 'POST',
-        headers: {
-            'X-CSRF-TOKEN': '{{ csrf_token() }}',
-            'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: '_method=DELETE'
-    })
-    .then(function(r) {
-        if (r.ok || r.redirected) {
-            row.remove();
-        } else {
-            row.style.opacity = '';
-            btn.disabled = false;
-            alert('Gagal menghapus kemasan.');
+    <script>
+        // ── Hapus kemasan via AJAX (hindari nested form) ─────────── [cite: 230]
+        function deletePackaging(packId, btn) {
+            if (!confirm('Hapus kemasan ini?')) return;[cite: 230]
+            const row = btn.closest('.dynamic-row-box');
+            row.style.opacity = '0.5';[cite: 230]
+            btn.disabled = true;[cite: 230]
+            fetch('{{ url("master/packagings") }}/' + packId, {
+                [cite: 231]
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}', [cite: 231]
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: '_method=DELETE'
+            })
+                .then(function (r) {
+                    if (r.ok || r.redirected) {
+                        [cite: 231]
+                        row.remove();[cite: 232]
+                    } else {
+                        row.style.opacity = '';
+                        btn.disabled = false;
+                        alert('Gagal menghapus kemasan.');[cite: 232]
+                    }
+                })
+                .catch(function () {
+                    row.style.opacity = '';[cite: 232]
+                    btn.disabled = false;
+                    alert('Gagal menghapus kemasan.');[cite: 232, 233]
+                });
         }
-    })
-    .catch(function() {
-        row.style.opacity = '';
-        btn.disabled = false;
-        alert('Gagal menghapus kemasan.');
-    });
-}
 
-// ── Toggle aktif/nonaktif kemasan via AJAX ───────────────────
-document.addEventListener('change', function(e) {
-    const toggle = e.target.closest('.pkg-toggle-active');
-    if (!toggle) return;
+        // ── Toggle aktif/nonaktif kemasan via AJAX ─────────────────── [cite: 233]
+        document.addEventListener('change', function (e) {
+            const toggle = e.target.closest('.pkg-toggle-active');[cite: 233]
+            if (!toggle) return;
 
-    const packId  = toggle.dataset.packagingId;
-    const row     = document.getElementById('pkgRow-' + packId);
-    const badge   = document.getElementById('pkgStatusBadge-' + packId);
-    toggle.disabled = true;
+            const packId = toggle.dataset.packagingId;[cite: 233]
+            const row = document.getElementById('pkgRow-' + packId);
+            const badge = document.getElementById('pkgStatusBadge-' + packId);[cite: 233]
+            toggle.disabled = true;[cite: 233]
 
-    fetch('{{ url("master/packagings") }}/' + packId + '/toggle-active', {
-        method: 'POST',
-        headers: {
-            'X-CSRF-TOKEN': '{{ csrf_token() }}',
-            'Accept': 'application/json',
-        },
-    })
-    .then(function(r) { return r.ok ? r.json() : Promise.reject(r); })
-    .then(function(res) {
-        toggle.disabled = false;
-        toggle.checked  = res.is_active;
-        if (badge) {
-            badge.textContent = res.is_active ? 'Aktif' : 'Nonaktif';
-            badge.className = 'badge pkg-status-badge ' +
-                (res.is_active ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary');
-            badge.style.fontSize = '0.65rem';
+            fetch('{{ url("master/packagings") }}/' + packId + '/toggle-active', {
+                method: 'POST', [cite: 233]
+                headers: {
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}', [cite: 234]
+                    'Accept': 'application/json',
+                },
+            })
+                .then(function (r) { return r.ok ? r.json() : Promise.reject(r); })[cite: 234]
+            .then(function (res) {
+                    toggle.disabled = false;
+                    toggle.checked = res.is_active;[cite: 234]
+                    if (badge) {
+                        badge.textContent = res.is_active ? 'Aktif' : 'Nonaktif';[cite: 234, 235]
+                        badge.className = 'badge pkg-status-badge ' +
+                            (res.is_active ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary');[cite: 235, 236]
+                        badge.style.fontSize = '0.7rem';
+                    }
+                    if (row) {
+                        row.style.background = res.is_active ? '#ffffff' : '#f8fafc';[cite: 236, 237]
+                        row.classList.toggle('pkg-inactive', !res.is_active);[cite: 237]
+                    }
+                })
+                .catch(function () {
+                    toggle.disabled = false;[cite: 237]
+                    toggle.checked = !toggle.checked; // revert
+                    alert('Gagal mengubah status kemasan.');
+                });[cite: 237]
+        });[cite: 238]
+
+        // ── Komposisi ────────────────────────────────────────────── [cite: 238]
+        let compIdx = 1;[cite: 238]
+
+        function updateCompUnitLabel(row) {
+            const sel = row.querySelector('.child-select');[cite: 238]
+            const lbl = row.querySelector('.unit-label-comp');[cite: 239]
+            if (!sel || !lbl) return;[cite: 239]
+            const opt = sel.options[sel.selectedIndex];[cite: 239]
+            const unit = opt?.dataset?.unit || 'satuan';[cite: 239, 240]
+            lbl.textContent = unit;[cite: 240]
+            recalcPerUnit(row);[cite: 240]
         }
-        if (row) {
-            row.style.background = res.is_active ? '#f8f9ff' : '#f3f4f6';
-            row.classList.toggle('pkg-inactive', !res.is_active);
+
+        function recalcPerUnit(row) {
+            const disp = row.querySelector('.per-unit-display');[cite: 240]
+            if (!disp) return;[cite: 241]
+            const totalOutput = NumberFmt.parse(document.getElementById('totalOutput')?.value || '0');[cite: 241]
+            const qtyUsed = NumberFmt.parse(row.querySelector('.qty-used-input')?.value || '0');[cite: 241]
+            const sel = row.querySelector('.child-select');[cite: 242]
+            const opt = sel?.options[sel.selectedIndex];[cite: 243]
+            const unit = opt?.dataset?.unit || '';[cite: 244]
+            if (totalOutput > 0 && qtyUsed > 0) {
+                [cite: 245]
+                const perUnit = qtyUsed / totalOutput;[cite: 245]
+                disp.value = parseFloat(perUnit.toFixed(6)) + (unit ? ' ' + unit : '');[cite: 246]
+            } else {
+                [cite: 247]
+                disp.value = '';[cite: 247]
+            } [cite: 248]
         }
-    })
-    .catch(function() {
-        toggle.disabled = false;
-        toggle.checked  = !toggle.checked; // revert
-        alert('Gagal mengubah status kemasan.');
-    });
-});
 
-// ── Komposisi ──────────────────────────────────────────────
-let compIdx = 1;
+        function recalcAllComps() {
+            document.querySelectorAll('.composition-row').forEach(row => {
+                updateCompUnitLabel(row);
+                recalcPerUnit(row);
+            });[cite: 248]
+        } [cite: 249]
 
-function updateCompUnitLabel(row) {
-    const sel  = row.querySelector('.child-select');
-    const lbl  = row.querySelector('.unit-label-comp');
-    if (!sel || !lbl) return;
-    const opt  = sel.options[sel.selectedIndex];
-    const unit = opt?.dataset?.unit || 'satuan';
-    lbl.textContent = unit;
-    recalcPerUnit(row);
-}
+        function updateCompRemoveButtons() {
+            const rows = document.querySelectorAll('#compositionRows .composition-row');[cite: 249]
+            rows.forEach(function (r) {
+                [cite: 250]
+                const btn = r.querySelector('.remove-comp-row');[cite: 250]
+                if (btn) btn.style.display = rows.length > 1 ? '' : 'none';[cite: 250]
+            });[cite: 250]
+        } [cite: 251]
 
-function recalcPerUnit(row) {
-    const disp       = row.querySelector('.per-unit-display');
-    if (!disp) return;
-    const totalOutput = NumberFmt.parse(document.getElementById('totalOutput')?.value || '0');
-    const qtyUsed     = NumberFmt.parse(row.querySelector('.qty-used-input')?.value || '0');
-    const sel         = row.querySelector('.child-select');
-    const opt         = sel?.options[sel.selectedIndex];
-    const unit        = opt?.dataset?.unit || '';
-    if (totalOutput > 0 && qtyUsed > 0) {
-        const perUnit = qtyUsed / totalOutput;
-        // Tampilkan 4 desimal, hilangkan trailing zeros
-        disp.value = parseFloat(perUnit.toFixed(6)) + (unit ? ' ' + unit : '');
-    } else {
-        disp.value = '';
-    }
-}
+        function attachCompRowEvents(row, idx) {
+            const sel = row.querySelector('.child-select');[cite: 251]
+            const qty = row.querySelector('.qty-used-input');[cite: 251]
+            if (sel) {
+                [cite: 252]
+                sel.name = `compositions[${idx}][child_id]`;[cite: 252]
+                sel.addEventListener('change', () => updateCompUnitLabel(row));[cite: 252]
+            } [cite: 253]
+            if (qty) {
+                [cite: 253]
+                qty.name = `compositions[${idx}][qty_used]`;[cite: 253]
+                qty.addEventListener('input', () => recalcPerUnit(row));[cite: 254]
+            }
+            const removeBtn = row.querySelector('.remove-comp-row');[cite: 254]
+            if (removeBtn) {
+                [cite: 255]
+                removeBtn.addEventListener('click', () => {
+                    [cite: 255]
+                    row.remove();[cite: 255]
+                    updateCompRemoveButtons();[cite: 255]
+                });[cite: 255]
+            } [cite: 256]
+        }
 
-function recalcAllComps() {
-    document.querySelectorAll('.composition-row').forEach(row => {
-        updateCompUnitLabel(row);
-        recalcPerUnit(row);
-    });
-}
+        const rawIngredients = @json($rawIngredients);[cite: 256]
 
-function updateCompRemoveButtons() {
-    const rows = document.querySelectorAll('#compositionRows .composition-row');
-    rows.forEach(function(r) {
-        const btn = r.querySelector('.remove-comp-row');
-        if (btn) btn.style.display = rows.length > 1 ? '' : 'none';
-    });
-}
+        function buildCompRowHTML(idx) {
+            let opts = '<option value="">— Pilih Bahan —</option>';[cite: 256]
+            rawIngredients.forEach(r => { opts += `<option value="${r.id}" data-unit="${r.unit_base}">${r.name}</option>`; });[cite: 257]
+            return `<div class="composition-row row g-2 mb-3 align-items-center">
+                <div class="col-5">
+                    <select name="compositions[${idx}][child_id]" class="form-select premium-input-sm child-select">${opts}</select>
+                </div>
+                <div class="col-3">
+                    <div class="input-group input-group-sm">
+                        <input type="text" name="compositions[${idx}][qty_used]" class="form-control premium-input-sm qty-used-input num-fmt" placeholder="cth: 3.000" style="border-right: 0; border-radius: 8px 0 0 8px !important;">
+                        <span class="input-group-text bg-white small unit-label-comp text-muted fw-semibold" style="border: 1px solid #cbd5e1; border-left: 0; border-radius: 0 8px 8px 0;">satuan</span>
+                    </div>
+                </div>
+                <div class="col-3">
+                    <input type="text" class="form-control premium-input-sm bg-light per-unit-display text-muted fw-bold" readonly placeholder="—">
+                </div>
+                <div class="col-1 d-flex justify-content-center">
+                    <button type="button" class="btn btn-light text-danger border btn-sm remove-comp-row" style="border-radius: 8px;"><i class="bi bi-x-lg"></i></button>
+                </div>
+            </div>`;
+        }
 
-function attachCompRowEvents(row, idx) {
-    const sel   = row.querySelector('.child-select');
-    const qty   = row.querySelector('.qty-used-input');
-    if (sel) {
-        sel.name = `compositions[${idx}][child_id]`;
-        sel.addEventListener('change', () => updateCompUnitLabel(row));
-    }
-    if (qty) {
-        qty.name = `compositions[${idx}][qty_used]`;
-        qty.addEventListener('input', () => recalcPerUnit(row));
-    }
-    const removeBtn = row.querySelector('.remove-comp-row');
-    if (removeBtn) {
-        removeBtn.addEventListener('click', () => {
-            row.remove();
-            updateCompRemoveButtons();
-        });
-    }
-}
+        // ── Packaging ────────────────────────────────────────────── [cite: 259]
+        let packIdx = 1;[cite: 259]
+        function getUnit() {
+            [cite: 260]
+            return document.getElementById('unitBase').value || 'satuan';[cite: 260]
+        }
 
-const rawIngredients = @json($rawIngredients);
+        function getUnitLabel() {
+            const v = document.getElementById('unitBase').value;[cite: 260]
+            if (v === 'gram') return 'Gram';[cite: 261]
+            if (v === 'pcs') return 'Pcs';[cite: 261]
+            return 'Satuan';[cite: 261]
+        } [cite: 262]
 
-function buildCompRowHTML(idx) {
-    let opts = '<option value="">— Pilih Bahan —</option>';
-    rawIngredients.forEach(r => { opts += `<option value="${r.id}" data-unit="${r.unit_base}">${r.name}</option>`; });
-    return `<div class="composition-row row g-2 mb-2 align-items-center">
-        <div class="col-5">
-            <select name="compositions[${idx}][child_id]" class="form-select form-select-sm child-select">${opts}</select>
-        </div>
-        <div class="col-3">
-            <div class="input-group input-group-sm">
-                <input type="text" name="compositions[${idx}][qty_used]" class="form-control qty-used-input num-fmt" placeholder="cth: 3.000">
-                <span class="input-group-text small unit-label-comp">satuan</span>
-            </div>
-        </div>
-        <div class="col-3">
-            <input type="text" class="form-control form-control-sm bg-light per-unit-display text-muted" readonly placeholder="—">
-        </div>
-        <div class="col-1 d-flex justify-content-center">
-            <button type="button" class="btn btn-outline-danger btn-sm remove-comp-row"><i class="bi bi-x"></i></button>
-        </div>
-    </div>`;
-}
+        function updateUnitLabels() {
+            const unit = getUnit();[cite: 262]
+            const label = getUnitLabel();[cite: 262]
+            document.querySelectorAll('.unit-label').forEach(el => el.textContent = label);[cite: 262]
+            const header = document.getElementById('headerUnitLabel');[cite: 263]
+            if (header) header.textContent = label;[cite: 263]
+            recalcAll();[cite: 263]
+        } [cite: 264]
 
-// ── Packaging ──────────────────────────────────────────────
-let packIdx = 1;
+        function recalcRow(row) {
+            const crate = parseFloat(row.querySelector('.crate-input').value) || 0;[cite: 264]
+            const pack = parseFloat(row.querySelector('.pack-input').value) || 0;[cite: 264]
+            const total = crate * pack;[cite: 265]
+            const label = getUnitLabel();[cite: 265]
+            const disp = row.querySelector('.total-display');[cite: 265]
+            if (total > 0) {
+                [cite: 266]
+                disp.value = NumberFmt.format(total) + ' ' + label;[cite: 266]
+            } else {
+                [cite: 267]
+                disp.value = '';[cite: 267]
+            } [cite: 268]
+        }
 
-function getUnit() {
-    return document.getElementById('unitBase').value || 'satuan';
-}
+        function recalcAll() {
+            document.querySelectorAll('.packaging-row, .dynamic-row-box').forEach(recalcRow);
+        }
 
-function getUnitLabel() {
-    const v = document.getElementById('unitBase').value;
-    if (v === 'gram') return 'Gram';
-    if (v === 'pcs')  return 'Pcs';
-    return 'Satuan';
-}
+        function attachRowEvents(row, idx) {
+            row.querySelector('.packaging-name-input').name = `packagings[${idx}][packaging_name]`;[cite: 268]
+            row.querySelector('.packaging-supplier-input').name = `packagings[${idx}][supplier_id]`;[cite: 269]
+            row.querySelector('.crate-input').name = `packagings[${idx}][crate_to_pack]`;[cite: 269]
+            row.querySelector('.pack-input').name = `packagings[${idx}][pack_to_base]`;[cite: 270]
+            row.querySelector('.crate-input').addEventListener('input', () => recalcRow(row));[cite: 271]
+            row.querySelector('.pack-input').addEventListener('input', () => recalcRow(row));[cite: 271]
 
-function updateUnitLabels() {
-    const unit  = getUnit();
-    const label = getUnitLabel();
-    document.querySelectorAll('.unit-label').forEach(el => el.textContent = label);
-    const header = document.getElementById('headerUnitLabel');
-    if (header) header.textContent = label;
-    recalcAll();
-}
+            const removeBtn = row.querySelector('.remove-row');[cite: 271]
+            if (removeBtn) {
+                [cite: 272]
+                removeBtn.style.display = '';[cite: 272]
+                removeBtn.addEventListener('click', function () {
+                    [cite: 273]
+                    row.remove();[cite: 273]
+                    updateRemoveButtons();[cite: 273]
+                });[cite: 273]
+            } [cite: 274]
+        }
 
-function recalcRow(row) {
-    const crate = parseFloat(row.querySelector('.crate-input').value) || 0;
-    const pack  = parseFloat(row.querySelector('.pack-input').value)  || 0;
-    const total = crate * pack;
-    const label = getUnitLabel();
-    const disp  = row.querySelector('.total-display');
-    if (total > 0) {
-        disp.value = NumberFmt.format(total) + ' ' + label;
-    } else {
-        disp.value = '';
-    }
-}
+        function updateRemoveButtons() {
+            const rows = document.querySelectorAll('#packagingRows .packaging-row');[cite: 274]
+            rows.forEach(function (r, i) {
+                [cite: 275]
+                const btn = r.querySelector('.remove-row');[cite: 275]
+                if (btn) btn.style.display = rows.length > 1 ? '' : 'none';[cite: 275]
+            });[cite: 275]
+        } [cite: 276]
 
-function recalcAll() {
-    document.querySelectorAll('.packaging-row, .existing-packaging-row').forEach(recalcRow);
-}
+        document.addEventListener('DOMContentLoaded', function () {
+            // Existing packagings: attach recalc events
+            document.querySelectorAll('.dynamic-row-box').forEach(function (row) {
+                row.querySelector('.crate-input')?.addEventListener('input', () => recalcRow(row));
+                row.querySelector('.pack-input')?.addEventListener('input', () => recalcRow(row));
+            });
 
-function attachRowEvents(row, idx) {
-    row.querySelector('.packaging-name-input').name     = `packagings[${idx}][packaging_name]`;
-    row.querySelector('.packaging-supplier-input').name = `packagings[${idx}][supplier_id]`;
-    row.querySelector('.crate-input').name              = `packagings[${idx}][crate_to_pack]`;
-    row.querySelector('.pack-input').name               = `packagings[${idx}][pack_to_base]`;
-
-    row.querySelector('.crate-input').addEventListener('input', () => recalcRow(row));
-    row.querySelector('.pack-input').addEventListener('input',  () => recalcRow(row));
-
-    const removeBtn = row.querySelector('.remove-row');
-    if (removeBtn) {
-        removeBtn.style.display = '';   // pastikan X terlihat (row pertama hidden via CSS, row baru langsung tampil)
-        removeBtn.addEventListener('click', function () {
-            row.remove();
+            // Packaging baru: attach events ke row pertama
+            const firstPackRow = document.querySelector('#packagingRows .packaging-row');
+            if (firstPackRow) attachRowEvents(firstPackRow, 0);
             updateRemoveButtons();
+
+            // Toggle kemasan vs komposisi vs kategori berdasarkan tipe
+            function toggleSections() {
+                const tipe = document.querySelector('[name="type"]').value;[cite: 277]
+                const isSemi = tipe === 'semi_finished';[cite: 277]
+                document.getElementById('sectionPackaging').style.display = isSemi ? 'none' : '';[cite: 277]
+                document.getElementById('sectionComposition').style.display = isSemi ? '' : 'none';[cite: 277, 278]
+                document.getElementById('wrapCategory').style.display = isSemi ? 'none' : '';[cite: 278]
+            } [cite: 279]
+            function onTypeChange() { toggleSections(); } [cite: 279]
+            document.querySelector('[name="type"]').addEventListener('change', toggleSections);[cite: 279]
+            toggleSections();[cite: 279]
+            document.getElementById('unitBase').addEventListener('change', function () {
+                [cite: 280]
+                updateUnitLabels();[cite: 280]
+                const v = this.value;[cite: 280]
+                const lbl = v === 'gram' ? 'gram' : (v === 'pcs' ? 'pcs' : 'satuan');[cite: 280]
+                const hdr = document.getElementById('perUnitHeaderLabel');[cite: 280]
+                if (hdr) hdr.textContent = lbl;[cite: 280]
+            });[cite: 280]
+
+            // total_output berubah → recalc semua per-unit
+            document.getElementById('totalOutput')?.addEventListener('input', () => {
+                [cite: 281]
+                document.querySelectorAll('#compositionRows .composition-row').forEach(recalcPerUnit);[cite: 281]
+            });[cite: 281]
+
+            document.getElementById('addPackaging').addEventListener('click', function () {
+                [cite: 282]
+                const tmpl = document.getElementById('packagingTemplate');[cite: 282]
+                const container = document.getElementById('packagingRows');[cite: 282]
+                container.appendChild(tmpl.content.cloneNode(true));[cite: 282]
+                const allRows = container.querySelectorAll('.packaging-row');[cite: 282]
+                const row = allRows[allRows.length - 1];[cite: 282]
+                attachRowEvents(row, packIdx++);[cite: 282]
+                updateUnitLabels();[cite: 283]
+                updateRemoveButtons();[cite: 283]
+            });[cite: 283]
+            updateUnitLabels();[cite: 284]
+
+            // Komposisi: attach events ke row pertama
+            const firstCompRow = document.querySelector('.composition-row');[cite: 284]
+            if (firstCompRow) {
+                [cite: 285]
+                attachCompRowEvents(firstCompRow, 0);[cite: 285]
+                updateCompUnitLabel(firstCompRow);[cite: 285]
+                updateCompRemoveButtons();[cite: 285]
+            } [cite: 286]
+
+            const addCompBtn = document.getElementById('addComposition');[cite: 286]
+            if (addCompBtn) {
+                [cite: 286]
+                addCompBtn.addEventListener('click', function () {
+                    [cite: 286]
+                    const container = document.getElementById('compositionRows');[cite: 286]
+                    const div = document.createElement('div');[cite: 286]
+                    div.innerHTML = buildCompRowHTML(compIdx);[cite: 286]
+                    const row = div.firstElementChild;[cite: 286]
+                    container.appendChild(row);[cite: 286]
+                    attachCompRowEvents(row, compIdx++);[cite: 287]
+                    updateCompRemoveButtons();[cite: 287]
+                });[cite: 287]
+            } [cite: 288]
         });
-    }
-}
-
-function updateRemoveButtons() {
-    const rows = document.querySelectorAll('#packagingRows .packaging-row');
-    rows.forEach(function (r, i) {
-        const btn = r.querySelector('.remove-row');
-        if (btn) btn.style.display = rows.length > 1 ? '' : 'none';
-    });
-}
-
-document.addEventListener('DOMContentLoaded', function () {
-    // Existing packagings: attach recalc events (tanpa rename karena field name sudah fix)
-    document.querySelectorAll('.existing-packaging-row').forEach(function(row) {
-        row.querySelector('.crate-input')?.addEventListener('input', () => recalcRow(row));
-        row.querySelector('.pack-input')?.addEventListener('input',  () => recalcRow(row));
-    });
-
-    // Packaging baru: attach events ke row pertama
-    const firstPackRow = document.querySelector('#packagingRows .packaging-row');
-    if (firstPackRow) attachRowEvents(firstPackRow, 0);
-    updateRemoveButtons();
-
-    // Toggle kemasan vs komposisi vs kategori berdasarkan tipe
-    function toggleSections() {
-        const tipe = document.querySelector('[name="type"]').value;
-        const isSemi = tipe === 'semi_finished';
-        document.getElementById('sectionPackaging').style.display   = isSemi ? 'none' : '';
-        document.getElementById('sectionComposition').style.display = isSemi ? '' : 'none';
-        document.getElementById('wrapCategory').style.display       = isSemi ? 'none' : '';
-    }
-    function onTypeChange() { toggleSections(); }
-    document.querySelector('[name="type"]').addEventListener('change', toggleSections);
-    toggleSections();
-
-    document.getElementById('unitBase').addEventListener('change', function() {
-        updateUnitLabels();
-        // Update "Per 1 X" header label
-        const v = this.value;
-        const lbl = v === 'gram' ? 'gram' : (v === 'pcs' ? 'pcs' : 'satuan');
-        const hdr = document.getElementById('perUnitHeaderLabel');
-        if (hdr) hdr.textContent = lbl;
-    });
-
-    // total_output berubah → recalc semua per-unit
-    document.getElementById('totalOutput')?.addEventListener('input', () => {
-        document.querySelectorAll('#compositionRows .composition-row').forEach(recalcPerUnit);
-    });
-
-    document.getElementById('addPackaging').addEventListener('click', function () {
-        const tmpl      = document.getElementById('packagingTemplate');
-        const container = document.getElementById('packagingRows');
-        container.appendChild(tmpl.content.cloneNode(true));
-        // Ambil row dari DOM setelah append — lebih reliable dari reference fragment
-        const allRows = container.querySelectorAll('.packaging-row');
-        const row     = allRows[allRows.length - 1];
-        attachRowEvents(row, packIdx++);
-        updateUnitLabels();
-        // Tampilkan tombol hapus di semua row jika sudah > 1
-        updateRemoveButtons();
-    });
-
-    updateUnitLabels();
-
-    // Komposisi: attach events ke row pertama
-    const firstCompRow = document.querySelector('.composition-row');
-    if (firstCompRow) {
-        attachCompRowEvents(firstCompRow, 0);
-        updateCompUnitLabel(firstCompRow);
-        updateCompRemoveButtons();
-    }
-
-    const addCompBtn = document.getElementById('addComposition');
-    if (addCompBtn) {
-        addCompBtn.addEventListener('click', function () {
-            const container = document.getElementById('compositionRows');
-            const div = document.createElement('div');
-            div.innerHTML = buildCompRowHTML(compIdx);
-            const row = div.firstElementChild;
-            container.appendChild(row);
-            attachCompRowEvents(row, compIdx++);
-            updateCompRemoveButtons();
-        });
-    }
-});
-</script>
-
-<style>
-.pkg-inactive {
-    opacity: .65;
-}
-.pkg-inactive::before {
-    content: '⏸ NONAKTIF';
-    position: absolute;
-    top: 8px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: .6rem;
-    font-weight: 700;
-    color: #6b7280;
-    letter-spacing: 1px;
-    pointer-events: none;
-}
-.pkg-inactive input,
-.pkg-inactive select {
-    background: #fafbfc !important;
-}
-</style>
+    </script>
 @endsection

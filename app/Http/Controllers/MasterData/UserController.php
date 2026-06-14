@@ -14,43 +14,46 @@ class UserController extends Controller
     }
     public function create()
     {
-        $stores = Store::where('is_active',true)->orderBy('name')->get();
+        $stores = Store::where('is_active', true)->orderBy('name')->get();
         return view('master.users.form', compact('stores'));
     }
     public function store(Request $request)
     {
         $data = $request->validate([
-            'name'     => 'required|string',
-            'email'    => 'required|email|unique:users,email',
+            'name' => 'required|string',
+            'username' => 'required|string|alpha_dash|unique:users,username',
+            'email' => 'required|email|unique:users,email',
             'password' => 'required|min:8|confirmed',
-            'role'     => 'required|in:super_admin,admin_area',
+            'role' => 'required|in:super_admin,admin_area',
         ]);
         $data['password'] = Hash::make($data['password']);
         $user = User::create($data);
         if ($request->store_ids) {
-            $user->stores()->attach($request->store_ids, ['assigned_at'=>now()]);
+            $user->stores()->attach($request->store_ids, ['assigned_at' => now()]);
         }
-        return redirect()->route('master.users.index')->with('success','User ditambahkan.');
+        return redirect()->route('master.users.index')->with('success', 'User ditambahkan.');
     }
     public function edit(User $user)
     {
-        $stores = Store::where('is_active',true)->orderBy('name')->get();
+        $stores = Store::where('is_active', true)->orderBy('name')->get();
         $user->load('stores');
         $assignedStores = $user->stores->pluck('id')->toArray();
-        return view('master.users.form', compact('user','stores','assignedStores'));
+        return view('master.users.form', compact('user', 'stores', 'assignedStores'));
     }
     public function update(Request $request, User $user)
     {
         $data = $request->validate([
-            'name'     => 'required|string',
-            'email'    => 'required|email|unique:users,email,' . $user->id,
-            'role'     => 'required|in:super_admin,admin_area',
+            'name' => 'required|string',
+            'email' => 'required|email|unique:users,email,' . $user->id,
+            'role' => 'required|in:super_admin,admin_area',
             'password' => 'nullable|min:8|confirmed',
         ]);
-        if (empty($data['password'])) unset($data['password']);
-        else $data['password'] = Hash::make($data['password']);
+        if (empty($data['password']))
+            unset($data['password']);
+        else
+            $data['password'] = Hash::make($data['password']);
         $user->update($data);
-        return redirect()->route('master.users.index')->with('success','User diupdate.');
+        return redirect()->route('master.users.index')->with('success', 'User diupdate.');
     }
     public function destroy(User $user)
     {
@@ -75,17 +78,17 @@ class UserController extends Controller
 
     public function assignStore(Request $request, User $user)
     {
-        $request->validate(['store_id'=>'required|exists:stores,id']);
-        if (!$user->stores()->where('stores.id',$request->store_id)->exists()) {
-            $user->stores()->attach($request->store_id, ['assigned_at'=>now()]);
+        $request->validate(['store_id' => 'required|exists:stores,id']);
+        if (!$user->stores()->where('stores.id', $request->store_id)->exists()) {
+            $user->stores()->attach($request->store_id, ['assigned_at' => now()]);
         }
-        return back()->with('success','Toko berhasil di-assign.');
+        return back()->with('success', 'Toko berhasil di-assign.');
     }
     public function revokeStore(User $user, Store $store)
     {
         $user->stores()->detach($store->id);
-        return back()->with('success','Akses toko dicabut.');
+        return back()->with('success', 'Akses toko dicabut.');
     }
 
-   
+
 }

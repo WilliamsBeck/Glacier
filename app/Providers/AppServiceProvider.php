@@ -6,23 +6,34 @@ use Illuminate\Support\ServiceProvider;
 use App\Observers\AuditObserver;
 use App\Models\{Mutation, MutationItem, WasteLog, Opname, ProductionLog, MonthlySale, MonthlyRevenue, Store, Ingredient, Menu, Recipe, User, Supplier};
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Pagination\Paginator;
 
 class AppServiceProvider extends ServiceProvider
 {
-    public function register(): void {}
+    public function register(): void
+    {
+    }
 
     public function boot(): void
     {
+        Paginator::useBootstrapFive();
+
         \Carbon\Carbon::setLocale('id');
         \Illuminate\Support\Facades\Date::setLocale('id');
         $models = [
-            Mutation::class, MutationItem::class,
-            WasteLog::class, Opname::class,
+            Mutation::class,
+            MutationItem::class,
+            WasteLog::class,
+            Opname::class,
             ProductionLog::class,
-            MonthlySale::class, MonthlyRevenue::class,
-            Store::class, Ingredient::class,
-            Menu::class, Recipe::class,
-            User::class, Supplier::class,
+            MonthlySale::class,
+            MonthlyRevenue::class,
+            Store::class,
+            Ingredient::class,
+            Menu::class,
+            Recipe::class,
+            User::class,
+            Supplier::class,
         ];
 
         foreach ($models as $model) {

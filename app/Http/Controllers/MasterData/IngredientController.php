@@ -10,42 +10,45 @@ class IngredientController extends Controller
     public function index(Request $request)
     {
         $query = Ingredient::query();
-        if ($request->search) $query->where('name','like',"%{$request->search}%");
-        if ($request->type)   $query->where('type',$request->type);
+        if ($request->search)
+            $query->where('name', 'like', "%{$request->search}%");
+        if ($request->type)
+            $query->where('type', $request->type);
         $ingredients = $query->latest()->paginate(20);
         return view('master.ingredients.index', compact('ingredients'));
     }
 
     public function create()
     {
-        $suppliers      = Supplier::where('is_active', true)->orderBy('name')->get();
+        $suppliers = Supplier::where('is_active', true)->orderBy('name')->get();
         $rawIngredients = Ingredient::where('is_active', true)->where('type', 'raw')->orderBy('name')->get(['id', 'name', 'unit_base']);
-        $categories     = IngredientCategory::ordered()->get();
+        $categories = IngredientCategory::ordered()->get();
         return view('master.ingredients.form', compact('suppliers', 'rawIngredients', 'categories'));
     }
 
     public function store(Request $request)
     {
         $data = $request->validate([
-            'name'      => 'required|string',
-            'type'      => 'required|in:raw,semi_finished',
-            'category'  => 'nullable|in:' . implode(',', IngredientCategory::orderedNames()),
+            'name' => 'required|string',
+            'type' => 'required|in:raw,semi_finished',
+            'category' => 'nullable|in:' . implode(',', IngredientCategory::orderedNames()),
             'unit_base' => 'required|in:gram,pcs',
         ]);
         $data['is_active'] = $request->has('is_active');
-        $data['category']  = $request->type === 'raw' ? $request->category : null;
+        $data['category'] = $request->type === 'raw' ? $request->category : null;
 
         $ingredient = Ingredient::create($data);
 
         if ($request->type === 'raw') {
             foreach ($request->input('packagings', []) as $pack) {
-                if (empty($pack['packaging_name']) || empty($pack['crate_to_pack'])) continue;
+                if (empty($pack['packaging_name']) || empty($pack['crate_to_pack']))
+                    continue;
                 $ingredient->packagings()->create([
-                    'supplier_id'    => $pack['supplier_id'] ?: null,
+                    'supplier_id' => $pack['supplier_id'] ?: null,
                     'packaging_name' => $pack['packaging_name'],
-                    'crate_to_pack'  => $pack['crate_to_pack'],
-                    'pack_to_base'   => $pack['pack_to_base'],
-                    'is_active'      => true,
+                    'crate_to_pack' => $pack['crate_to_pack'],
+                    'pack_to_base' => $pack['pack_to_base'],
+                    'is_active' => true,
                 ]);
             }
         }
@@ -61,53 +64,55 @@ class IngredientController extends Controller
     public function show(Ingredient $ingredient)
     {
         $ingredient->load(['packagings.supplier', 'compositions.child']);
-        $suppliers      = Supplier::where('is_active', true)->orderBy('name')->get();
+        $suppliers = Supplier::where('is_active', true)->orderBy('name')->get();
         $rawIngredients = Ingredient::where('is_active', true)->where('type', 'raw')->orderBy('name')->get(['id', 'name', 'unit_base']);
-        $categories     = IngredientCategory::ordered()->get();
+        $categories = IngredientCategory::ordered()->get();
         return view('master.ingredients.form', compact('ingredient', 'suppliers', 'rawIngredients', 'categories'));
     }
 
     public function edit(Ingredient $ingredient)
     {
         $ingredient->load(['packagings.supplier', 'compositions.child']);
-        $suppliers      = Supplier::where('is_active', true)->orderBy('name')->get();
+        $suppliers = Supplier::where('is_active', true)->orderBy('name')->get();
         $rawIngredients = Ingredient::where('is_active', true)->where('type', 'raw')->orderBy('name')->get(['id', 'name', 'unit_base']);
-        $categories     = IngredientCategory::ordered()->get();
+        $categories = IngredientCategory::ordered()->get();
         return view('master.ingredients.form', compact('ingredient', 'suppliers', 'rawIngredients', 'categories'));
     }
 
     public function update(Request $request, Ingredient $ingredient)
     {
         $data = $request->validate([
-            'name'      => 'required|string',
-            'type'      => 'required|in:raw,semi_finished',
-            'category'  => 'nullable|in:' . implode(',', IngredientCategory::orderedNames()),
+            'name' => 'required|string',
+            'type' => 'required|in:raw,semi_finished',
+            'category' => 'nullable|in:' . implode(',', IngredientCategory::orderedNames()),
             'unit_base' => 'required|in:gram,pcs',
         ]);
         $data['is_active'] = $request->has('is_active');
-        $data['category']  = $request->type === 'raw' ? $request->category : null;
+        $data['category'] = $request->type === 'raw' ? $request->category : null;
         $ingredient->update($data);
 
         if ($request->type === 'raw') {
             // Update kemasan yang sudah ada
             foreach ($request->input('existing_packagings', []) as $packId => $pack) {
-                if (empty($pack['packaging_name']) || empty($pack['crate_to_pack'])) continue;
+                if (empty($pack['packaging_name']) || empty($pack['crate_to_pack']))
+                    continue;
                 $ingredient->packagings()->where('id', $packId)->update([
-                    'supplier_id'    => $pack['supplier_id'] ?: null,
+                    'supplier_id' => $pack['supplier_id'] ?: null,
                     'packaging_name' => $pack['packaging_name'],
-                    'crate_to_pack'  => $pack['crate_to_pack'],
-                    'pack_to_base'   => $pack['pack_to_base'],
+                    'crate_to_pack' => $pack['crate_to_pack'],
+                    'pack_to_base' => $pack['pack_to_base'],
                 ]);
             }
             // Tambah kemasan baru
             foreach ($request->input('packagings', []) as $pack) {
-                if (empty($pack['packaging_name']) || empty($pack['crate_to_pack'])) continue;
+                if (empty($pack['packaging_name']) || empty($pack['crate_to_pack']))
+                    continue;
                 $ingredient->packagings()->create([
-                    'supplier_id'    => $pack['supplier_id'] ?: null,
+                    'supplier_id' => $pack['supplier_id'] ?: null,
                     'packaging_name' => $pack['packaging_name'],
-                    'crate_to_pack'  => $pack['crate_to_pack'],
-                    'pack_to_base'   => $pack['pack_to_base'],
-                    'is_active'      => true,
+                    'crate_to_pack' => $pack['crate_to_pack'],
+                    'pack_to_base' => $pack['pack_to_base'],
+                    'is_active' => true,
                 ]);
             }
         }
@@ -115,15 +120,29 @@ class IngredientController extends Controller
         $totalOutput = (float) $request->input('total_output', 0);
         if ($totalOutput > 0) {
             foreach ($request->input('compositions', []) as $comp) {
-                if (empty($comp['child_id']) || empty($comp['qty_used'])) continue;
-                $qtyRaw    = (float) $comp['qty_used'];
-                $qtyNeeded = $qtyRaw / $totalOutput;  // disimpan sebagai fallback
+                if (empty($comp['child_id']) || empty($comp['qty_used'])) {
+                    continue;
+                }
+
+                $qtyRaw = (float) $comp['qty_used'];
+
+                // Mengambil total_output dari input form, jika kosong atau 0 fallback ke 1 agar tidak error division by zero
+                $totalOutput = (float) $request->input('total_output', 1);
+                if ($totalOutput <= 0) {
+                    $totalOutput = 1;
+                }
+
+                // Hitung nilai qty_needed yang akan disimpan ke database
+                $qtyNeeded = $qtyRaw / $totalOutput;
+
+                // Simpan hanya menggunakan kolom yang tersedia di database Anda
                 IngredientComposition::updateOrCreate(
-                    ['parent_id' => $ingredient->id, 'child_id' => $comp['child_id']],
                     [
-                        'qty_needed' => $qtyNeeded,   // fallback decimal
-                        'qty_raw'    => $qtyRaw,      // pembilang asli (misal: 3000)
-                        'qty_output' => $totalOutput, // penyebut asli (misal: 11000)
+                        'parent_id' => $ingredient->id,
+                        'child_id' => $comp['child_id'],
+                    ],
+                    [
+                        'qty_needed' => $qtyNeeded, // Kolom ini ada di database Anda!
                     ]
                 );
             }
@@ -140,21 +159,23 @@ class IngredientController extends Controller
     public function destroy(Ingredient $ingredient)
     {
         $hasData = \App\Models\MutationItem::where('ingredient_id', $ingredient->id)->exists()
-                || \App\Models\Recipe::where('ingredient_id', $ingredient->id)->exists()
-                || \App\Models\DailyUsage::where('ingredient_id', $ingredient->id)->exists()
-                || \App\Models\OpnameItem::where('ingredient_id', $ingredient->id)->exists()
-                || \App\Models\StockLedger::where('ingredient_id', $ingredient->id)->exists()
-                || \App\Models\StoreStock::where('ingredient_id', $ingredient->id)
-                    ->where('stock_balance', '>', 0)->exists()
-                || IngredientComposition::where('child_id', $ingredient->id)
-                    ->orWhere('parent_id', $ingredient->id)->exists()
-                || \App\Models\WasteLogItem::where('ingredient_id', $ingredient->id)->exists()
-                || \App\Models\ProductionLogItem::where('ingredient_id', $ingredient->id)->exists();
+            || \App\Models\Recipe::where('ingredient_id', $ingredient->id)->exists()
+            || \App\Models\DailyUsage::where('ingredient_id', $ingredient->id)->exists()
+            || \App\Models\OpnameItem::where('ingredient_id', $ingredient->id)->exists()
+            || \App\Models\StockLedger::where('ingredient_id', $ingredient->id)->exists()
+            || \App\Models\StoreStock::where('ingredient_id', $ingredient->id)
+                ->where('stock_balance', '>', 0)->exists()
+            || IngredientComposition::where('child_id', $ingredient->id)
+                ->orWhere('parent_id', $ingredient->id)->exists()
+            || \App\Models\WasteLogItem::where('ingredient_id', $ingredient->id)->exists()
+            || \App\Models\ProductionLogItem::where('raw_ingredient_id', $ingredient->id)->exists();
 
         if ($hasData) {
-            return back()->with('error',
+            return back()->with(
+                'error',
                 'Bahan "' . $ingredient->name . '" tidak bisa dihapus karena sudah dipakai di transaksi/resep. '
-                . 'Nonaktifkan saja kalau tidak ingin digunakan lagi.');
+                . 'Nonaktifkan saja kalau tidak ingin digunakan lagi.'
+            );
         }
 
         // Hapus kemasan dulu (cascade-ish)
