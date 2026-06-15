@@ -8,11 +8,11 @@
     <title>@yield('title', 'Dashboard') — Glacier</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="{{ asset('css/bootstrap.min.css') }}">
     <link rel="stylesheet" href="{{ asset('css/bootstrap-icons.css') }}">
-    <link rel="stylesheet" href="{{ asset('css/app.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/app.css') }}?v={{ filemtime(public_path('css/app.css')) }}">
     @stack('styles')
 </head>
 
@@ -233,18 +233,80 @@
             $('#mainContent').toggleClass('expanded');
         });
 
-        // Active menu highlight
+        // Active menu highlight + biarkan grup dropdown yang aktif tetap terbuka
         $(document).ready(function () {
-            var currentPath = window.location.pathname;
+            var currentPath = window.location.pathname.replace(/\/+$/, '') || '/';
+            var bestMatch = null, bestLen = -1, dashboardLink = null;
+
+            // Cari link yang paling cocok dgn URL saat ini (path terpanjang menang)
             $('.sidebar-link[href]').each(function () {
                 var href = $(this).attr('href');
-                if (href && href !== '#' && currentPath.startsWith(href)) {
-                    $(this).addClass('active');
-                    $(this).closest('.collapse').addClass('show');
-                    $(this).closest('.collapse').prev('.sidebar-link').addClass('active');
+                if (!href || href.charAt(0) === '#') return;
+                var linkPath;
+                try { linkPath = new URL(href, window.location.origin).pathname; }
+                catch (e) { return; }
+                linkPath = linkPath.replace(/\/+$/, '') || '/';
+                if (linkPath === '/') { dashboardLink = this; return; }
+                if (currentPath === linkPath || currentPath.startsWith(linkPath + '/')) {
+                    if (linkPath.length > bestLen) { bestLen = linkPath.length; bestMatch = this; }
                 }
             });
+
+            if (bestMatch) {
+                var $grp = $(bestMatch).addClass('active').closest('.collapse');
+                if ($grp.length) {
+                    $grp.addClass('show');
+                    $grp.prev('.sidebar-link')
+                        .removeClass('collapsed')
+                        .addClass('active')
+                        .attr('aria-expanded', 'true');
+                }
+            } else if (currentPath === '/' && dashboardLink) {
+                $(dashboardLink).addClass('active');
+            }
         });
+    </script>
+
+    {{-- Action-menu (kebab) portal: pindahkan dropdown ke body saat dibuka agar
+         tidak ke-clip oleh overflow .table-responsive, lalu kembalikan saat ditutup. --}}
+    <script>
+        (function () {
+            document.addEventListener('show.bs.dropdown', function (e) {
+                var menuEl = e.target.closest('.action-menu');
+                if (!menuEl) return;
+                var menu = menuEl.querySelector('.dropdown-menu');
+                if (!menu) return;
+                menu._origParent = menuEl;
+                document.body.appendChild(menu);
+                // Netralkan positioning Popper/Bootstrap, pakai fixed manual
+                menu.style.position = 'fixed';
+                menu.style.inset = 'auto';
+                menu.style.margin = '0';
+                menu.style.transform = 'none';
+                menu.style.zIndex = '2000';
+                var r = menuEl.getBoundingClientRect();
+                requestAnimationFrame(function () {
+                    var w = menu.offsetWidth, h = menu.offsetHeight;
+                    var left = r.right - w;                 // rata kanan dengan tombol
+                    if (left < 8) left = 8;
+                    var top = r.bottom + 4;
+                    if (top + h > window.innerHeight - 8) top = r.top - h - 4; // buka ke atas bila mepet
+                    menu.style.left = left + 'px';
+                    menu.style.top = Math.max(8, top) + 'px';
+                });
+            });
+            document.addEventListener('hide.bs.dropdown', function (e) {
+                var menuEl = e.target.closest('.action-menu');
+                if (!menuEl) return;
+                var menu = menuEl.querySelector('.dropdown-menu') ||
+                           document.querySelector('body > .dropdown-menu');
+                if (menu && menu._origParent) {
+                    menu.removeAttribute('style');
+                    menu._origParent.appendChild(menu);
+                    menu._origParent = null;
+                }
+            });
+        })();
     </script>
     @stack('scripts')
     <script>

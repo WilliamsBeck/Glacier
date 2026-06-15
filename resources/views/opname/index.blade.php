@@ -2,7 +2,10 @@
 @section('title','Stok Opname')
 @section('content')
 <div class="page-header d-flex justify-content-between align-items-start">
-    <div><h4 class="page-title">Stok Opname</h4><p class="text-muted mb-0">Jadwal: tgl 15 (periode 1–15) dan akhir bulan (periode 1–30/31) tiap toko</p></div>
+    <div>
+        <h1 class="page-title">Stok Opname</h1>
+        <p class="page-subtitle">Jadwal: tgl 15 (periode 1–15) dan akhir bulan (periode 1–30/31) tiap toko</p>
+    </div>
     <div class="d-flex gap-2">
         <a href="{{ route('opname.opnames.import.form') }}" class="btn btn-outline-primary btn-sm">
             <i class="bi bi-upload me-1"></i>Import Excel
@@ -35,31 +38,31 @@
     </form>
 </div></div>
 <div class="card"><div class="card-body p-0"><div class="table-responsive">
-    <table class="table table-hover mb-0">
-        <thead class="table-dark"><tr><th>Toko</th><th>Tanggal Opname</th><th>Periode</th><th>Status</th><th>Dilakukan Oleh</th><th>Aksi</th></tr></thead>
+    <table class="table table-index mb-0">
+        <thead><tr><th class="col-name">Toko</th><th>Tanggal Opname</th><th>Periode</th><th>Status</th><th>Dilakukan Oleh</th><th style="width:70px">Aksi</th></tr></thead>
         <tbody>
             @forelse($opnames as $op)
             <tr>
-                <td class="fw-semibold">{{ $op->store->name }}</td>
+                <td class="col-name fw-semibold">{{ $op->store->name }}</td>
                 <td>{{ \Carbon\Carbon::parse($op->opname_date)->format('d M Y') }}</td>
-                <td><span class="badge bg-light text-dark border">{{ $op->period_type === 'mid_month' ? 'Tgl 1–15' : 'Tgl 1–30/31' }} {{ $op->period_month }}/{{ $op->period_year }}</span></td>
+                <td><span class="badge bg-secondary">{{ $op->period_type === 'mid_month' ? 'Tgl 1–15' : 'Tgl 1–30/31' }} {{ $op->period_month }}/{{ $op->period_year }}</span></td>
                 <td>
-                    @if($op->status==='draft') <span class="badge bg-warning text-dark">Draft</span>
+                    @if($op->status==='draft') <span class="badge bg-warning">Draft</span>
                     @else <span class="badge bg-success">Disetujui</span> @endif
                 </td>
                 <td>{{ $op->performedBy->name }}</td>
-                <td class="d-flex gap-1">
-                    <a href="{{ route('opname.opnames.show', $op) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i></a>
-                    @if($op->status !== 'approved')
-                        <form method="POST" action="{{ route('opname.opnames.destroy', $op) }}" onsubmit="return confirm('Hapus opname ini?')">
-                            @csrf @method('DELETE')
-                            <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
-                        </form>
-                    @endif
+                <td>
+                    <x-action-menu>
+                        <x-action-view :href="route('opname.opnames.show', $op)" />
+                        @if($op->status !== 'approved')
+                            <x-action-delete :action="route('opname.opnames.destroy', $op)"
+                                             confirm="Hapus opname ini?" />
+                        @endif
+                    </x-action-menu>
                 </td>
             </tr>
             @empty
-            <tr><td colspan="6" class="text-center py-4 text-muted"><i class="bi bi-clipboard-check fs-2 d-block mb-2 opacity-25"></i>Belum ada opname</td></tr>
+            <tr><td colspan="6" class="py-4 text-soft"><i class="bi bi-clipboard-check fs-2 d-block mb-2 opacity-25"></i>Belum ada opname</td></tr>
             @endforelse
         </tbody>
     </table>

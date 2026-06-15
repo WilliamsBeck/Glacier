@@ -2,7 +2,10 @@
 @section('title','Catatan Waste')
 @section('content')
 <div class="page-header d-flex justify-content-between align-items-start">
-    <div><h4 class="page-title">Catatan Waste</h4><p class="text-muted mb-0">Pencatatan bahan yang terbuang/rusak</p></div>
+    <div>
+        <h1 class="page-title">Catatan Waste</h1>
+        <p class="page-subtitle">Pencatatan bahan yang terbuang/rusak</p>
+    </div>
     <div class="d-flex gap-2">
         <a href="{{ route('reports.waste', ['store_id' => request('store_id')]) }}" class="btn btn-outline-secondary">
             <i class="bi bi-bar-chart me-1"></i>Analisis Waste
@@ -19,38 +22,33 @@
     </form>
 </div></div>
 <div class="card"><div class="card-body p-0"><div class="table-responsive">
-    <table class="table table-hover mb-0">
-        <thead class="table-dark"><tr><th>Tanggal</th><th>Toko</th><th>Bahan Rusak</th><th class="text-end">Total Kerugian</th><th>Catatan</th><th>Aksi</th></tr></thead>
+    <table class="table table-index mb-0">
+        <thead><tr><th>Tanggal</th><th>Toko</th><th class="col-name">Bahan Rusak</th><th>Total Kerugian</th><th class="col-name">Catatan</th><th style="width:70px">Aksi</th></tr></thead>
         <tbody>
             @forelse($logs as $log)
             <tr>
                 <td class="text-nowrap">{{ \Carbon\Carbon::parse($log->waste_date)->format('d M Y') }}</td>
                 <td class="text-nowrap">{{ $log->store->name }}</td>
-                <td>
+                <td class="col-name">
                     <div class="d-flex flex-wrap gap-1">
                         @foreach($log->items as $item)
-                            <span class="badge bg-light text-dark border" style="font-size:.75rem;font-weight:500">
-                                {{ $item->ingredient->name }}
-                            </span>
+                            <span class="badge bg-secondary">{{ $item->ingredient->name }}</span>
                         @endforeach
                     </div>
                 </td>
-                <td class="text-end text-danger fw-semibold text-nowrap">Rp {{ number_format($log->total_loss_amount, 0, ',', '.') }}</td>
-                <td class="text-muted small">{{ Str::limit($log->notes, 40) }}</td>
+                <td class="text-danger fw-semibold text-nowrap">Rp {{ number_format($log->total_loss_amount, 0, ',', '.') }}</td>
+                <td class="col-name text-soft small">{{ Str::limit($log->notes, 40) }}</td>
                 <td>
-                    <div class="d-flex gap-1">
-                        <a href="{{ route('waste.logs.show', $log) }}" class="btn btn-sm btn-outline-primary" title="Detail"><i class="bi bi-eye"></i></a>
-                        <a href="{{ route('waste.logs.edit', $log) }}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="bi bi-pencil"></i></a>
-                        <form method="POST" action="{{ route('waste.logs.destroy', $log) }}"
-                              onsubmit="return confirm('Hapus catatan waste ini? Stok akan dikembalikan.')">
-                            @csrf @method('DELETE')
-                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Hapus"><i class="bi bi-trash3"></i></button>
-                        </form>
-                    </div>
+                    <x-action-menu>
+                        <x-action-view :href="route('waste.logs.show', $log)" />
+                        <x-action-edit :href="route('waste.logs.edit', $log)" />
+                        <x-action-delete :action="route('waste.logs.destroy', $log)"
+                                         confirm="Hapus catatan waste ini? Stok akan dikembalikan." />
+                    </x-action-menu>
                 </td>
             </tr>
             @empty
-            <tr><td colspan="6" class="text-center py-4 text-muted"><i class="bi bi-trash3 fs-2 d-block mb-2 opacity-25"></i>Belum ada data waste</td></tr>
+            <tr><td colspan="6" class="py-4 text-soft"><i class="bi bi-trash3 fs-2 d-block mb-2 opacity-25"></i>Belum ada data waste</td></tr>
             @endforelse
         </tbody>
     </table>

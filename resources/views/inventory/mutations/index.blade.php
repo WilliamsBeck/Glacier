@@ -4,8 +4,8 @@
 @section('content')
 <div class="page-header d-flex justify-content-between align-items-start">
     <div>
-        <h4 class="page-title">Mutasi Stok</h4>
-        <p class="text-muted mb-0">Daftar semua transaksi masuk/keluar bahan baku</p>
+        <h1 class="page-title">Mutasi Stok</h1>
+        <p class="page-subtitle">Daftar semua transaksi masuk/keluar bahan baku</p>
     </div>
     <div class="d-flex gap-2">
         <a href="{{ route('inventory.mutations.export', request()->query()) }}" class="btn btn-outline-success">
@@ -71,18 +71,18 @@
 <div class="card">
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover mb-0" style="font-size:.875rem">
-                <thead class="table-dark">
+            <table class="table table-index mb-0">
+                <thead>
                     <tr>
-                        <th style="min-width:130px">No SJ</th>
+                        <th class="col-name" style="min-width:130px">No SJ</th>
                         <th style="min-width:130px">Tipe</th>
                         <th style="min-width:150px">Pengirim</th>
                         <th style="min-width:150px">Penerima</th>
                         <th style="min-width:105px">Tgl Kirim</th>
                         <th style="min-width:105px">Tgl Terima</th>
-                        <th class="text-center" style="width:60px">Item</th>
+                        <th style="width:60px">Item</th>
                         <th style="width:110px">Status</th>
-                        <th style="width:80px">Aksi</th>
+                        <th style="width:70px">Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -109,7 +109,7 @@
                     @endphp
                     <tr>
                         {{-- No SJ --}}
-                        <td>
+                        <td class="col-name">
                             @if($mut->invoice_no)
                                 <span class="fw-semibold">{{ $mut->invoice_no }}</span>
                             @else
@@ -140,8 +140,8 @@
                             @endif
                         </td>
                         {{-- Item count --}}
-                        <td class="text-center">
-                            <span class="badge bg-light text-dark border">{{ $mut->items_count }}</span>
+                        <td>
+                            <span class="badge bg-secondary">{{ $mut->items_count }}</span>
                         </td>
                         {{-- Status --}}
                         <td>
@@ -158,18 +158,12 @@
                             @endif
                         </td>
                         {{-- Aksi --}}
-                        <td class="d-flex gap-1">
-                            <a href="{{ route('inventory.mutations.show', $mut) }}"
-                               class="btn btn-sm btn-outline-primary" title="Detail">
-                                <i class="bi bi-eye"></i>
-                            </a>
-                            <form method="POST" action="{{ route('inventory.mutations.destroy', $mut) }}"
-                                  onsubmit="return confirm('Hapus mutasi {{ $mut->reference_no }} secara permanen?')">
-                                @csrf @method('DELETE')
-                                <button class="btn btn-sm btn-outline-danger" title="Hapus">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </form>
+                        <td>
+                            <x-action-menu>
+                                <x-action-view :href="route('inventory.mutations.show', $mut)" />
+                                <x-action-delete :action="route('inventory.mutations.destroy', $mut)"
+                                                 confirm="Hapus mutasi {{ $mut->reference_no }} secara permanen?" />
+                            </x-action-menu>
                         </td>
                     </tr>
                     @empty

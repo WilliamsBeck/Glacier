@@ -80,6 +80,8 @@ Route::middleware(['auth'])->group(function () {
         Route::get('daily-ledger/export-template', [DailyLedgerController::class, 'exportTemplate'])->name('daily-ledger.export-template');
         Route::post('daily-ledger/import-usage', [DailyLedgerController::class, 'importUsage'])->name('daily-ledger.import-usage');
         Route::get('daily-ledger/import-preview', [DailyLedgerController::class, 'importPreview'])->name('daily-ledger.import-preview');
+        Route::post('daily-ledger/save-order', [DailyLedgerController::class, 'saveOrder'])->name('daily-ledger.save-order');
+        Route::post('daily-ledger/reset-order', [DailyLedgerController::class, 'resetOrder'])->name('daily-ledger.reset-order');
     });
 
     // PRODUKSI

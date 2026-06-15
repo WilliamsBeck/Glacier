@@ -106,11 +106,6 @@
                 @foreach($storesNotUpdated as $store)
                 @php $lastDate = $lastUsageDates[$store->id] ?? null; @endphp
                 <div class="d-flex align-items-center px-3 py-2 border-bottom gap-2">
-                    <div class="flex-shrink-0 rounded-circle bg-danger-subtle d-flex align-items-center
-                                justify-content-center text-danger fw-bold"
-                         style="width:34px;height:34px;font-size:.8rem">
-                        {{ strtoupper(substr($store->name, 0, 2)) }}
-                    </div>
                     <div class="flex-grow-1">
                         <div class="fw-semibold" style="font-size:.875rem">{{ $store->name }}</div>
                         <div class="text-muted" style="font-size:.75rem">

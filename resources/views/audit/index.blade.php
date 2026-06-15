@@ -4,9 +4,9 @@
 @section('content')
 <div class="container-fluid py-4">
 
-  <div class="mb-4">
-    <h4 class="mb-1 fw-semibold">Log Aktivitas</h4>
-    <p class="text-muted small mb-0">Semua perubahan data tercatat di sini</p>
+  <div class="page-header">
+    <h1 class="page-title">Log Aktivitas</h1>
+    <p class="page-subtitle">Semua perubahan data tercatat di sini</p>
   </div>
 
   {{-- Filter --}}
@@ -68,22 +68,22 @@
     </div>
     <div class="card-body p-0">
       <div class="table-responsive">
-        <table class="table table-hover align-middle small mb-0">
-          <thead class="table-light">
+        <table class="table table-index align-middle small mb-0">
+          <thead>
             <tr>
-              <th>Waktu</th>
+              <th class="col-name">Waktu</th>
               <th>Aksi</th>
               <th>Model</th>
-              <th>Deskripsi</th>
+              <th class="col-name">Deskripsi</th>
               <th>User</th>
               <th>IP</th>
-              <th></th>
+              <th style="width:70px">Detail</th>
             </tr>
           </thead>
           <tbody>
             @forelse($logs as $log)
             <tr>
-              <td class="text-muted" style="white-space:nowrap">
+              <td class="col-name text-muted" style="white-space:nowrap">
                 {{ $log->created_at->format('d/m/Y H:i') }}
                 <div class="text-muted" style="font-size:.7rem">{{ $log->created_at->diffForHumans() }}</div>
               </td>
@@ -117,16 +117,16 @@
                   <span class="text-muted" style="font-size:.75rem">#{{ $log->model_id }}</span>
                 @endif
               </td>
-              <td>{{ $log->description }}</td>
+              <td class="col-name">{{ $log->description }}</td>
               <td>
                 <div class="fw-semibold">{{ $log->user_name ?? '—' }}</div>
               </td>
               <td class="text-muted" style="font-size:.75rem">{{ $log->ip_address ?? '-' }}</td>
               <td>
                 @if($log->old_values || $log->new_values)
-                <a href="{{ route('audit.show', $log) }}" class="btn btn-sm btn-outline-secondary py-0 px-2">
-                  <i class="bi bi-eye"></i>
-                </a>
+                <x-action-menu>
+                    <x-action-view :href="route('audit.show', $log)" />
+                </x-action-menu>
                 @endif
               </td>
             </tr>

@@ -2,7 +2,10 @@
 @section('title','Produksi')
 @section('content')
 <div class="page-header d-flex justify-content-between align-items-start">
-    <div><h4 class="page-title">Produksi Bahan Setengah Jadi</h4></div>
+    <div>
+        <h1 class="page-title">Produksi Bahan Setengah Jadi</h1>
+        <p class="page-subtitle">Catatan produksi bahan setengah jadi per toko</p>
+    </div>
     <div class="d-flex gap-2">
         <a href="{{ route('production.analysis', ['store_id' => request('store_id')]) }}" class="btn btn-outline-secondary">
             <i class="bi bi-bar-chart me-1"></i>Analisis Produksi
@@ -21,8 +24,8 @@
     </form>
 </div></div>
 <div class="card"><div class="card-body p-0"><div class="table-responsive">
-    <table class="table table-hover mb-0">
-        <thead class="table-dark"><tr><th>Tanggal</th><th>Toko</th><th>Bahan Setengah Jadi</th><th class="text-end">Qty Diproduksi</th><th class="text-end">Est. Biaya Bahan</th><th>Catatan</th><th>Aksi</th></tr></thead>
+    <table class="table table-index mb-0">
+        <thead><tr><th>Tanggal</th><th>Toko</th><th class="col-name">Bahan Setengah Jadi</th><th>Qty Diproduksi</th><th>Est. Biaya Bahan</th><th class="col-name">Catatan</th><th style="width:70px">Aksi</th></tr></thead>
         <tbody>
             @forelse($logs as $log)
             @php
@@ -33,32 +36,29 @@
             <tr>
                 <td class="text-nowrap">{{ \Carbon\Carbon::parse($log->production_date)->format('d M Y') }}</td>
                 <td class="text-nowrap">{{ $log->store->name }}</td>
-                <td class="fw-semibold">{{ $log->semiFinished->name }}</td>
-                <td class="text-end text-nowrap">
+                <td class="col-name fw-semibold">{{ $log->semiFinished->name }}</td>
+                <td class="text-nowrap">
                     {{ number_format($log->qty_produced, $sfIsGram ? 0 : 2, ',', '.') }} {{ $sfUnit }}
                 </td>
-                <td class="text-end text-nowrap fw-semibold">
+                <td class="text-nowrap fw-semibold">
                     @if($totalCost > 0)
-                        <span class="text-primary">Rp {{ number_format($totalCost, 0, ',', '.') }}</span>
+                        Rp {{ number_format($totalCost, 0, ',', '.') }}
                     @else
-                        <span class="text-muted">—</span>
+                        <span class="text-soft">—</span>
                     @endif
                 </td>
-                <td class="text-muted small">{{ Str::limit($log->notes, 35) }}</td>
+                <td class="col-name text-soft small">{{ Str::limit($log->notes, 35) }}</td>
                 <td>
-                    <div class="d-flex gap-1">
-                        <a href="{{ route('production.logs.show', $log) }}" class="btn btn-sm btn-outline-primary" title="Detail"><i class="bi bi-eye"></i></a>
-                        <a href="{{ route('production.logs.edit', $log) }}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="bi bi-pencil"></i></a>
-                        <form method="POST" action="{{ route('production.logs.destroy', $log) }}"
-                              onsubmit="return confirm('Hapus data produksi ini?')">
-                            @csrf @method('DELETE')
-                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Hapus"><i class="bi bi-trash3"></i></button>
-                        </form>
-                    </div>
+                    <x-action-menu>
+                        <x-action-view :href="route('production.logs.show', $log)" />
+                        <x-action-edit :href="route('production.logs.edit', $log)" />
+                        <x-action-delete :action="route('production.logs.destroy', $log)"
+                                         confirm="Hapus data produksi ini?" />
+                    </x-action-menu>
                 </td>
             </tr>
             @empty
-            <tr><td colspan="7" class="text-center py-4 text-muted"><i class="bi bi-gear fs-2 d-block mb-2 opacity-25"></i>Belum ada data produksi</td></tr>
+            <tr><td colspan="7" class="py-4 text-soft"><i class="bi bi-gear fs-2 d-block mb-2 opacity-25"></i>Belum ada data produksi</td></tr>
             @endforelse
         </tbody>
     </table>

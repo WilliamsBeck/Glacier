@@ -2,7 +2,10 @@
 @section('title','Penjualan')
 @section('content')
 <div class="page-header d-flex justify-content-between align-items-start">
-    <div><h4 class="page-title">Penjualan Menu</h4></div>
+    <div>
+        <h1 class="page-title">Penjualan Menu</h1>
+        <p class="page-subtitle">Rekap omset &amp; kuantitas terjual per periode</p>
+    </div>
     <div class="d-flex gap-2">
         <a href="{{ route('sales.monthly.export', request()->query()) }}" class="btn btn-outline-success btn-sm">
             <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
@@ -59,15 +62,15 @@
 </div></div>
 
 <div class="card"><div class="card-body p-0"><div class="table-responsive">
-    <table class="table table-hover mb-0 align-middle">
-        <thead class="table-dark">
+    <table class="table table-index mb-0 align-middle">
+        <thead>
             <tr>
-                <th>Toko</th>
+                <th class="col-name">Toko</th>
                 <th>Bulan / Tahun</th>
                 <th>Periode</th>
-                <th class="text-end">Omset</th>
-                <th class="text-end">Qty Terjual</th>
-                <th>Aksi</th>
+                <th>Omset</th>
+                <th>Qty Terjual</th>
+                <th style="width:70px">Aksi</th>
             </tr>
         </thead>
         <tbody>
@@ -80,31 +83,28 @@
                 $monthNames = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
             @endphp
             <tr>
-                <td class="fw-semibold">{{ $store?->name ?? '—' }}</td>
+                <td class="col-name fw-semibold">{{ $store?->name ?? '—' }}</td>
                 <td>{{ $monthNames[$g->month] }} {{ $g->year }}</td>
                 <td>
-                    <span class="badge bg-light text-dark border">
+                    <span class="badge bg-secondary">
                         {{ $g->period_type === 'mid_month' ? '1 – 15' : '1 – 30/31' }}
                     </span>
                 </td>
-                <td class="text-end">
+                <td>
                     @if($revenue && $revenue->total_revenue > 0)
                         <span class="fw-semibold">Rp {{ number_format($revenue->total_revenue, 0, ',', '.') }}</span>
                     @else
-                        <span class="text-muted small">—</span>
+                        <span class="text-soft small">—</span>
                     @endif
                 </td>
-                <td class="text-end fw-semibold">{{ number_format($g->total_sold, 0, ',', '.') }} <span class="text-muted fw-normal small">pcs</span></td>
+                <td class="fw-semibold">{{ number_format($g->total_sold, 0, ',', '.') }} <span class="text-soft fw-normal small">pcs</span></td>
                 <td>
-                    <div class="d-flex gap-1">
-                        <a href="{{ route('sales.period.show', $params) }}" class="btn btn-sm btn-outline-primary" title="Detail"><i class="bi bi-eye"></i></a>
-                        <a href="{{ route('sales.period.edit', $params) }}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="bi bi-pencil"></i></a>
-                        <form method="POST" action="{{ route('sales.period.destroy', $params) }}"
-                              onsubmit="return confirm('Hapus seluruh data penjualan periode ini?')">
-                            @csrf @method('DELETE')
-                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Hapus"><i class="bi bi-trash3"></i></button>
-                        </form>
-                    </div>
+                    <x-action-menu>
+                        <x-action-view :href="route('sales.period.show', $params)" />
+                        <x-action-edit :href="route('sales.period.edit', $params)" />
+                        <x-action-delete :action="route('sales.period.destroy', $params)"
+                                         confirm="Hapus seluruh data penjualan periode ini?" />
+                    </x-action-menu>
                 </td>
             </tr>
             @empty

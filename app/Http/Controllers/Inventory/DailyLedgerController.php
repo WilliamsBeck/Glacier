@@ -6,6 +6,7 @@ use App\Models\{DailyUsage, DailyConfirmation, Ingredient, IngredientCategory, M
 use App\Services\FifoService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx as XlsxWriter;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -183,11 +184,23 @@ class DailyLedgerController extends Controller
 
         // ── Load ingredients ordered by type ──────────────────────
         $typeOrder   = IngredientCategory::orderedNames();
+        $userOrder   = DB::table('user_ingredient_orders')
+            ->where('user_id', auth()->id())
+            ->pluck('sort_order', 'ingredient_id')
+            ->toArray();
+
         $ingredients = Ingredient::with(['packagings' => fn($q) => $q->where('is_active', true)->orderBy('id')])
             ->whereIn('id', $ingIds)
             ->where('type', '!=', 'semi_finished')
             ->get()
-            ->sort(function ($a, $b) use ($typeOrder) {
+            ->sort(function ($a, $b) use ($typeOrder, $userOrder) {
+                // Prioritas 1: urutan custom user (kalau ada)
+                $ua = $userOrder[$a->id] ?? null;
+                $ub = $userOrder[$b->id] ?? null;
+                if ($ua !== null && $ub !== null) return $ua <=> $ub;
+                if ($ua !== null) return -1;
+                if ($ub !== null) return 1;
+                // Prioritas 2: kategori → nama (default)
                 $ai = array_search($a->type, $typeOrder);
                 $bi = array_search($b->type, $typeOrder);
                 $ai = $ai === false ? 99 : $ai;
@@ -1143,5 +1156,39 @@ class DailyLedgerController extends Controller
             $col    = intval(($col - 1) / 26);
         }
         return $letter;
+    }
+
+    /** Simpan urutan bahan custom per user (drag-drop dari halaman pencatatan harian). */
+    public function saveOrder(Request $request)
+    {
+        $request->validate([
+            'ingredient_ids'   => 'required|array',
+            'ingredient_ids.*' => 'integer|exists:ingredients,id',
+        ]);
+
+        $userId = auth()->id();
+        $ids    = $request->input('ingredient_ids');
+
+        DB::transaction(function () use ($userId, $ids) {
+            DB::table('user_ingredient_orders')->where('user_id', $userId)->delete();
+            $rows = [];
+            foreach ($ids as $i => $ingId) {
+                $rows[] = [
+                    'user_id'       => $userId,
+                    'ingredient_id' => (int) $ingId,
+                    'sort_order'    => $i + 1,
+                ];
+            }
+            if ($rows) DB::table('user_ingredient_orders')->insert($rows);
+        });
+
+        return response()->json(['ok' => true]);
+    }
+
+    /** Reset urutan ke default (kategori → nama). */
+    public function resetOrder()
+    {
+        DB::table('user_ingredient_orders')->where('user_id', auth()->id())->delete();
+        return response()->json(['ok' => true]);
     }
 }

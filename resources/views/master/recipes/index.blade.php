@@ -2,7 +2,10 @@
 @section('title','Resep')
 @section('content')
 <div class="page-header d-flex justify-content-between align-items-start">
-    <div><h4 class="page-title">Resep Menu</h4><p class="text-muted mb-0">Versi resep aktif menentukan HPP per periode</p></div>
+    <div>
+        <h1 class="page-title">Resep Menu</h1>
+        <p class="page-subtitle">Versi resep aktif menentukan HPP per periode</p>
+    </div>
     <a href="{{ route('master.recipes.create') }}" class="btn btn-primary"><i class="bi bi-plus-circle me-1"></i> Buat Resep Baru</a>
 </div>
 <div class="card mb-3"><div class="card-body py-2">
@@ -23,22 +26,22 @@
 @endphp
 
 <div class="card"><div class="card-body p-0"><div class="table-responsive">
-    <table class="table table-hover mb-0">
-        <thead class="table-dark">
+    <table class="table table-index mb-0">
+        <thead>
             <tr>
-                <th>Menu</th>
+                <th class="col-name">Menu</th>
                 <th>Berlaku Untuk</th>
                 <th>Berlaku Sejak</th>
-                <th>Komposisi Bahan</th>
+                <th class="col-name">Komposisi Bahan</th>
                 <th>Dibuat Oleh</th>
-                <th style="width:120px"></th>
+                <th style="width:70px">Aksi</th>
             </tr>
         </thead>
         <tbody>
             @forelse($grouped as $key => $group)
             @php $first = $group->first(); @endphp
             <tr>
-                <td class="fw-semibold align-top">{{ $first->menu->name }}</td>
+                <td class="col-name fw-semibold align-top">{{ $first->menu->name }}</td>
                 <td class="align-top">
                     @php
                         $isDefault   = $group->pluck('store_id')->contains(null);
@@ -57,25 +60,27 @@
                 <td class="align-top">
                     <span class="badge bg-secondary">{{ $first->effective_from->format('d') . ' ' . ['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agt','Sep','Okt','Nov','Des'][(int)$first->effective_from->format('n')] . ' ' . $first->effective_from->format('Y') }}</span>
                 </td>
-                <td>
+                <td class="col-name">
                     @foreach($group->unique('ingredient_id') as $r)
                     <div class="small">
                         {{ $r->ingredient->name }}
-                        <span class="text-muted">— {{ number_format($r->qty_usage, 0, ',', '.') }} {{ $r->unit }}</span>
+                        <span class="text-soft">— {{ number_format($r->qty_usage, 0, ',', '.') }} {{ $r->unit }}</span>
                     </div>
                     @endforeach
                 </td>
-                <td class="align-top small text-muted">{{ $first->createdBy->name ?? '-' }}</td>
+                <td class="align-top small text-soft">{{ $first->createdBy->name ?? '-' }}</td>
                 <td class="align-top">
-                    <a href="{{ route('master.recipes.duplicate', $first->id) }}"
-                       class="btn btn-sm btn-outline-primary"
-                       title="Duplikat versi ini sebagai resep baru">
-                        <i class="bi bi-copy me-1"></i>Duplikat
-                    </a>
+                    <x-action-menu>
+                        <li>
+                            <a class="dropdown-item" href="{{ route('master.recipes.duplicate', $first->id) }}">
+                                <i class="bi bi-copy"></i> Duplikat Versi
+                            </a>
+                        </li>
+                    </x-action-menu>
                 </td>
             </tr>
             @empty
-            <tr><td colspan="5" class="text-center py-4 text-muted">Belum ada resep</td></tr>
+            <tr><td colspan="6" class="py-4 text-soft">Belum ada resep</td></tr>
             @endforelse
         </tbody>
     </table>

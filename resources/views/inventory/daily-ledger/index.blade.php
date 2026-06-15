@@ -129,7 +129,8 @@
         $ctb = $packaging->crate_to_pack * $packaging->pack_to_base;
         if ($ctb <= 0) return '';
         $v = $base / $ctb;
-        return $v >= 0.05 ? round($v, 1) : '';
+        // Tetap tampilkan nilai kecil (mis. waste 1 pack dari dus besar) — pakai 2 desimal.
+        return $v >= 0.005 ? round($v, 2) : '';
     };
 
     // Helper: base → DUS+PACK array untuk stok awal/akhir
@@ -196,6 +197,12 @@
     </div>
     <div class="d-flex gap-2 align-items-center">
         <span id="saveStatus" class="text-muted small"></span>
+        <button id="btnToggleReorder" type="button" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-arrows-move me-1"></i> Atur Urutan
+        </button>
+        <button id="btnResetOrder" type="button" class="btn btn-outline-secondary btn-sm" title="Reset ke urutan default (kategori)">
+            <i class="bi bi-arrow-counterclockwise"></i>
+        </button>
         <button onclick="window.print()" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-printer me-1"></i> Print
         </button>
@@ -353,9 +360,14 @@
                         @endforeach
                     </tr>
                 </thead>
-                <tbody style="font-size:0.7rem">
-                    @php $no = 1; $prevIngId = null; @endphp
-                    @foreach($tableRows as $trow)
+                @php
+                    // Kelompokkan tableRows per ingredient (1 tbody per bahan → bisa di-drag-drop)
+                    $rowsByIng = collect($tableRows)->groupBy('ing_id');
+                    $no = 1;
+                @endphp
+                @foreach($rowsByIng as $groupIngId => $groupRows)
+                <tbody class="ing-group" data-ing-id="{{ $groupIngId }}" style="font-size:0.7rem">
+                    @foreach($groupRows as $trow)
                         @php
                             $ingId   = $trow['ing_id'];
                             $pkgId   = $trow['pkg_id'];
@@ -365,6 +377,7 @@
                             $row     = $tableData[$ingId];
                             $ptb     = $pkg ? (float)$pkg->pack_to_base : 1;
                             $ctb     = $pkg ? (float)($pkg->crate_to_pack * $pkg->pack_to_base) : 0;
+                            $multiPkg = $ing->packagings->count() > 1;
 
                             // Total pemakaian baris ini (pack)
                             $totalPack = collect($trow['days'])->sum('pemakaian');
@@ -401,11 +414,6 @@
                             $closing = $toDusPack($closingBase, $pkg);
                         @endphp
 
-                        {{-- Separator jika pindah ingredient --}}
-                        @if($isFirst && $prevIngId !== null)
-                            <tr style="height:2px;background:#ddd"><td colspan="999"></td></tr>
-                        @endif
-                        @php $prevIngId = $ingId; @endphp
                         <tr data-opening="{{ $trow['opening_base'] }}"
                             data-in="{{ $trow['opening_base'] }}"
                             data-avail="{{ $availBase }}"
@@ -418,12 +426,14 @@
                             {{-- Nama Bahan / Kemasan --}}
                             <td class="sticky-col" style="background:#fff;font-size:0.7rem">
                                 @if($isFirst)
-                                    <span class="fw-semibold">{{ $no++ }}. {{ $ing->name }}</span>
+                                    <span class="drag-handle d-none me-1" style="cursor:grab;color:#999" title="Geser untuk atur urutan">
+                                        <i class="bi bi-grip-vertical"></i>
+                                    </span>
+                                    <span class="fw-semibold"><span class="ing-no">{{ $no++ }}</span>. {{ $ing->name }}</span>
                                 @endif
-                                @if($pkg)
+                                @if($pkg && $multiPkg && $pkg->crate_to_pack)
                                     <div class="text-muted" style="font-size:0.62rem;line-height:1.2">
-                                        {{ $pkg->packaging_name }}
-                                        <span class="ms-1">(1 Pack = {{ number_format($pkg->pack_to_base,0,'.','.') }} {{ $ing->unit_base }})</span>
+                                        {{ '@'.$pkg->crate_to_pack }} pack
                                     </div>
                                 @endif
                             </td>
@@ -476,10 +486,21 @@
                         </tr>
                     @endforeach
                 </tbody>
+                @endforeach
             </table>
         </div>
     </div>
 </div>
+
+{{-- Border separator antar ingredient group --}}
+<style>
+    .daily-ledger-table tbody.ing-group { border-top: 2px solid #ddd; }
+    .daily-ledger-table tbody.ing-group:first-of-type { border-top: 0; }
+    .daily-ledger-table.reorder-mode tbody.ing-group { cursor: grab; }
+    .daily-ledger-table.reorder-mode tbody.ing-group:hover { background: #fff8e1; }
+    .daily-ledger-table.reorder-mode .drag-handle { display: inline-block !important; }
+    .sortable-ghost { opacity: 0.4; }
+</style>
 @endif
 @endsection
 
@@ -717,5 +738,79 @@ document.querySelectorAll('.confirm-date-th').forEach(function(th) {
         });
     });
 });
+</script>
+
+{{-- Reorder bahan baku (per user) --}}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js"></script>
+<script>
+(function() {
+    const table     = document.querySelector('.daily-ledger-table');
+    const btnToggle = document.getElementById('btnToggleReorder');
+    const btnReset  = document.getElementById('btnResetOrder');
+    const status    = document.getElementById('saveStatus');
+    if (!table || !btnToggle) return;
+
+    const csrf       = '{{ csrf_token() }}';
+    const saveUrl    = '{{ route("inventory.daily-ledger.save-order") }}';
+    const resetUrl   = '{{ route("inventory.daily-ledger.reset-order") }}';
+    let sortable     = null;
+    let reorderMode  = false;
+
+    btnToggle.addEventListener('click', function() {
+        reorderMode = !reorderMode;
+        if (reorderMode) {
+            table.classList.add('reorder-mode');
+            btnToggle.classList.remove('btn-outline-primary');
+            btnToggle.classList.add('btn-primary');
+            btnToggle.innerHTML = '<i class="bi bi-check-lg me-1"></i> Selesai';
+            sortable = Sortable.create(table, {
+                draggable: 'tbody.ing-group',
+                handle: '.drag-handle',
+                animation: 150,
+                ghostClass: 'sortable-ghost',
+                onEnd: saveOrder,
+            });
+        } else {
+            table.classList.remove('reorder-mode');
+            btnToggle.classList.remove('btn-primary');
+            btnToggle.classList.add('btn-outline-primary');
+            btnToggle.innerHTML = '<i class="bi bi-arrows-move me-1"></i> Atur Urutan';
+            if (sortable) { sortable.destroy(); sortable = null; }
+        }
+    });
+
+    function renumber() {
+        Array.from(table.querySelectorAll('tbody.ing-group')).forEach((tb, i) => {
+            const n = tb.querySelector('.ing-no');
+            if (n) n.textContent = (i + 1);
+        });
+    }
+
+    function saveOrder() {
+        renumber();
+        const ids = Array.from(table.querySelectorAll('tbody.ing-group'))
+                         .map(tb => tb.dataset.ingId);
+        status.textContent = 'Menyimpan urutan…';
+        fetch(saveUrl, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json','X-CSRF-TOKEN':csrf,'Accept':'application/json'},
+            body: JSON.stringify({ ingredient_ids: ids }),
+        })
+        .then(r => r.json())
+        .then(() => { status.textContent = '✓ Urutan tersimpan'; setTimeout(() => status.textContent = '', 1500); })
+        .catch(() => { status.textContent = '⚠ Gagal simpan urutan'; });
+    }
+
+    btnReset.addEventListener('click', function() {
+        if (!confirm('Reset urutan ke default (kategori → nama)?')) return;
+        fetch(resetUrl, {
+            method: 'POST',
+            headers: {'X-CSRF-TOKEN':csrf,'Accept':'application/json'},
+        })
+        .then(r => r.json())
+        .then(() => { location.reload(); })
+        .catch(() => { status.textContent = '⚠ Gagal reset'; });
+    });
+})();
 </script>
 @endpush
