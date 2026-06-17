@@ -80,7 +80,7 @@
                 </td>
             </tr>
             @empty
-            <tr><td colspan="6" class="py-4 text-soft">Belum ada resep</td></tr>
+            <tr><td colspan="6" class="py-4 text-soft text-center">Belum ada resep</td></tr>
             @endforelse
         </tbody>
     </table>

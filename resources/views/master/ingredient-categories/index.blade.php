@@ -3,9 +3,12 @@
 @section('content')
 <div class="page-header d-flex justify-content-between align-items-center">
     <h4 class="page-title">Kategori Bahan Baku</h4>
-    <a href="{{ route('master.ingredients.index') }}" class="btn btn-outline-secondary btn-sm btn-back">
-        <i class="bi bi-arrow-left me-1"></i>Kembali
-    </a>
+    <div class="d-flex gap-2 flex-wrap">
+        @include('master.partials.import-buttons', ['entity' => 'ingredient-categories', 'label' => 'Kategori'])
+        <a href="{{ route('master.ingredients.index') }}" class="btn btn-outline-secondary btn-sm btn-back">
+            <i class="bi bi-arrow-left me-1"></i>Kembali
+        </a>
+    </div>
 </div>
 
 @if(session('success'))

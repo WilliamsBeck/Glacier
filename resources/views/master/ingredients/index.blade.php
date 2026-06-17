@@ -7,9 +7,42 @@
         <h1 class="page-title">Bahan Baku &amp; Setengah Jadi</h1>
         <p class="page-subtitle">Manajemen master data bahan</p>
     </div>
-    <a href="{{ route('master.ingredients.create') }}" class="btn btn-primary">
-        <i class="bi bi-plus-lg me-1"></i> Tambah Bahan
-    </a>
+    <div class="d-flex gap-2 flex-wrap justify-content-end">
+        <a href="{{ route('master.import-bundle.template', 'bahan') }}" class="btn btn-outline-success">
+            <i class="bi bi-file-earmark-arrow-down me-1"></i> Download Template
+        </a>
+        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#importBundleModal">
+            <i class="bi bi-upload me-1"></i> Impor
+        </button>
+        <a href="{{ route('master.ingredients.create') }}" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i> Tambah Bahan
+        </a>
+        <div class="modal fade" id="importBundleModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <form method="POST" action="{{ route('master.import-bundle.preview', 'bahan') }}" enctype="multipart/form-data">
+                    @csrf
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Impor Bahan, Kemasan & Komposisi</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="text-muted small mb-2">
+                                Satu file berisi 3 sheet: <b>Bahan</b>, <b>Kemasan</b>, <b>Komposisi</b>. Unduh template
+                                dulu, isi, lalu unggah di sini. Bahan diproses lebih dulu sehingga Kemasan & Komposisi
+                                bisa mengacu bahan baru di file yang sama.
+                            </p>
+                            <input type="file" name="file" class="form-control" accept=".xlsx,.xls" required>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                            <button type="submit" class="btn btn-primary"><i class="bi bi-search me-1"></i> Pratinjau</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 </div>
 
 <div class="card mb-3">
@@ -82,7 +115,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="6" class="py-5 text-soft">
+                        <td colspan="6" class="py-5 text-soft text-center">
                             <i class="bi bi-box2 fs-3 d-block mb-2 opacity-25"></i>
                             Belum ada data bahan.
                         </td>

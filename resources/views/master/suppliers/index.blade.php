@@ -7,9 +7,12 @@
         <h1 class="page-title">Manajemen Supplier</h1>
         <p class="page-subtitle">Database rantai pasok logistik resmi</p>
     </div>
-    <a href="{{ route('master.suppliers.create') }}" class="btn btn-primary">
-        <i class="bi bi-plus-lg me-1"></i> Tambah Supplier
-    </a>
+    <div class="d-flex gap-2 flex-wrap justify-content-end">
+        @include('master.partials.import-buttons', ['entity' => 'suppliers', 'label' => 'Supplier'])
+        <a href="{{ route('master.suppliers.create') }}" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i> Tambah Supplier
+        </a>
+    </div>
 </div>
 
 <div class="card mb-3">
@@ -85,7 +88,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="6" class="py-5 text-soft">
+                        <td colspan="6" class="py-5 text-soft text-center">
                             <i class="bi bi-folder2-open fs-3 d-block mb-2 opacity-25"></i>
                             Belum ada data supplier.
                         </td>

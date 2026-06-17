@@ -7,9 +7,12 @@
         <h1 class="page-title">Daftar Menu</h1>
         <p class="page-subtitle">Manajemen master data menu dan varian resep</p>
     </div>
-    <a href="{{ route('master.menus.create') }}" class="btn btn-primary">
-        <i class="bi bi-plus-lg me-1"></i> Tambah Menu
-    </a>
+    <div class="d-flex gap-2 flex-wrap justify-content-end">
+        @include('master.partials.import-buttons', ['entity' => 'menus', 'label' => 'Menu'])
+        <a href="{{ route('master.menus.create') }}" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i> Tambah Menu
+        </a>
+    </div>
 </div>
 
 <div class="card mb-3">
@@ -73,7 +76,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="5" class="py-5 text-soft">
+                        <td colspan="5" class="py-5 text-soft text-center">
                             <i class="bi bi-cup-straw fs-3 d-block mb-2 opacity-25"></i>
                             Belum ada data menu.
                         </td>

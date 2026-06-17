@@ -13,6 +13,7 @@ use App\Http\Controllers\MasterData\UserController;
 use App\Http\Controllers\MasterData\IngredientCategoryController;
 use App\Http\Controllers\MasterData\MenuCategoryController;
 use App\Http\Controllers\MasterData\CategoriesController;
+use App\Http\Controllers\MasterData\MasterImportController;
 use App\Http\Controllers\Inventory\MutationController;
 use App\Http\Controllers\Inventory\StockController;
 use App\Http\Controllers\Inventory\StockLedgerController;
@@ -61,6 +62,15 @@ Route::middleware(['auth'])->group(function () {
         Route::post('ingredient-categories/reorder', [IngredientCategoryController::class, 'reorder'])->name('ingredient-categories.reorder');
         Route::resource('menu-categories', MenuCategoryController::class)->only(['index','store','update','destroy']);
         Route::post('menu-categories/reorder', [MenuCategoryController::class, 'reorder'])->name('menu-categories.reorder');
+
+        // Impor massal master data (template + preview + commit)
+        Route::get('import/{entity}/template', [MasterImportController::class, 'template'])->name('import.template');
+        Route::post('import/{entity}/preview', [MasterImportController::class, 'preview'])->name('import.preview');
+        Route::post('import/{entity}/commit',  [MasterImportController::class, 'commit'])->name('import.commit');
+        // Bundle multi-sheet (mis. Bahan + Kemasan + Komposisi dalam 1 file)
+        Route::get('import-bundle/{bundle}/template', [MasterImportController::class, 'bundleTemplate'])->name('import-bundle.template');
+        Route::post('import-bundle/{bundle}/preview', [MasterImportController::class, 'bundlePreview'])->name('import-bundle.preview');
+        Route::post('import-bundle/{bundle}/commit',  [MasterImportController::class, 'bundleCommit'])->name('import-bundle.commit');
     });
 
     // INVENTORI

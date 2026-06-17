@@ -7,9 +7,12 @@
         <h1 class="page-title">Manajemen Toko</h1>
         <p class="page-subtitle">Total {{ $stores->total() }} toko terdaftar dalam sistem</p>
     </div>
-    <a href="{{ route('master.stores.create') }}" class="btn btn-primary">
-        <i class="bi bi-plus-lg me-1"></i> Tambah Toko
-    </a>
+    <div class="d-flex gap-2 flex-wrap justify-content-end">
+        @include('master.partials.import-buttons', ['entity' => 'stores', 'label' => 'Toko'])
+        <a href="{{ route('master.stores.create') }}" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i> Tambah Toko
+        </a>
+    </div>
 </div>
 
 <div class="card mb-3">
@@ -84,7 +87,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="6" class="py-5 text-soft">
+                        <td colspan="6" class="py-5 text-soft text-center">
                             <i class="bi bi-shop fs-3 d-block mb-2 opacity-25"></i>
                             Belum ada data toko.
                         </td>

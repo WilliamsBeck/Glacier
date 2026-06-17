@@ -81,7 +81,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="6" class="py-5 text-soft">
+                        <td colspan="6" class="py-5 text-soft text-center">
                             <i class="bi bi-people fs-3 d-block mb-2 opacity-25"></i>
                             Belum ada data user.
                         </td>
