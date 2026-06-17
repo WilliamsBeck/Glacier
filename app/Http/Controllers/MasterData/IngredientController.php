@@ -9,13 +9,25 @@ class IngredientController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Ingredient::query();
+        $query = Ingredient::query()
+            ->leftJoin('ingredient_categories as ic', 'ingredients.category', '=', 'ic.name')
+            ->select('ingredients.*');
         if ($request->search)
-            $query->where('name', 'like', "%{$request->search}%");
+            $query->where('ingredients.name', 'like', "%{$request->search}%");
         if ($request->type)
-            $query->where('type', $request->type);
-        $ingredients = $query->latest()->paginate(20);
-        return view('master.ingredients.index', compact('ingredients'));
+            $query->where('ingredients.type', $request->type);
+        if ($request->category)
+            $query->where('ingredients.category', $request->category);
+
+        // Urut per kategori sesuai master (Solid, Bubuk, Sirup, …); tanpa kategori di akhir.
+        // Dalam tiap kategori: ikut urutan input (urutan file Excel) = urutan id.
+        $ingredients = $query->orderByRaw('ic.sort_order IS NULL')
+            ->orderBy('ic.sort_order')
+            ->orderBy('ingredients.id')
+            ->paginate(20)->withQueryString();
+
+        $categories = IngredientCategory::ordered()->get();
+        return view('master.ingredients.index', compact('ingredients', 'categories'));
     }
 
     public function create()

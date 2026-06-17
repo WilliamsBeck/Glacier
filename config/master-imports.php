@@ -73,7 +73,7 @@ return [
         'unique_by'   => ['name'],
         'columns'     => [
             ['header' => 'name',      'field' => 'name',      'rules' => 'required|string|max:150', 'required' => true],
-            ['header' => 'type',      'field' => 'type',      'rules' => 'required|in:zhisheng,local_supplier,other', 'required' => true],
+            ['header' => 'type',      'field' => 'type',      'rules' => 'required|in:zhisheng,local_supplier,other', 'required' => true, 'lower' => true],
             ['header' => 'contact',   'field' => 'contact',   'rules' => 'nullable|string|max:150'],
             ['header' => 'address',   'field' => 'address',   'rules' => 'nullable|string|max:255'],
         ],
@@ -105,9 +105,13 @@ return [
         'unique_by'   => ['name'],
         'columns'     => [
             ['header' => 'name',      'field' => 'name',      'rules' => 'required|string|max:150', 'required' => true],
-            ['header' => 'type',      'field' => 'type',      'rules' => 'required|in:raw,semi_finished', 'required' => true],
-            ['header' => 'category',  'field' => 'category',  'rules' => 'nullable|in:bubuk,teh,sirup,selai,solid,kemasan'],
-            ['header' => 'unit_base', 'field' => 'unit_base', 'rules' => 'required|string|max:20', 'required' => true],
+            ['header' => 'type',      'field' => 'type',      'rules' => 'required|in:raw,semi_finished', 'required' => true, 'lower' => true],
+            // Kategori divalidasi dinamis dari master "Kategori Bahan Baku" (ingredient_categories)
+            ['header' => 'category',  'field' => 'category',  'rules' => 'nullable', 'lower' => true,
+                'in_from' => ['model' => IngredientCategory::class, 'column' => 'name']],
+            // unit_base mengikuti form: gram/pcs. Alias "gr","g" -> gram; "pc","buah" -> pcs.
+            ['header' => 'unit_base', 'field' => 'unit_base', 'rules' => 'required|in:gram,pcs', 'required' => true, 'lower' => true,
+                'map' => ['gr' => 'gram', 'g' => 'gram', 'gram' => 'gram', 'pcs' => 'pcs', 'pc' => 'pcs', 'buah' => 'pcs']],
         ],
         'sample_rows' => [
             ['Susu Cair UHT', 'raw', 'solid', 'ml'],

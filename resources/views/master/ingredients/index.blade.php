@@ -48,18 +48,28 @@
 <div class="card mb-3">
     <div class="card-body">
         <form method="GET" class="row g-2 align-items-center">
-            <div class="col-md-5">
+            <div class="col-md-4">
                 <input type="text" name="search" class="form-control"
                        placeholder="Cari nama bahan baku…" value="{{ request('search') }}">
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <select name="type" class="form-select">
                     <option value="">Semua Tipe</option>
                     <option value="raw" {{ request('type') === 'raw' ? 'selected' : '' }}>Raw</option>
                     <option value="semi_finished" {{ request('type') === 'semi_finished' ? 'selected' : '' }}>Semi</option>
                 </select>
             </div>
-            <div class="col-md-4 d-flex gap-2 justify-content-end">
+            <div class="col-md-3">
+                <select name="category" class="form-select">
+                    <option value="">Semua Kategori</option>
+                    @foreach($categories as $cat)
+                        <option value="{{ $cat->name }}" {{ request('category') === $cat->name ? 'selected' : '' }}>
+                            {{ $cat->label ?? ucfirst($cat->name) }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-md-3 d-flex gap-2 justify-content-end">
                 <button type="submit" class="btn btn-primary">Cari</button>
                 <a href="{{ route('master.ingredients.index') }}" class="btn btn-outline-secondary">Reset</a>
             </div>
@@ -72,7 +82,7 @@
         <table class="table table-index table-balanced mb-0">
             <thead>
                 <tr>
-                    <th width="48">#</th>
+                    <th width="56" class="text-nowrap">#</th>
                     <th class="col-name">Nama Bahan</th>
                     <th>Tipe</th>
                     <th>Satuan</th>
@@ -83,7 +93,7 @@
             <tbody>
                 @forelse($ingredients as $ing)
                     <tr>
-                        <td class="text-soft">{{ $ingredients->firstItem() + $loop->index }}</td>
+                        <td class="text-soft text-nowrap">{{ $ingredients->firstItem() + $loop->index }}</td>
                         <td class="col-name">
                             <span class="fw-medium">{{ $ing->name }}</span>
                         </td>

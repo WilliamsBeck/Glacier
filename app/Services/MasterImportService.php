@@ -60,7 +60,12 @@ class MasterImportService
             $raw = [];
             foreach ($columns as $col) {
                 $idx = $headerMap[strtolower($col['header'])] ?? null;
-                $raw[$col['header']] = $idx ? trim((string) $ws->getCellByColumnAndRow($idx, $r)->getValue()) : '';
+                $val = $idx ? trim((string) $ws->getCellByColumnAndRow($idx, $r)->getValue()) : '';
+                // Normalisasi nilai enum (case-insensitive): "Solid" -> "solid"
+                if (!empty($col['lower']) && $val !== '') $val = strtolower($val);
+                // Pemetaan alias: mis. "gr" -> "gram"
+                if (!empty($col['map']) && $val !== '') $val = $col['map'][strtolower($val)] ?? $val;
+                $raw[$col['header']] = $val;
             }
 
             // Lewati baris yang sepenuhnya kosong
@@ -74,13 +79,36 @@ class MasterImportService
             $relationCols = array_keys($relations);
             $validatable  = [];
             $vrules       = [];
+            $vattrs       = [];
+            $vmessages    = [
+                'required' => ':attribute wajib diisi.',
+                'integer'  => ':attribute harus berupa angka bulat.',
+                'numeric'  => ':attribute harus berupa angka.',
+                'min'      => ':attribute minimal :min.',
+                'gt'       => ':attribute harus lebih besar dari :value.',
+                'max'      => ':attribute maksimal :max karakter.',
+                'string'   => ':attribute harus berupa teks.',
+            ];
             foreach ($columns as $col) {
                 if (in_array($col['header'], $relationCols)) continue;
                 $val = $raw[$col['header']];
                 $validatable[$col['field']] = $val === '' ? null : $val;
-                $vrules[$col['field']]      = $col['rules'] ?? 'nullable';
+                $rule = $col['rules'] ?? 'nullable';
+                // Daftar nilai valid diambil dinamis dari tabel master (mis. kategori bahan)
+                if (!empty($col['in_from'])) {
+                    $names = $col['in_from']['model']::pluck($col['in_from']['column'])
+                        ->map(fn($n) => strtolower((string) $n))->filter()->values()->all();
+                    if ($names) $rule .= '|in:' . implode(',', $names);
+                }
+                $vrules[$col['field']] = $rule;
+                $vattrs[$col['field']] = $col['header'];
+                // Pesan khusus untuk enum (in:...) → sebutkan pilihan yang valid
+                if (preg_match('/in:([^|]+)/', $rule, $m)) {
+                    $opsi = str_replace(',', ', ', $m[1]);
+                    $vmessages[$col['field'] . '.in'] = ":attribute tidak valid. Pilih salah satu: {$opsi}.";
+                }
             }
-            $validator = Validator::make($validatable, $vrules);
+            $validator = Validator::make($validatable, $vrules, $vmessages, $vattrs);
             foreach ($validator->errors()->all() as $msg) $errors[] = $msg;
 
             // 2) Susun atribut dari kolom non-relasi
