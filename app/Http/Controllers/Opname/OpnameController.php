@@ -33,7 +33,10 @@ class OpnameController extends Controller
     public function create()
     {
         $stores      = auth()->user()->accessibleStores();
-        $ingredients = Ingredient::where('is_active', true)->where('type', '!=', 'semi_finished')->orderBy('name')->get();
+        $ingredients = Ingredient::where('is_active', true)->where('type', '!=', 'semi_finished')
+            ->leftJoin('ingredient_categories as ic', 'ingredients.category', '=', 'ic.name')
+            ->orderByRaw('ic.sort_order IS NULL')->orderBy('ic.sort_order')->orderBy('ingredients.id')
+            ->select('ingredients.*')->get();
         return view('opname.create', compact('stores', 'ingredients'));
     }
 
@@ -85,12 +88,16 @@ class OpnameController extends Controller
             $allPackagings = IngredientPackaging::where('is_active', true)
                 ->whereHas('ingredient', fn($q) => $q->where('type', '!=', 'semi_finished'))
                 ->orderBy('ingredient_id')->orderBy('id')->get();
-            $allIngredients = Ingredient::where('is_active', true)->where('type', '!=', 'semi_finished')->orderBy('name')->get();
+            $allIngredients = Ingredient::where('is_active', true)->where('type', '!=', 'semi_finished')
+                ->leftJoin('ingredient_categories as ic', 'ingredients.category', '=', 'ic.name')
+                ->orderByRaw('ic.sort_order IS NULL')->orderBy('ic.sort_order')->orderBy('ingredients.id')
+                ->select('ingredients.*')->get();
             $ingIdsWithPkg  = $allPackagings->pluck('ingredient_id')->unique()->all();
             $pkgIds         = $allPackagings->pluck('id')->all();
 
             $remainingByPkg = MutationItem::whereHas('mutation', fn($q) =>
                     $q->where('destination_store_id', $request->store_id)->where('status', 'confirmed')
+                      ->whereDate('transaction_date', '<=', $date)
                 )
                 ->whereIn('packaging_id', $pkgIds)
                 ->selectRaw('packaging_id, SUM(remaining_qty) as total_remaining')
@@ -102,6 +109,7 @@ class OpnameController extends Controller
             if ($ingNoPkg->isNotEmpty()) {
                 $remainingByIng = MutationItem::whereHas('mutation', fn($q) =>
                         $q->where('destination_store_id', $request->store_id)->where('status', 'confirmed')
+                          ->whereDate('transaction_date', '<=', $date)
                     )
                     ->whereIn('ingredient_id', $ingNoPkg->pluck('id')->all())
                     ->whereNull('packaging_id')
@@ -192,14 +200,20 @@ class OpnameController extends Controller
             ->orderBy('ingredient_id')->orderBy('id')
             ->get();
 
-        $allIngredients = Ingredient::where('is_active', true)->where('type', '!=', 'semi_finished')->orderBy('name')->get();
+        $allIngredients = Ingredient::where('is_active', true)->where('type', '!=', 'semi_finished')
+            ->leftJoin('ingredient_categories as ic', 'ingredients.category', '=', 'ic.name')
+            ->orderByRaw('ic.sort_order IS NULL')->orderBy('ic.sort_order')->orderBy('ingredients.id')
+            ->select('ingredients.*')->get();
         $ingIdsWithPkg  = $allPackagings->pluck('ingredient_id')->unique()->all();
         $pkgIds         = $allPackagings->pluck('id')->all();
+
+        $opnameDate = $request->date;
 
         // ── System qty per kemasan ─────────────────────────────────────────────
         $remainingByPkg = $pkgIds
             ? MutationItem::whereHas('mutation', fn($q) =>
                     $q->where('destination_store_id', $storeId)->where('status', 'confirmed')
+                      ->whereDate('transaction_date', '<=', $opnameDate)
                 )
                 ->whereIn('packaging_id', $pkgIds)
                 ->selectRaw('packaging_id, SUM(remaining_qty) as total_remaining')
@@ -227,6 +241,7 @@ class OpnameController extends Controller
         $remainingByIng = $ingNoPkg->isNotEmpty()
             ? MutationItem::whereHas('mutation', fn($q) =>
                     $q->where('destination_store_id', $storeId)->where('status', 'confirmed')
+                      ->whereDate('transaction_date', '<=', $opnameDate)
                 )
                 ->whereIn('ingredient_id', $ingNoPkg->pluck('id')->all())
                 ->whereNull('packaging_id')
@@ -288,7 +303,7 @@ class OpnameController extends Controller
         }
 
         // Bahan tanpa kemasan
-        foreach ($ingNoPkg->sortBy('name') as $ing) {
+        foreach ($ingNoPkg->sortBy('id') as $ing) {
             $sysQty    = round((float)($remainingByIng[$ing->id] ?? 0), 4);
             $group     = $batchesByIng[$ing->id] ?? collect();
             $totalQty  = $group->sum('remaining_qty');

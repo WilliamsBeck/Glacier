@@ -68,6 +68,7 @@
                         </td>
                         <td>
                             <x-action-menu>
+                                <x-action-view :href="route('master.menus.show', $menu)" />
                                 <x-action-edit :href="route('master.menus.edit', $menu)" label="Edit &amp; Resep" />
                                 <x-action-delete :action="route('master.menus.destroy', $menu)"
                                                  confirm="Hapus menu ini beserta semua resepnya?" />

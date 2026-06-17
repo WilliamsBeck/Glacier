@@ -54,4 +54,39 @@ class Opname extends Model
              . "Transaksi pada/sebelum tanggal itu tidak bisa diinput/diubah. "
              . "Hapus opname tersebut dulu jika perlu koreksi.";
     }
+
+    /**
+     * Cek apakah toko perlu opname akhir bulan sebelumnya sebelum bisa input mutasi
+     * di bulan $txDate. Return null = boleh lanjut, string = pesan error.
+     *
+     * Rule: jika toko sudah pernah punya opname approved, maka untuk mutasi
+     * di bulan M tahun Y, harus ada opname end_month approved untuk bulan M-1.
+     * Exception: toko belum pernah punya opname approved sama sekali (setup awal).
+     */
+    public static function missingPreviousOpname(int $storeId, string $txDate): ?string
+    {
+        $hasAny = static::where('store_id', $storeId)->where('status', 'approved')->exists();
+        if (!$hasAny) return null; // setup awal, boleh
+
+        $d        = \Carbon\Carbon::parse($txDate);
+        $prevMonth = $d->copy()->subMonth();
+        $month    = (int) $prevMonth->month;
+        $year     = (int) $prevMonth->year;
+
+        $exists = static::where('store_id', $storeId)
+            ->where('status', 'approved')
+            ->where('period_type', 'end_month')
+            ->where('period_month', $month)
+            ->where('period_year', $year)
+            ->exists();
+
+        if ($exists) return null;
+
+        $store    = \App\Models\Store::find($storeId);
+        $namaBulan = $prevMonth->isoFormat('MMMM Y');
+        return "Belum ada Stok Opname akhir bulan {$namaBulan} yang di-approve untuk toko "
+             . ($store?->name ?? "#{$storeId}") . ". "
+             . "Approve opname {$namaBulan} terlebih dahulu sebelum input mutasi bulan "
+             . $d->isoFormat('MMMM Y') . ".";
+    }
 }

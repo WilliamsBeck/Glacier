@@ -79,6 +79,7 @@
                         </td>
                         <td>
                             <x-action-menu>
+                                <x-action-view :href="route('master.stores.show', $s)" />
                                 <x-action-edit :href="route('master.stores.edit', $s)" />
                                 <x-action-delete :action="route('master.stores.destroy', $s)"
                                                  confirm="Hapus toko {{ $s->name }}?" />

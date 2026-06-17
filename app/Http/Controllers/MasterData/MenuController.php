@@ -60,7 +60,12 @@ class MenuController extends Controller
         return redirect()->route('master.menus.index')->with('success', 'Menu dan resep berhasil disimpan.');
     }
 
-    public function show(Menu $menu)   { return $this->renderForm($menu); }
+    public function show(Menu $menu)
+    {
+        $menu->load(['recipes.ingredient', 'recipes.store']);
+        $recipes = $menu->recipes()->orderByDesc('effective_from')->get()->groupBy('recipe_group_id');
+        return view('master.menus.show', compact('menu', 'recipes'));
+    }
     public function edit(Menu $menu)   { return $this->renderForm($menu); }
 
     private function renderForm(Menu $menu)

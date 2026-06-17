@@ -80,6 +80,7 @@
                         </td>
                         <td>
                             <x-action-menu>
+                                <x-action-view :href="route('master.suppliers.show', $sup)" />
                                 <x-action-edit :href="route('master.suppliers.edit', $sup)" />
                                 <x-action-delete :action="route('master.suppliers.destroy', $sup)"
                                                  confirm="Hapus supplier ini?" />

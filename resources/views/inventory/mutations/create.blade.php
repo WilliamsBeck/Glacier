@@ -295,7 +295,20 @@ function handleTypeChange() {
         });
     }
 
+    // Kunci/buka dropdown bahan: tak bisa pilih bahan sebelum tipe dipilih
+    toggleIngredientLock();
+
     // Tombol selalu sama — semua langsung confirmed
+}
+
+// Kunci semua dropdown Bahan selama Tipe Mutasi belum dipilih
+function toggleIngredientLock() {
+    var hasType = !!document.getElementById('typeSelect').value;
+    document.querySelectorAll('select[name^="items"][name$="[ingredient_id]"]').forEach(function(sel) {
+        sel.disabled = !hasType;
+        if (!hasType) sel.value = '';
+        sel.title = hasType ? '' : 'Pilih Tipe Mutasi terlebih dahulu';
+    });
 }
 
 // Dipanggil saat supplier berubah
@@ -755,7 +768,7 @@ function fillPackagings(select, wrapper, packagings, idx, ingId) {
         var perBase = ctp * ptb;
         var opt = document.createElement('option');
         opt.value = p.id;
-        opt.textContent = p.packaging_name + ' (1 Dus = ' + ctp + ' Pack × ' + ptb + ' ' + unit + ' = ' + perBase + ' ' + unit + ')';
+        opt.textContent = p.packaging_name + ' (' + ctp + ' pack x ' + ptb + ' ' + unit + ')';
         opt.dataset.crateToBase = perBase;
         opt.dataset.packToBase  = ptb;
         select.appendChild(opt);
@@ -932,6 +945,7 @@ function addRow() {
     container.appendChild(tr);
 
     updateRemoveButtons();
+    toggleIngredientLock();
 }
 
 function buildRowHTML(idx, ingOptions) {
@@ -1069,5 +1083,8 @@ function updateRemoveButtons() {
         if (btn) btn.style.display = rows.length > 1 ? 'inline-block' : 'none';
     });
 }
+
+// Kondisi awal: kunci dropdown bahan sampai tipe mutasi dipilih
+document.addEventListener('DOMContentLoaded', toggleIngredientLock);
 </script>
 @endpush

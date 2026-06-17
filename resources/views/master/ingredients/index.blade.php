@@ -117,6 +117,7 @@
                         </td>
                         <td>
                             <x-action-menu>
+                                <x-action-view :href="route('master.ingredients.show', $ing)" />
                                 <x-action-edit :href="route('master.ingredients.edit', $ing)" />
                                 <x-action-delete :action="route('master.ingredients.destroy', $ing)"
                                                  confirm="Hapus bahan baku ini?" />

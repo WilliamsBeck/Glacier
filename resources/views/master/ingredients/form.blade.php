@@ -710,4 +710,109 @@
             } [cite: 288]
         });
     </script>
+
+    {{-- Blok terpisah & mandiri (tahan walau script di atas error karena urutan
+         pemuatan NumberFmt): toggle panel + hitung "Per 1 …" komposisi. --}}
+    <script>
+        (function () {
+            // ── Toggle Kemasan (raw) vs Komposisi (semi) ──────────────────────
+            function togglePanels() {
+                var t = document.querySelector('select[name="type"]');
+                if (!t) return;
+                var isSemi = t.value === 'semi_finished';
+                var sp = document.getElementById('sectionPackaging');
+                var sc = document.getElementById('sectionComposition');
+                var wc = document.getElementById('wrapCategory');
+                if (sp) sp.style.display = isSemi ? 'none' : '';
+                if (sc) sc.style.display = isSemi ? '' : 'none';
+                if (wc) wc.style.display = isSemi ? 'none' : '';
+            }
+            window.onTypeChange = togglePanels; // dipakai atribut onchange
+            var sel = document.querySelector('select[name="type"]');
+            if (sel) sel.addEventListener('change', togglePanels);
+            togglePanels();
+
+            // ── Hitung "Per 1 <satuan>" tiap baris komposisi ──────────────────
+            function num(v) {
+                if (window.NumberFmt && NumberFmt.parse) return NumberFmt.parse(v || '0');
+                return parseFloat(String(v || '').replace(/\./g, '').replace(',', '.')) || 0;
+            }
+            function recalcPer(row) {
+                if (!row) return;
+                var disp = row.querySelector('.per-unit-display');
+                if (!disp) return;
+                var toEl = document.getElementById('totalOutput');
+                var qEl  = row.querySelector('.qty-used-input');
+                var total = num(toEl ? toEl.value : 0);
+                var qty   = num(qEl ? qEl.value : 0);
+                var s = row.querySelector('.child-select');
+                var unit = (s && s.options[s.selectedIndex] && s.options[s.selectedIndex].dataset.unit) || '';
+                disp.value = (total > 0 && qty > 0)
+                    ? parseFloat((qty / total).toFixed(6)) + (unit ? ' ' + unit : '')
+                    : '';
+            }
+            function recalcAllComp() {
+                document.querySelectorAll('.composition-row').forEach(recalcPer);
+            }
+            // Delegasi event → berlaku untuk baris awal & baris yang ditambah dinamis
+            document.addEventListener('input', function (e) {
+                if (e.target.classList.contains('qty-used-input'))
+                    recalcPer(e.target.closest('.composition-row'));
+                if (e.target.id === 'totalOutput') recalcAllComp();
+            });
+            document.addEventListener('change', function (e) {
+                if (e.target.classList.contains('child-select'))
+                    recalcPer(e.target.closest('.composition-row'));
+            });
+            recalcAllComp();
+
+            // ── Tambah / hapus baris komposisi (handler mandiri) ──────────────
+            function updateCompRemoveBtns() {
+                var rows = document.querySelectorAll('#compositionRows .composition-row');
+                rows.forEach(function (r) {
+                    var b = r.querySelector('.remove-comp-row');
+                    if (b) b.style.display = rows.length > 1 ? '' : 'none';
+                });
+            }
+            // Builder baris komposisi mandiri (tidak bergantung script utama)
+            var rawIngs = @json($rawIngredients);
+            function buildCompOptions() {
+                var o = '<option value="">— Pilih Bahan —</option>';
+                rawIngs.forEach(function (r) {
+                    o += '<option value="' + r.id + '" data-unit="' + (r.unit_base || '') + '">' + r.name + '</option>';
+                });
+                return o;
+            }
+            function buildCompRow(idx) {
+                var div = document.createElement('div');
+                div.className = 'composition-row row g-2 mb-3 align-items-center';
+                div.innerHTML =
+                    '<div class="col-5"><select name="compositions[' + idx + '][child_id]" class="form-select form-select-sm child-select">' + buildCompOptions() + '</select></div>' +
+                    '<div class="col-3"><div class="input-group input-group-sm">' +
+                        '<input type="text" name="compositions[' + idx + '][qty_used]" class="form-control form-control-sm qty-used-input num-fmt" placeholder="cth: 3.000" style="border-right:0;border-radius:8px 0 0 8px !important;">' +
+                        '<span class="input-group-text bg-white small unit-label-comp text-muted fw-semibold" style="border:1px solid #cbd5e1;border-left:0;border-radius:0 8px 8px 0;">satuan</span>' +
+                    '</div></div>' +
+                    '<div class="col-3"><input type="text" class="form-control form-control-sm bg-light per-unit-display text-muted fw-bold" readonly placeholder="—"></div>' +
+                    '<div class="col-1 d-flex justify-content-center"><button type="button" class="btn btn-light text-danger border btn-sm remove-comp-row" style="border-radius:8px;"><i class="bi bi-x-lg"></i></button></div>';
+                return div;
+            }
+            var addComp = document.getElementById('addComposition');
+            if (addComp) {
+                var compIdx2 = document.querySelectorAll('#compositionRows .composition-row').length;
+                addComp.addEventListener('click', function () {
+                    var container = document.getElementById('compositionRows');
+                    if (!container) return;
+                    container.appendChild(buildCompRow(compIdx2++));
+                    updateCompRemoveBtns();
+                });
+            }
+            document.addEventListener('click', function (e) {
+                var btn = e.target.closest('.remove-comp-row');
+                if (!btn) return;
+                var row = btn.closest('.composition-row');
+                if (row) { row.remove(); updateCompRemoveBtns(); }
+            });
+            updateCompRemoveBtns();
+        })();
+    </script>
 @endsection

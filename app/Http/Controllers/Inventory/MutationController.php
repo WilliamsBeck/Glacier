@@ -52,7 +52,7 @@ class MutationController extends Controller
                 $ta = $a->type === 'semi_finished' ? 1 : 0;
                 $tb = $b->type === 'semi_finished' ? 1 : 0;
                 if ($ta !== $tb) return $ta - $tb;
-                // dalam raw: urutkan by category order lalu nama
+                // dalam raw: urutkan by category order lalu urutan input (id)
                 if ($a->type === 'raw') {
                     $ca = array_search($a->category, $categoryOrder);
                     $cb = array_search($b->category, $categoryOrder);
@@ -60,7 +60,8 @@ class MutationController extends Controller
                     $cb = $cb === false ? 99 : $cb;
                     if ($ca !== $cb) return $ca - $cb;
                 }
-                return strcmp($a->name, $b->name);
+                // urutan sesuai input awal (id), bukan abjad
+                return $a->id <=> $b->id;
             })
             ->values();
 
@@ -158,6 +159,13 @@ class MutationController extends Controller
             if (\App\Models\Opname::isDateLocked((int)$sid, $txDateStr)) {
                 return back()->withInput()->with('error', \App\Models\Opname::lockMessageFor((int)$sid));
             }
+        }
+
+        // ── Wajib ada opname akhir bulan sebelumnya sebelum input mutasi ──────
+        $storeForCheck = $request->destination_store_id ?? $request->source_store_id;
+        if ($storeForCheck) {
+            $msg = \App\Models\Opname::missingPreviousOpname((int)$storeForCheck, $txDateStr);
+            if ($msg) return back()->withInput()->with('error', $msg);
         }
 
         // Untuk pembelian dari pusat, otomatis pakai supplier Zhisheng

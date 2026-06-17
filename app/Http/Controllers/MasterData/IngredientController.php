@@ -38,6 +38,13 @@ class IngredientController extends Controller
         return view('master.ingredients.form', compact('suppliers', 'rawIngredients', 'categories'));
     }
 
+    /** Parse angka berformat Indonesia: "3.000" => 3000 ; "0,5" => 0.5 */
+    private function num($v): float
+    {
+        if ($v === null || $v === '') return 0.0;
+        return (float) str_replace(',', '.', str_replace('.', '', (string) $v));
+    }
+
     public function store(Request $request)
     {
         $data = $request->validate([
@@ -65,6 +72,20 @@ class IngredientController extends Controller
             }
         }
 
+        // Simpan komposisi (bahan setengah jadi)
+        if ($request->type === 'semi_finished') {
+            $totalOutput = $this->num($request->input('total_output'));
+            if ($totalOutput <= 0) $totalOutput = 1;
+            foreach ($request->input('compositions', []) as $comp) {
+                if (empty($comp['child_id']) || empty($comp['qty_used'])) continue;
+                IngredientComposition::create([
+                    'parent_id'  => $ingredient->id,
+                    'child_id'   => $comp['child_id'],
+                    'qty_needed' => $this->num($comp['qty_used']) / $totalOutput,
+                ]);
+            }
+        }
+
         if ($request->input('action') === 'save_and_new') {
             return redirect()->route('master.ingredients.create')
                 ->with('success', "Bahan \"{$ingredient->name}\" ditambahkan. Silakan input bahan berikutnya.");
@@ -76,10 +97,7 @@ class IngredientController extends Controller
     public function show(Ingredient $ingredient)
     {
         $ingredient->load(['packagings.supplier', 'compositions.child']);
-        $suppliers = Supplier::where('is_active', true)->orderBy('name')->get();
-        $rawIngredients = Ingredient::where('is_active', true)->where('type', 'raw')->orderBy('name')->get(['id', 'name', 'unit_base']);
-        $categories = IngredientCategory::ordered()->get();
-        return view('master.ingredients.form', compact('ingredient', 'suppliers', 'rawIngredients', 'categories'));
+        return view('master.ingredients.show', compact('ingredient'));
     }
 
     public function edit(Ingredient $ingredient)
@@ -129,35 +147,21 @@ class IngredientController extends Controller
             }
         }
 
-        $totalOutput = (float) $request->input('total_output', 0);
-        if ($totalOutput > 0) {
-            foreach ($request->input('compositions', []) as $comp) {
-                if (empty($comp['child_id']) || empty($comp['qty_used'])) {
-                    continue;
-                }
-
-                $qtyRaw = (float) $comp['qty_used'];
-
-                // Mengambil total_output dari input form, jika kosong atau 0 fallback ke 1 agar tidak error division by zero
-                $totalOutput = (float) $request->input('total_output', 1);
-                if ($totalOutput <= 0) {
-                    $totalOutput = 1;
-                }
-
-                // Hitung nilai qty_needed yang akan disimpan ke database
-                $qtyNeeded = $qtyRaw / $totalOutput;
-
-                // Simpan hanya menggunakan kolom yang tersedia di database Anda
-                IngredientComposition::updateOrCreate(
-                    [
-                        'parent_id' => $ingredient->id,
-                        'child_id' => $comp['child_id'],
-                    ],
-                    [
-                        'qty_needed' => $qtyNeeded, // Kolom ini ada di database Anda!
-                    ]
-                );
+        $totalOutput = $this->num($request->input('total_output'));
+        if ($totalOutput <= 0) $totalOutput = 1;
+        foreach ($request->input('compositions', []) as $comp) {
+            if (empty($comp['child_id']) || empty($comp['qty_used'])) {
+                continue;
             }
+            IngredientComposition::updateOrCreate(
+                [
+                    'parent_id' => $ingredient->id,
+                    'child_id'  => $comp['child_id'],
+                ],
+                [
+                    'qty_needed' => $this->num($comp['qty_used']) / $totalOutput,
+                ]
+            );
         }
 
         // Hapus komposisi yang di-request untuk dihapus
@@ -165,7 +169,7 @@ class IngredientController extends Controller
             IngredientComposition::where('id', $compId)->where('parent_id', $ingredient->id)->delete();
         }
 
-        return redirect()->route('master.ingredients.edit', $ingredient)->with('success', 'Bahan diupdate.');
+        return redirect()->route('master.ingredients.index')->with('success', 'Bahan diupdate.');
     }
 
     public function destroy(Ingredient $ingredient)

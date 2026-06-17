@@ -26,6 +26,7 @@ class SupplierController extends Controller
         Supplier::create($data);
         return redirect()->route('master.suppliers.index')->with('success','Supplier ditambahkan.');
     }
+    public function show(Supplier $supplier) { return view('master.suppliers.show', compact('supplier')); }
     public function edit(Supplier $supplier) { return view('master.suppliers.form', compact('supplier')); }
     public function update(Request $request, Supplier $supplier)
     {

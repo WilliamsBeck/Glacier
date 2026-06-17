@@ -30,6 +30,7 @@ class StoreController extends Controller
         Store::create($data);
         return redirect()->route('master.stores.index')->with('success','Toko berhasil ditambahkan.');
     }
+    public function show(Store $store) { return view('master.stores.show', compact('store')); }
     public function edit(Store $store) { return view('master.stores.form', compact('store')); }
     public function update(Request $request, Store $store)
     {
