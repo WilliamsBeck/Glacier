@@ -33,17 +33,18 @@
                 <label class="form-label fw-semibold small">Tipe Mutasi</label>
                 <select name="tipe" class="form-select form-select-sm">
                     <option value="semua" {{ $tipe === 'semua' ? 'selected' : '' }}>Semua</option>
-                    <option value="pi"       {{ $tipe === 'pi'       ? 'selected' : '' }}>PI (Pengiriman Internal)</option>
-                    <option value="zhisheng" {{ $tipe === 'zhisheng' ? 'selected' : '' }}>Zhisheng</option>
+                    <option value="pi"        {{ $tipe === 'pi'        ? 'selected' : '' }}>PI (Pengiriman Internal)</option>
+                    <option value="eksternal" {{ $tipe === 'eksternal' ? 'selected' : '' }}>Pembelian Eksternal</option>
+                    <option value="zhisheng"  {{ $tipe === 'zhisheng'  ? 'selected' : '' }}>Zhisheng</option>
                     <option value="supplier" {{ $tipe === 'supplier' ? 'selected' : '' }}>Supplier</option>
                 </select>
             </div>
-            <div class="col-md-3 d-flex gap-2">
-                <button type="submit" class="btn btn-primary btn-sm flex-fill">
+            <div class="col-md-3 d-flex gap-2 justify-content-end">
+                <button type="submit" class="btn btn-primary btn-laporan">
                     <i class="bi bi-search me-1"></i>Tampilkan
                 </button>
                 <a href="{{ route('reports.laporan.mutasi-stok.export', request()->query()) }}"
-                   class="btn btn-success btn-sm flex-fill">
+                   class="btn btn-success btn-laporan">
                     <i class="bi bi-file-earmark-excel me-1"></i>Export
                 </a>
             </div>
@@ -56,7 +57,7 @@
 {{-- TYPE TABS --}}
 <div class="d-flex gap-2 mb-4 flex-wrap">
     @php
-    $tabs = ['semua' => ['label' => 'Semua', 'color' => 'secondary'], 'pi' => ['label' => 'PI (Internal)', 'color' => 'primary'], 'zhisheng' => ['label' => 'Zhisheng', 'color' => 'warning'], 'supplier' => ['label' => 'Supplier', 'color' => 'success']];
+    $tabs = ['semua' => ['label' => 'Semua', 'color' => 'secondary'], 'pi' => ['label' => 'PI (Internal)', 'color' => 'primary'], 'eksternal' => ['label' => 'Eksternal', 'color' => 'info'], 'zhisheng' => ['label' => 'Zhisheng', 'color' => 'warning'], 'supplier' => ['label' => 'Supplier', 'color' => 'success']];
     @endphp
     @foreach($tabs as $key => $tab)
     <a href="{{ route('reports.laporan.mutasi-stok', array_merge(request()->query(), ['tipe' => $key])) }}"
@@ -121,15 +122,15 @@ $byType     = $rows->groupBy('type')->map->count();
             </div>
         @else
         <div class="table-responsive">
-            <table class="table table-hover table-sm mb-0 align-middle">
-                <thead class="table-light">
+            <table class="table table-index mb-0 align-middle">
+                <thead>
                     <tr>
                         <th>Tanggal</th>
                         <th>Tipe</th>
-                        <th>No Ref</th>
-                        <th>No Invoice</th>
-                        <th>Supplier / Sumber</th>
-                        <th>Toko Tujuan</th>
+                        <th class="col-name">No Ref</th>
+                        <th class="col-name">No Invoice</th>
+                        <th class="col-name">Supplier / Sumber</th>
+                        <th class="col-name">Toko Tujuan</th>
                         <th class="text-end">Nilai</th>
                         <th class="text-center">Item</th>
                         <th class="text-center">Detail</th>
@@ -157,10 +158,10 @@ $byType     = $rows->groupBy('type')->map->count();
                                 {{ $mutation->type_label ?? str_replace('_', ' ', $mutation->type) }}
                             </span>
                         </td>
-                        <td class="small">{{ $mutation->reference_no ?? '-' }}</td>
-                        <td class="small">{{ $mutation->invoice_no ?? '-' }}</td>
-                        <td class="small">{{ $mutation->supplier?->name ?? $mutation->sourceStore?->name ?? '-' }}</td>
-                        <td class="small">{{ $mutation->destinationStore?->name ?? '-' }}</td>
+                        <td class="col-name small">{{ $mutation->reference_no ?? '-' }}</td>
+                        <td class="col-name small">{{ $mutation->invoice_no ?? '-' }}</td>
+                        <td class="col-name small">{{ $mutation->supplier?->name ?? $mutation->sourceStore?->name ?? '-' }}</td>
+                        <td class="col-name small">{{ $mutation->destinationStore?->name ?? '-' }}</td>
                         <td class="text-end fw-semibold">Rp {{ number_format($val, 0, ',', '.') }}</td>
                         <td class="text-center">
                             <span class="badge bg-secondary-subtle text-secondary">{{ $mutation->items->count() }} item</span>

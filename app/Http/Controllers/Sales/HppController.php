@@ -36,7 +36,9 @@ class HppController extends Controller
         $rows = MutationItem::whereHas('mutation', fn($q) =>
                 $q->where('status', 'confirmed')
                   ->where('delivery_date', '<=', $upToDate)
-                  // termasuk opening_stock (harga dari opname) & purchase_supplier (supplier lokal)
+                  // termasuk opening_stock (harga dari opname) & purchase_supplier (supplier lokal).
+                  // sale_external (pembelian eksternal) SENGAJA dikecualikan: harganya diinput manual
+                  // & bersifat insidental, tidak boleh dipakai sebagai harga acuan HPP.
                   ->whereIn('type', ['purchase_zhisheng', 'purchase_supplier', 'opening_stock', 'sale_internal'])
             )
             ->whereIn('ingredient_id', $ingIds)
@@ -178,7 +180,7 @@ class HppController extends Controller
                 $q->where('destination_store_id', $storeId)
                   ->where('status', 'confirmed')
                   ->whereBetween(\DB::raw('COALESCE(delivery_date, transaction_date)'), [$monthStart, $dateTo])
-                  ->whereIn('type', ['purchase_zhisheng', 'sale_internal'])
+                  ->whereIn('type', ['purchase_zhisheng', 'purchase_supplier', 'sale_internal', 'sale_external'])
             )
             ->whereIn('ingredient_id', $rawIngIds)
             ->get(['ingredient_id', 'total_in_base'])
@@ -320,10 +322,10 @@ class HppController extends Controller
         $data[] = [];
         $data[] = ['Omset', $summary->omset];
         $data[] = ['HPP Ideal', $summary->hpp_ideal];
-        $data[] = ['% HPP Ideal', $summary->pct_hpp_ideal ? number_format($summary->pct_hpp_ideal, 2) . '%' : '-'];
+        $data[] = ['% HPP Ideal', $summary->pct_hpp_ideal ? number_format($summary->pct_hpp_ideal, 2, ',', '.') . '%' : '-'];
         $data[] = ['HPP Aktual', $summary->hpp_aktual ?? '-'];
-        $data[] = ['% HPP Aktual', $summary->pct_hpp_aktual ? number_format($summary->pct_hpp_aktual, 2) . '%' : '-'];
-        $data[] = ['Margin Ideal', $summary->margin_ideal ? number_format($summary->margin_ideal, 2) . '%' : '-'];
+        $data[] = ['% HPP Aktual', $summary->pct_hpp_aktual ? number_format($summary->pct_hpp_aktual, 2, ',', '.') . '%' : '-'];
+        $data[] = ['Margin Ideal', $summary->margin_ideal ? number_format($summary->margin_ideal, 2, ',', '.') . '%' : '-'];
         $data[] = [];
 
         // Menu Rows
@@ -331,7 +333,7 @@ class HppController extends Controller
         $data[] = ['Menu', 'Qty Terjual', 'HPP/Pcs', 'Total HPP Ideal'];
         foreach ($menuRows as $r) {
             $data[] = [$r->menu?->name ?? '-', $r->total_sold,
-                number_format($r->hpp_per_pcs, 2), $r->hpp_ideal];
+                number_format($r->hpp_per_pcs, 2, ',', '.'), $r->hpp_ideal];
         }
         $data[] = ['TOTAL', $menuRows->sum('total_sold'), '', $menuRows->sum('hpp_ideal')];
         $data[] = [];
@@ -344,9 +346,9 @@ class HppController extends Controller
                 $r->ingredient->name,
                 $r->ingredient->unit_base,
                 $r->avg_price,
-                number_format($r->ideal_base, 3),
+                number_format($r->ideal_base, 3, ',', '.'),
                 $r->hpp_ideal,
-                $r->actual_base !== null ? number_format($r->actual_base, 3) : '-',
+                $r->actual_base !== null ? number_format($r->actual_base, 3, ',', '.') : '-',
                 $r->hpp_aktual ?? '-',
                 $r->selisih_hpp ?? '-',
             ];

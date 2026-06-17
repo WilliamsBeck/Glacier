@@ -54,7 +54,12 @@ class LaporanController extends Controller
                 ->sortByDesc('total_sold')->values();
 
             $totalSold    = $rows->sum('total_sold');
-            $totalRevenue = $rows->sum('total_revenue');
+            // Omset diambil dari MonthlyRevenue (sama seperti halaman penjualan/HPP),
+            // bukan dari kolom per-menu total_revenue yang belum terisi.
+            $totalRevenue = MonthlyRevenue::where('store_id', $storeId)
+                ->where('month', $month)->where('year', $year)
+                ->where('period_type', $periodType)
+                ->value('total_revenue') ?? 0;
         }
 
         // Grouping by category for chart
@@ -155,10 +160,10 @@ class LaporanController extends Controller
                 $store->name, $label,
                 $s->omset,
                 $s->hpp_ideal,
-                $s->pct_hpp_ideal ? number_format($s->pct_hpp_ideal, 2) . '%' : '-',
+                $s->pct_hpp_ideal ? number_format($s->pct_hpp_ideal, 2, ',', '.') . '%' : '-',
                 $s->hpp_aktual ?? '-',
-                $s->pct_hpp_aktual ? number_format($s->pct_hpp_aktual, 2) . '%' : '-',
-                $s->margin_ideal ? number_format($s->margin_ideal, 2) . '%' : '-',
+                $s->pct_hpp_aktual ? number_format($s->pct_hpp_aktual, 2, ',', '.') . '%' : '-',
+                $s->margin_ideal ? number_format($s->margin_ideal, 2, ',', '.') . '%' : '-',
             ];
         }
 
@@ -178,7 +183,7 @@ class LaporanController extends Controller
         $rows = collect(); $grandTotal = 0;
 
         if ($storeId) {
-            $rows = WasteLogItem::with(['ingredient', 'wasteLog'])
+            $rows = WasteLogItem::with(['ingredient.packagings', 'wasteLog'])
                 ->whereHas('wasteLog', fn($q) =>
                     $q->where('store_id', $storeId)
                       ->whereBetween('waste_date', [$dateFrom, $dateTo])
@@ -189,8 +194,12 @@ class LaporanController extends Controller
             $grandTotal = $rows->sum('subtotal_loss');
         }
 
+        // Pisahkan kerugian waste bahan baku (raw) vs setengah jadi (semi_finished)
+        $rawTotal  = $rows->where('source_type', 'raw')->sum('subtotal_loss');
+        $semiTotal = $rows->where('source_type', 'semi_finished')->sum('subtotal_loss');
+
         return view('reports.laporan.waste', compact(
-            'stores', 'storeId', 'dateFrom', 'dateTo', 'rows', 'grandTotal'
+            'stores', 'storeId', 'dateFrom', 'dateTo', 'rows', 'grandTotal', 'rawTotal', 'semiTotal'
         ));
     }
 
@@ -320,12 +329,13 @@ class LaporanController extends Controller
         $storeId  = $this->resolveStore($request);
         $dateFrom = $request->date_from ?? now()->startOfMonth()->toDateString();
         $dateTo   = $request->date_to   ?? now()->toDateString();
-        $tipe     = $request->tipe ?? 'semua'; // semua | pi | zhisheng | supplier
+        $tipe     = $request->tipe ?? 'semua'; // semua | pi | eksternal | zhisheng | supplier
 
         $typeMap = [
-            'pi'       => ['sale_internal', 'sale_external'],
-            'zhisheng' => ['purchase_zhisheng'],
-            'supplier' => ['purchase_supplier'],
+            'pi'        => ['sale_internal'],
+            'eksternal' => ['sale_external'],
+            'zhisheng'  => ['purchase_zhisheng'],
+            'supplier'  => ['purchase_supplier'],
         ];
 
         $rows = collect(); $grandTotal = 0;
@@ -364,9 +374,10 @@ class LaporanController extends Controller
 
         $store   = Store::find($storeId);
         $typeMap = [
-            'pi'       => ['sale_internal', 'sale_external'],
-            'zhisheng' => ['purchase_zhisheng'],
-            'supplier' => ['purchase_supplier'],
+            'pi'        => ['sale_internal'],
+            'eksternal' => ['sale_external'],
+            'zhisheng'  => ['purchase_zhisheng'],
+            'supplier'  => ['purchase_supplier'],
         ];
 
         $query = Mutation::with(['supplier', 'items.ingredient', 'destinationStore'])
