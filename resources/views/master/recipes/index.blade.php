@@ -6,17 +6,17 @@
         <h1 class="page-title">Resep Menu</h1>
         <p class="page-subtitle">Versi resep aktif menentukan HPP per periode</p>
     </div>
-    <a href="{{ route('master.recipes.create') }}" class="btn btn-primary"><i class="bi bi-plus-circle me-1"></i> Buat Resep Baru</a>
+    <a href="{{ route('master.recipes.create') }}" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i> Tambah Resep</a>
 </div>
 <div class="card mb-3"><div class="card-body py-2">
-    <form method="GET" class="row g-2">
-        <div class="col-md-3"><select name="menu_id" class="form-select form-select-sm"><option value="">Semua Menu</option>@foreach($menus as $m)<option value="{{ $m->id }}" {{ request('menu_id')==$m->id?'selected':'' }}>{{ $m->name }}</option>@endforeach</select></div>
-        <div class="col-md-3"><select name="store_id" class="form-select form-select-sm">
+    <form method="GET" class="row g-2 align-items-center">
+        <div class="col-md-3"><select name="menu_id" class="form-select"><option value="">Semua Menu</option>@foreach($menus as $m)<option value="{{ $m->id }}" {{ request('menu_id')==$m->id?'selected':'' }}>{{ $m->name }}</option>@endforeach</select></div>
+        <div class="col-md-3"><select name="store_id" class="form-select">
             <option value="">Semua Toko</option>
             <option value="default" {{ request('store_id')==='default' ? 'selected' : '' }}>— Default (semua toko) —</option>
             @foreach($stores as $s)<option value="{{ $s->id }}" {{ request('store_id')==$s->id?'selected':'' }}>{{ $s->name }}</option>@endforeach
         </select></div>
-        <div class="col-md-2"><button type="submit" class="btn btn-primary btn-sm">Filter</button></div>
+        <div class="col-md-auto ms-auto d-flex gap-2"><button type="submit" class="btn btn-primary">Cari</button><a href="{{ route('master.recipes.index') }}" class="btn btn-outline-secondary">Reset</a></div>
     </form>
 </div></div>
 

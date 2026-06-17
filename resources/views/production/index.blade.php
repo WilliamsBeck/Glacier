@@ -13,19 +13,20 @@
         <a href="{{ route('production.logs.export', request()->query()) }}" class="btn btn-outline-success">
             <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
         </a>
-        <a href="{{ route('production.logs.create') }}" class="btn btn-primary"><i class="bi bi-plus-circle me-1"></i> Input Produksi</a>
+        <a href="{{ route('production.logs.create') }}" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i> Tambah Produksi</a>
     </div>
 </div>
 <div class="card mb-3"><div class="card-body py-2">
-    <form method="GET" class="row g-2">
-        <div class="col-md-3"><select name="store_id" class="form-select form-select-sm"><option value="">Semua Toko</option>@foreach($stores as $s)<option value="{{ $s->id }}" {{ request('store_id')==$s->id?'selected':'' }}>{{ $s->name }}</option>@endforeach</select></div>
-        <div class="col-md-3"><input type="date" name="date" class="form-control form-control-sm" value="{{ request('date') }}"></div>
-        <div class="col-md-2"><button type="submit" class="btn btn-primary btn-sm">Cari</button></div>
+    <form method="GET" class="row g-2 align-items-center">
+        <div class="col-md-3"><select name="store_id" class="form-select"><option value="">Semua Toko</option>@foreach($stores as $s)<option value="{{ $s->id }}" {{ request('store_id')==$s->id?'selected':'' }}>{{ $s->name }}</option>@endforeach</select></div>
+        <div class="col-md-2"><input type="date" name="date_from" class="form-control" value="{{ request('date_from') }}" title="Dari tanggal"></div>
+        <div class="col-md-2"><input type="date" name="date_to" class="form-control" value="{{ request('date_to') }}" title="Sampai tanggal"></div>
+        <div class="col-md-auto ms-auto d-flex gap-2"><button type="submit" class="btn btn-primary">Cari</button><a href="{{ route('production.logs.index') }}" class="btn btn-outline-secondary">Reset</a></div>
     </form>
 </div></div>
 <div class="card"><div class="card-body p-0"><div class="table-responsive">
-    <table class="table table-index mb-0">
-        <thead><tr><th>Tanggal</th><th>Toko</th><th class="col-name">Bahan Setengah Jadi</th><th>Qty Diproduksi</th><th>Est. Biaya Bahan</th><th class="col-name">Catatan</th><th style="width:70px">Aksi</th></tr></thead>
+    <table class="table table-index table-balanced mb-0">
+        <thead><tr><th style="width:10%">Tanggal</th><th class="col-name" style="width:16%">Toko</th><th class="col-name" style="width:19%">Bahan Setengah Jadi</th><th style="width:13%">Qty Diproduksi</th><th style="width:14%">Est. Biaya Bahan</th><th class="col-name" style="width:20%">Catatan</th><th style="width:8%">Aksi</th></tr></thead>
         <tbody>
             @forelse($logs as $log)
             @php
@@ -35,7 +36,7 @@
             @endphp
             <tr>
                 <td class="text-nowrap">{{ \Carbon\Carbon::parse($log->production_date)->format('d M Y') }}</td>
-                <td class="text-nowrap">{{ $log->store->name }}</td>
+                <td class="col-name">{{ $log->store->name }}</td>
                 <td class="col-name fw-semibold">{{ $log->semiFinished->name }}</td>
                 <td class="text-nowrap">
                     {{ number_format($log->qty_produced, $sfIsGram ? 0 : 2, ',', '.') }} {{ $sfUnit }}

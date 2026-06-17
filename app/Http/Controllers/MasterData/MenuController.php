@@ -22,7 +22,8 @@ class MenuController extends Controller
     {
         $ingredients     = Ingredient::where('is_active', true)->orderBy('name')->get();
         $menuCategories  = MenuCategory::ordered()->get();
-        return view('master.menus.form', compact('ingredients', 'menuCategories'));
+        $stores          = Store::where('is_active', true)->orderBy('name')->get();
+        return view('master.menus.form', compact('ingredients', 'menuCategories', 'stores'));
     }
 
     public function store(Request $request)

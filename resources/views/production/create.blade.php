@@ -3,7 +3,7 @@
 @section('content')
 <div class="page-header d-flex justify-content-between align-items-center">
     <h4 class="page-title">Input Produksi Bahan Setengah Jadi</h4>
-    <a href="{{ route('production.logs.index') }}" class="btn btn-outline-secondary btn-sm">
+    <a href="{{ route('production.logs.index') }}" class="btn btn-outline-secondary btn-sm btn-back">
         <i class="bi bi-arrow-left me-1"></i>Kembali
     </a>
 </div>
@@ -119,7 +119,7 @@ function addRow() {
 function fmtQty(val, unit) {
     return (unit || '').toLowerCase() === 'gram'
         ? Math.round(val).toLocaleString('id-ID')
-        : val.toFixed(2);
+        : val.toLocaleString('id-ID', {minimumFractionDigits:2, maximumFractionDigits:2});
 }
 
 function updatePreview(tr) {

@@ -1,8 +1,9 @@
 <?php
 namespace App\Http\Controllers;
 
-use App\Models\{StoreStock, Store, WasteLog, ProductionLog, DailyUsage};
+use App\Models\{StoreStock, Store, WasteLog, WasteLogItem, ProductionLog, DailyUsage, AuditLog, Ingredient};
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
@@ -13,6 +14,16 @@ class DashboardController extends Controller
         $user     = auth()->user();
         $storeIds = $user->accessibleStoreIds();
         $stores   = $user->accessibleStores();
+
+        // Filter ke satu toko bila dipilih dari store picker (?store_id=)
+        $selectedStoreId = request('store_id');
+        if ($selectedStoreId !== null && $selectedStoreId !== '' && in_array((int) $selectedStoreId, $storeIds)) {
+            $sid      = (int) $selectedStoreId;
+            $storeIds = [$sid];
+            $stores   = $stores->where('id', $sid)->values();
+        }
+        $selectedStore = count($storeIds) === 1 ? $stores->first() : null;
+
         [$month, $year] = [$this->currentMonth(), $this->currentYear()];
 
         // ── 1. Toko aktif ──────────────────────────────────────────────────────
@@ -105,9 +116,120 @@ class DashboardController extends Controller
             ->selectRaw('store_id, MAX(usage_date) as last_date')
             ->pluck('last_date', 'store_id');
 
+        // ── 6. Nilai stok saat ini (Σ sisa FIFO × harga) ─────────────────────
+        $stockValue = (float) DB::table('mutation_items as mi')
+            ->join('mutations as m', 'm.id', '=', 'mi.mutation_id')
+            ->where('m.status', 'confirmed')
+            ->whereIn('m.destination_store_id', $storeIds)
+            ->selectRaw('SUM(mi.remaining_qty * mi.price_per_base) as v')
+            ->value('v');
+
+        // ── 7. Grafik pemakaian bahan baku (pencatatan harian) bulan ini ──────
+        $monthStart   = now()->startOfMonth()->toDateString();
+        $monthEnd     = now()->endOfMonth()->toDateString();
+        $daysInMonth  = now()->daysInMonth;
+
+        // Daftar bahan untuk dropdown (yang pernah dipakai bulan ini)
+        $usedIngredientIds = DailyUsage::whereIn('store_id', $storeIds)
+            ->whereBetween('usage_date', [$monthStart, $monthEnd])
+            ->where('qty_pack', '>', 0)
+            ->distinct()->pluck('ingredient_id');
+        $chartIngredients = Ingredient::whereIn('id', $usedIngredientIds)
+            ->orderBy('name')->get(['id', 'name', 'unit_base']);
+
+        $chartSelectedId = request('chart_ingredient');
+        if ($chartSelectedId && !$usedIngredientIds->contains((int) $chartSelectedId)) {
+            $chartSelectedId = null;
+        }
+        $chartIngredient = $chartSelectedId
+            ? $chartIngredients->firstWhere('id', (int) $chartSelectedId)
+            : null;
+
+        // Query dasar: pemakaian per hari (qty_base = qty_pack × pack_to_base)
+        $usageBase = DB::table('daily_usages as du')
+            ->leftJoin('ingredient_packagings as ip', 'ip.id', '=', 'du.packaging_id')
+            ->whereIn('du.store_id', $storeIds)
+            ->whereBetween('du.usage_date', [$monthStart, $monthEnd])
+            ->where('du.qty_pack', '>', 0);
+
+        $chartData = array_fill(1, $daysInMonth, 0.0);
+
+        if ($chartIngredient) {
+            // Mode kuantitas: total pack bahan terpilih per hari
+            $rows = (clone $usageBase)
+                ->where('du.ingredient_id', $chartIngredient->id)
+                ->selectRaw('DAY(du.usage_date) as d, SUM(du.qty_pack) as q')
+                ->groupBy('d')->pluck('q', 'd');
+            foreach ($rows as $d => $q) { $chartData[(int) $d] = (float) $q; }
+            $chartMode = 'qty';
+            $chartUnit = 'pack';
+        } else {
+            // Mode nilai (Rp): Σ qty_base × harga rata-rata pembelian per bahan
+            $priceMap = DB::table('mutation_items as mi')
+                ->join('mutations as m', 'm.id', '=', 'mi.mutation_id')
+                ->where('m.status', 'confirmed')
+                ->whereIn('m.destination_store_id', $storeIds)
+                ->selectRaw('mi.ingredient_id, SUM(mi.total_in_base * mi.price_per_base) val, SUM(mi.total_in_base) qty')
+                ->groupBy('mi.ingredient_id')->get()
+                ->mapWithKeys(fn($r) => [$r->ingredient_id => $r->qty > 0 ? $r->val / $r->qty : 0]);
+
+            $rows = (clone $usageBase)
+                ->selectRaw('DAY(du.usage_date) as d, du.ingredient_id, SUM(du.qty_pack * COALESCE(ip.pack_to_base,1)) as q')
+                ->groupBy('d', 'du.ingredient_id')->get();
+            foreach ($rows as $r) {
+                $chartData[(int) $r->d] += (float) $r->q * (float) ($priceMap[$r->ingredient_id] ?? 0);
+            }
+            $chartMode = 'value';
+            $chartUnit = 'Rp';
+        }
+
+        $chartLabels = range(1, $daysInMonth);
+        $chartData   = array_values($chartData);
+        $chartIngredientName = $chartIngredient->name ?? null;
+
+        // ── 8. Top bahan waste bulan ini ──────────────────────────────────────
+        $topWaste = WasteLogItem::query()
+            ->join('waste_logs', 'waste_logs.id', '=', 'waste_log_items.waste_log_id')
+            ->whereIn('waste_logs.store_id', $storeIds)
+            ->whereMonth('waste_logs.waste_date', $month)
+            ->whereYear('waste_logs.waste_date', $year)
+            ->whereNotNull('waste_log_items.ingredient_id')
+            ->groupBy('waste_log_items.ingredient_id')
+            ->selectRaw('waste_log_items.ingredient_id, SUM(waste_log_items.subtotal_loss) as total_loss')
+            ->orderByDesc('total_loss')
+            ->limit(5)
+            ->with('ingredient:id,name')
+            ->get();
+        $topWasteMax = $topWaste->max('total_loss') ?: 1;
+
+        // ── 9. Aktivitas terbaru (real-time feed) ─────────────────────────────
+        // Skip baris item/teknis biar feed berisi peristiwa yang bermakna saja
+        $recentActivityQuery = AuditLog::latest()
+            ->whereNotIn('model', [
+                'MutationItem', 'WasteLogItem', 'ProductionLogItem', 'OpnameItem',
+                'StockLedger', 'DailyUsage', 'IngredientComposition',
+            ]);
+
+        // Bila satu toko dipilih, hanya tampilkan aktivitas terkait toko itu
+        if ($selectedStore) {
+            $sid = $selectedStore->id;
+            $recentActivityQuery->where(function ($q) use ($sid) {
+                foreach (['store_id', 'source_store_id', 'destination_store_id'] as $key) {
+                    $q->orWhereRaw("JSON_EXTRACT(new_values, '$.\"$key\"') = ?", [$sid])
+                      ->orWhereRaw("JSON_EXTRACT(old_values, '$.\"$key\"') = ?", [$sid]);
+                }
+            });
+        }
+
+        $recentActivity = $recentActivityQuery->limit(8)->get();
+
         return view('dashboard.index', compact(
             'totalActiveStores', 'lowStocks', 'totalWaste', 'totalProduksi',
-            'storesNotUpdated', 'lastUsageDates', 'yesterday'
+            'storesNotUpdated', 'lastUsageDates', 'yesterday',
+            'selectedStore', 'stockValue',
+            'chartIngredients', 'chartSelectedId', 'chartIngredientName',
+            'chartLabels', 'chartData', 'chartMode', 'chartUnit',
+            'topWaste', 'topWasteMax', 'recentActivity'
         ));
     }
 

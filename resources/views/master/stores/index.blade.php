@@ -8,7 +8,7 @@
         <p class="page-subtitle">Total {{ $stores->total() }} toko terdaftar dalam sistem</p>
     </div>
     <a href="{{ route('master.stores.create') }}" class="btn btn-primary">
-        <i class="bi bi-plus-lg"></i> Tambah Toko
+        <i class="bi bi-plus-lg me-1"></i> Tambah Toko
     </a>
 </div>
 
@@ -44,7 +44,7 @@
 
 <div class="card">
     <div class="table-responsive">
-        <table class="table table-index mb-0">
+        <table class="table table-index table-balanced mb-0">
             <thead>
                 <tr>
                     <th width="48">#</th>

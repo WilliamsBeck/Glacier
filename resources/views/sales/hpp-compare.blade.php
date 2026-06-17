@@ -415,7 +415,7 @@ const COLORS = ['#4f6ef7','#22c55e','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f9
 const hex2a  = (hex, a) => hex + Math.round(a * 255).toString(16).padStart(2, '0');
 
 const rpFmt  = v => v !== null ? 'Rp ' + new Intl.NumberFormat('id-ID').format(v) : '—';
-const pctFmt = v => v !== null ? v.toFixed(1) + '%' : '—';
+const pctFmt = v => v !== null ? v.toFixed(1).replace('.', ',') + '%' : '—';
 
 Chart.defaults.font.family = "'Plus Jakarta Sans', system-ui, sans-serif";
 Chart.defaults.font.size   = 12;
@@ -432,7 +432,7 @@ const MODES = {
                 borderColor:     LABELS.map((_, i) => COLORS[i % COLORS.length]),
                 borderWidth: 2, borderRadius: 6,
             }],
-            yFmt:   v => 'Rp ' + (v/1e6).toFixed(1) + 'jt',
+            yFmt:   v => 'Rp ' + (v/1e6).toFixed(1).replace('.', ',') + 'jt',
             tipFmt: (label, v) => label + ': ' + rpFmt(v),
             legend: false,
         }),
@@ -447,7 +447,7 @@ const MODES = {
                 borderColor:     LABELS.map((_, i) => COLORS[i % COLORS.length]),
                 borderWidth: 2, borderRadius: 6,
             }],
-            yFmt:   v => 'Rp ' + (v/1e6).toFixed(1) + 'jt',
+            yFmt:   v => 'Rp ' + (v/1e6).toFixed(1).replace('.', ',') + 'jt',
             tipFmt: (label, v) => v !== null ? label + ': ' + rpFmt(v) : label + ': Belum ada opname',
             legend: false,
         }),
@@ -462,7 +462,7 @@ const MODES = {
                 borderColor:     SELISIH.map(v => v === null ? '#e5e7eb' : v > 0 ? '#ef4444'   : '#22c55e'),
                 borderWidth: 2, borderRadius: 6,
             }],
-            yFmt:   v => (v >= 0 ? '+' : '') + 'Rp ' + (v/1e6).toFixed(1) + 'jt',
+            yFmt:   v => (v >= 0 ? '+' : '') + 'Rp ' + (v/1e6).toFixed(1).replace('.', ',') + 'jt',
             tipFmt: (label, v) => {
                 if (v === null) return label + ': Belum ada opname';
                 return label + ': ' + (v >= 0 ? '+' : '') + rpFmt(v) + (v > 0 ? ' (Boros)' : v < 0 ? ' (Efisien)' : ' (Sesuai)');
@@ -522,7 +522,7 @@ const MODES = {
                     borderWidth: 2, borderRadius: 6,
                 },
             ],
-            yFmt:   v => 'Rp ' + (v/1e6).toFixed(1) + 'jt',
+            yFmt:   v => 'Rp ' + (v/1e6).toFixed(1).replace('.', ',') + 'jt',
             tipFmt: (label, v) => label + ': ' + rpFmt(v),
             legend: true,
         }),

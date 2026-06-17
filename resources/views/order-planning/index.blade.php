@@ -15,15 +15,15 @@ $periodLabels = ['mid_month' => 'Tengah Bulan', 'end_month' => 'Akhir Bulan'];
     </div>
     @if(isset($tableData) && is_array($tableData) && count($tableData) > 0)
     <div class="d-flex gap-2">
-        <button onclick="window.print()" class="btn btn-outline-secondary btn-sm">
+        <button onclick="window.print()" class="btn btn-outline-secondary">
             <i class="bi bi-printer me-1"></i>Print
         </button>
         <form method="GET" action="{{ route('order-planning.export') }}" class="d-inline">
             @foreach(request()->all() as $k => $v)
                 <input type="hidden" name="{{ $k }}" value="{{ $v }}">
             @endforeach
-            <button type="submit" class="btn btn-success btn-sm">
-                <i class="bi bi-file-earmark-excel me-1"></i>Ekspor Excel
+            <button type="submit" class="btn btn-outline-success">
+                <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
             </button>
         </form>
     </div>

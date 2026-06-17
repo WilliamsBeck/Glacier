@@ -36,7 +36,7 @@ function fmtVariance(float $var, ?int $ctrPack, ?int $packBase): string {
         </p>
     </div>
     <div class="d-flex gap-2 flex-wrap">
-        <a href="{{ route('opname.opnames.index') }}" class="btn btn-outline-secondary btn-sm">
+        <a href="{{ route('opname.opnames.index') }}" class="btn btn-outline-secondary btn-sm btn-back">
             <i class="bi bi-arrow-left me-1"></i>Kembali
         </a>
         <a href="{{ route('opname.opnames.export', $opname) }}" class="btn btn-outline-success btn-sm">
@@ -406,7 +406,7 @@ function fmtVariance(float $var, ?int $ctrPack, ?int $packBase): string {
 function fmtVar(varBase, crate, pack) {
     if (!crate || !pack) {
         if (Math.abs(varBase) < 0.01) return '0';
-        return (varBase >= 0 ? '+' : '') + varBase.toFixed(2);
+        return (varBase >= 0 ? '+' : '') + varBase.toFixed(2).replace('.', ',');
     }
     if (Math.abs(varBase) < 0.01) return '0';
 
@@ -442,9 +442,9 @@ document.querySelectorAll('.opname-input').forEach(function(el) {
         var totalCell = document.getElementById('total-' + id);
         if (totalCell) {
             if (crate > 0) {
-                totalCell.textContent = (physBase / (crate * pack)).toFixed(2);
+                totalCell.textContent = (physBase / (crate * pack)).toFixed(2).replace('.', ',');
             } else {
-                totalCell.textContent = physBase.toFixed(2);
+                totalCell.textContent = physBase.toFixed(2).replace('.', ',');
             }
         }
 

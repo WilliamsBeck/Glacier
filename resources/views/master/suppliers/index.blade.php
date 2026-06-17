@@ -8,7 +8,7 @@
         <p class="page-subtitle">Database rantai pasok logistik resmi</p>
     </div>
     <a href="{{ route('master.suppliers.create') }}" class="btn btn-primary">
-        <i class="bi bi-plus-lg"></i> Tambah Supplier
+        <i class="bi bi-plus-lg me-1"></i> Tambah Supplier
     </a>
 </div>
 
@@ -37,7 +37,7 @@
 
 <div class="card">
     <div class="table-responsive">
-        <table class="table table-index mb-0">
+        <table class="table table-index table-balanced mb-0">
             <thead>
                 <tr>
                     <th width="48">#</th>

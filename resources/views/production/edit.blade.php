@@ -3,7 +3,7 @@
 @section('content')
 <div class="page-header d-flex justify-content-between align-items-center">
     <h4 class="page-title">Edit Produksi</h4>
-    <a href="{{ route('production.logs.show', $log) }}" class="btn btn-outline-secondary btn-sm">
+    <a href="{{ route('production.logs.show', $log) }}" class="btn btn-outline-secondary btn-sm btn-back">
         <i class="bi bi-arrow-left me-1"></i>Kembali
     </a>
 </div>

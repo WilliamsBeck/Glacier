@@ -11,7 +11,7 @@
     </div>
     <div class="d-flex gap-2">
         <a href="{{ route('sales.monthly.index', ['month' => $p['month'], 'year' => $p['year']]) }}"
-           class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Kembali</a>
+           class="btn btn-outline-secondary btn-sm btn-back"><i class="bi bi-arrow-left me-1"></i>Kembali</a>
         <a href="{{ route('sales.period.edit', $p) }}" class="btn btn-warning btn-sm">
             <i class="bi bi-pencil me-1"></i>Edit
         </a>

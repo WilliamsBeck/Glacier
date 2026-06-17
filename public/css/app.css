@@ -191,6 +191,8 @@ code, .font-monospace { font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospa
 }
 .sidebar-link i { font-size: 16px; width: 20px; flex-shrink: 0; opacity: .75; }
 .sidebar-link.active i { opacity: 1; color: var(--sidebar-strong); }
+/* Panah dropdown grup selalu putih & jelas (override .small global) */
+.sidebar-link .bi-chevron-down { color: var(--sidebar-strong) !important; opacity: 1; width: auto; }
 
 .sub-link { padding-left: 42px; font-size: 13.5px; font-weight: 400; color: var(--sidebar-fg); opacity: .85; }
 .sub-link:hover { padding-left: 42px; opacity: 1; }
@@ -248,21 +250,31 @@ code, .font-monospace { font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospa
     background: var(--surface) !important;
     border: 1px solid var(--border) !important;
     border-radius: var(--radius-lg);
-    box-shadow: none;
-    padding: 16px;
+    box-shadow: 0 1px 2px rgba(15,23,42,.04);
+    padding: 18px;
     display: flex; align-items: center; gap: 14px;
-    transition: border-color .15s;
+    transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
 }
-.stat-card:hover { border-color: var(--border-strong) !important; }
+.stat-card:hover {
+    border-color: var(--border-strong) !important;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(15,23,42,.08);
+}
 .stat-icon {
-    width: 36px; height: 36px;
-    border-radius: var(--radius);
+    width: 44px; height: 44px;
+    border-radius: 12px;
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
-    background: var(--surface-2) !important;
-    color: var(--text-2) !important;
-    font-size: 16px;
+    background: var(--surface-2);
+    color: var(--text-2);
+    font-size: 20px;
 }
+/* Varian warna ikon kartu statistik (lembut tapi hidup) */
+.stat-icon.ic-indigo { background: #EEF1FE !important; color: #4F5DE0 !important; }
+.stat-icon.ic-blue   { background: #E0F2FE !important; color: #0284C7 !important; }
+.stat-icon.ic-amber  { background: #FEF3C7 !important; color: #D97706 !important; }
+.stat-icon.ic-red    { background: #FEE2E2 !important; color: #DC2626 !important; }
+.stat-icon.ic-green  { background: #DCFCE7 !important; color: #16A34A !important; }
 /* Force-strip Bootstrap colored borders/subtles on stat cards */
 .stat-card.border-primary, .stat-card.border-danger,
 .stat-card.border-success, .stat-card.border-warning,
@@ -315,16 +327,54 @@ code, .font-monospace { font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospa
 /* Compact variant */
 .table-sm thead th, .table-sm tbody td { padding: 6px 10px; font-size: var(--fs-sm); }
 
-/* — Index tables: header + cells centered, first text col left-aligned — */
-.table-index thead th { text-align: center; }
-.table-index tbody td { text-align: center; }
-/* Kolom nama/identitas (ditandai .col-name) tetap rata kiri agar mudah dibaca */
-.table-index thead th.col-name,
-.table-index tbody td.col-name { text-align: left; }
-/* Avatar + nama tetap rapi saat cell di-center */
-.table-index td.col-name .d-flex { justify-content: flex-start; }
+/* — Index tables: bersih & profesional —
+   Teks rata KIRI (mudah dipindai), angka rata KANAN (pakai utility .text-end),
+   spacing seragam. Tidak ada center yang bikin isi mengambang. */
+.table-index thead th {
+    text-align: left;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+.table-index tbody td {
+    text-align: left;
+    vertical-align: middle;
+}
+.table-index thead th,
+.table-index tbody td { padding: 11px 16px; }
 
+/* Kolom angka tetap rata kanan via .text-end (menang karena !important) */
+.table-index td.col-name .d-flex { justify-content: flex-start; }
 .table-index td .action-menu { display: inline-block; }
+
+/* Lebar kolom seragam & proporsional (opt-in .table-balanced):
+   layout tetap → kolom rapi & konsisten, kolom nama lebih lega.
+   Lebar spesifik bisa di-override via style width pada <th>. */
+.table-balanced { table-layout: fixed; }
+.table-balanced td.col-name,
+.table-balanced th.col-name { width: 28%; }
+.table-balanced td, .table-balanced th { overflow: hidden; text-overflow: ellipsis; }
+
+/* Tombol kembali — sedikit lebih besar dari btn-sm agar mudah diklik */
+.btn-back { padding: .42rem .9rem !important; font-size: var(--fs-base) !important; }
+
+/* Baris utama tabel Saldo Stok — tinggi seragam walau ukuran font angka
+   (fs-6 saat ada stok vs kecil saat 0) berbeda. */
+/* Tabel Saldo Stok: lebar kolom mengikuti width di <th> (proporsional). */
+.stock-table { table-layout: fixed; }
+
+/* Pencatatan Harian: kolom hari section Pembelian/Waste — lebar seragam. */
+.daily-ledger-table .dl-sec-col { width: 48px; min-width: 48px; max-width: 48px; }
+.ing-main-row td { height: 48px; vertical-align: middle; }
+.subtotal-row td { height: 44px; vertical-align: middle; }
+
+/* Tombol aksi filter laporan (Tampilkan / Export) — sedikit lebih tinggi
+   & proporsional dibanding btn-sm, lebar mengikuti isi (tidak melar penuh). */
+.btn-laporan {
+    padding: .5rem 1.4rem !important;
+    font-size: var(--fs-base) !important;
+    font-weight: 500;
+    white-space: nowrap;
+}
 
 /* ===================================================================
    FORMS

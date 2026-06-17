@@ -38,12 +38,12 @@
                     <option value="mid_month" {{ $periodType === 'mid_month' ? 'selected' : '' }}>Tengah Bulan</option>
                 </select>
             </div>
-            <div class="col-md-5 d-flex gap-2">
-                <button type="submit" class="btn btn-primary btn-sm flex-fill">
+            <div class="col-md-5 d-flex gap-2 justify-content-end">
+                <button type="submit" class="btn btn-primary btn-laporan">
                     <i class="bi bi-search me-1"></i>Tampilkan
                 </button>
                 <a href="{{ route('reports.laporan.hpp.export', request()->query()) }}"
-                   class="btn btn-success btn-sm flex-fill">
+                   class="btn btn-success btn-laporan">
                     <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
                 </a>
             </div>
@@ -108,10 +108,10 @@ $avgPctAktual = $rows->whereNotNull('pct_hpp_aktual')->avg('pct_hpp_aktual');
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover table-sm mb-0 align-middle">
-                <thead class="table-light">
+            <table class="table table-index mb-0 align-middle">
+                <thead>
                     <tr>
-                        <th>Toko</th>
+                        <th class="col-name">Toko</th>
                         <th class="text-end">Omset</th>
                         <th class="text-end">HPP Ideal</th>
                         <th class="text-end">% HPP Ideal</th>
@@ -135,7 +135,7 @@ $avgPctAktual = $rows->whereNotNull('pct_hpp_aktual')->avg('pct_hpp_aktual');
                         }
                     @endphp
                     <tr>
-                        <td class="fw-semibold">{{ $row->store->name }}</td>
+                        <td class="col-name fw-semibold">{{ $row->store->name }}</td>
                         <td class="text-end">Rp {{ $row->omset ? number_format($row->omset, 0, ',', '.') : '-' }}</td>
                         <td class="text-end">Rp {{ $row->hpp_ideal ? number_format($row->hpp_ideal, 0, ',', '.') : '-' }}</td>
                         <td class="text-end">

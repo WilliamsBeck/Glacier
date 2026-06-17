@@ -7,11 +7,11 @@
         <p class="page-subtitle">Rekap omset &amp; kuantitas terjual per periode</p>
     </div>
     <div class="d-flex gap-2">
-        <a href="{{ route('sales.monthly.export', request()->query()) }}" class="btn btn-outline-success btn-sm">
+        <a href="{{ route('sales.monthly.export', request()->query()) }}" class="btn btn-outline-success">
             <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
         </a>
-<a href="{{ route('sales.monthly.create') }}" class="btn btn-primary btn-sm">
-            <i class="bi bi-plus-circle me-1"></i>Input Penjualan
+        <a href="{{ route('sales.monthly.create') }}" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i> Tambah Penjualan
         </a>
     </div>
 </div>
@@ -31,38 +31,32 @@
     <form method="GET" class="row g-2 align-items-end">
         <div class="col-md-3">
             <label class="form-label small mb-1">Dari Tanggal</label>
-            <input type="date" name="date_from" class="form-control form-control-sm"
+            <input type="date" name="date_from" class="form-control"
                    value="{{ request('date_from') }}">
         </div>
         <div class="col-md-3">
             <label class="form-label small mb-1">Sampai Tanggal</label>
-            <input type="date" name="date_to" class="form-control form-control-sm"
+            <input type="date" name="date_to" class="form-control"
                    value="{{ request('date_to') }}">
         </div>
         <div class="col-md-3">
             <label class="form-label small mb-1">Toko</label>
-            <select name="store_id" class="form-select form-select-sm">
+            <select name="store_id" class="form-select">
                 <option value="">Semua Toko</option>
                 @foreach($stores as $s)
                     <option value="{{ $s->id }}" {{ request('store_id')==$s->id?'selected':'' }}>{{ $s->name }}</option>
                 @endforeach
             </select>
         </div>
-        <div class="col-md-2">
-            <button type="submit" class="btn btn-primary btn-sm w-100">
-                <i class="bi bi-search me-1"></i>Filter
-            </button>
+        <div class="col-md-auto ms-auto d-flex gap-2 align-items-end">
+            <button type="submit" class="btn btn-primary">Cari</button>
+            <a href="{{ route('sales.monthly.index') }}" class="btn btn-outline-secondary">Reset</a>
         </div>
-        @if(request()->hasAny(['date_from','date_to','store_id']))
-        <div class="col-auto">
-            <a href="{{ route('sales.monthly.index') }}" class="btn btn-outline-secondary btn-sm">Reset</a>
-        </div>
-        @endif
     </form>
 </div></div>
 
 <div class="card"><div class="card-body p-0"><div class="table-responsive">
-    <table class="table table-index mb-0 align-middle">
+    <table class="table table-index table-balanced mb-0 align-middle">
         <thead>
             <tr>
                 <th class="col-name">Toko</th>

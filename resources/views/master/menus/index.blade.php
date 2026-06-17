@@ -8,7 +8,7 @@
         <p class="page-subtitle">Manajemen master data menu dan varian resep</p>
     </div>
     <a href="{{ route('master.menus.create') }}" class="btn btn-primary">
-        <i class="bi bi-plus-lg"></i> Tambah Menu
+        <i class="bi bi-plus-lg me-1"></i> Tambah Menu
     </a>
 </div>
 
@@ -29,7 +29,7 @@
 
 <div class="card">
     <div class="table-responsive">
-        <table class="table table-index mb-0">
+        <table class="table table-index table-balanced mb-0">
             <thead>
                 <tr>
                     <th width="48">#</th>

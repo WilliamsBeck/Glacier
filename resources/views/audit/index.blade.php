@@ -52,7 +52,7 @@
                  value="{{ request('search') }}" placeholder="Deskripsi...">
         </div>
         <div class="col-12 col-md-1">
-          <button type="submit" class="btn btn-primary btn-sm w-100">Filter</button>
+          <button type="submit" class="btn btn-primary btn-sm w-100">Cari</button>
         </div>
         <div class="col-12 col-md-1">
           <a href="{{ route('audit.index') }}" class="btn btn-outline-secondary btn-sm w-100">Reset</a>
@@ -63,7 +63,7 @@
 
   <div class="card border-0 shadow-sm">
     <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
-      <span class="fw-semibold">{{ number_format($logs->total()) }} entri log</span>
+      <span class="fw-semibold">{{ number_format($logs->total(), 0, ',', '.') }} entri log</span>
       <span class="text-muted small">Halaman {{ $logs->currentPage() }} dari {{ $logs->lastPage() }}</span>
     </div>
     <div class="card-body p-0">

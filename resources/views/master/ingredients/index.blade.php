@@ -8,7 +8,7 @@
         <p class="page-subtitle">Manajemen master data bahan</p>
     </div>
     <a href="{{ route('master.ingredients.create') }}" class="btn btn-primary">
-        <i class="bi bi-plus-lg"></i> Tambah Bahan
+        <i class="bi bi-plus-lg me-1"></i> Tambah Bahan
     </a>
 </div>
 
@@ -22,8 +22,8 @@
             <div class="col-md-3">
                 <select name="type" class="form-select">
                     <option value="">Semua Tipe</option>
-                    <option value="raw" {{ request('type') === 'raw' ? 'selected' : '' }}>Bahan Baku (Raw)</option>
-                    <option value="semi_finished" {{ request('type') === 'semi_finished' ? 'selected' : '' }}>Setengah Jadi</option>
+                    <option value="raw" {{ request('type') === 'raw' ? 'selected' : '' }}>Raw</option>
+                    <option value="semi_finished" {{ request('type') === 'semi_finished' ? 'selected' : '' }}>Semi</option>
                 </select>
             </div>
             <div class="col-md-4 d-flex gap-2 justify-content-end">
@@ -36,7 +36,7 @@
 
 <div class="card">
     <div class="table-responsive">
-        <table class="table table-index mb-0">
+        <table class="table table-index table-balanced mb-0">
             <thead>
                 <tr>
                     <th width="48">#</th>
@@ -56,9 +56,9 @@
                         </td>
                         <td>
                             @if($ing->type === 'raw')
-                                <span class="badge bg-primary">Baku (Raw)</span>
+                                <span class="badge bg-primary">Raw</span>
                             @else
-                                <span class="badge bg-info">Setengah Jadi</span>
+                                <span class="badge bg-info">Semi</span>
                             @endif
                         </td>
                         <td><span class="text-soft">{{ $ing->unit_base }}</span></td>

@@ -4,7 +4,7 @@
 @section('content')
 <div class="container-fluid py-4">
   <div class="d-flex align-items-center gap-3 mb-4">
-    <a href="{{ route('audit.index') }}" class="btn btn-sm btn-outline-secondary">
+    <a href="{{ route('audit.index') }}" class="btn btn-sm btn-outline-secondary btn-back">
       <i class="bi bi-arrow-left me-1"></i>Kembali
     </a>
     <div>

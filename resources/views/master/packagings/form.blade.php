@@ -3,7 +3,7 @@
 @section('content')
 <div class="page-header d-flex justify-content-between align-items-center">
     <h4 class="page-title">{{ isset($packaging) ? 'Edit Kemasan' : 'Tambah Kemasan' }}</h4>
-    <a href="{{ url()->previous() }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Kembali</a>
+    <a href="{{ url()->previous() }}" class="btn btn-outline-secondary btn-sm btn-back"><i class="bi bi-arrow-left me-1"></i>Kembali</a>
 </div>
 <div class="card" style="max-width:600px"><div class="card-body">
     <form method="POST" action="{{ isset($packaging) ? route('master.packagings.update', $packaging) : route('master.packagings.store') }}">

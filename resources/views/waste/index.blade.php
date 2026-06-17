@@ -10,25 +10,25 @@
         <a href="{{ route('reports.waste', ['store_id' => request('store_id')]) }}" class="btn btn-outline-secondary">
             <i class="bi bi-bar-chart me-1"></i>Analisis Waste
         </a>
-        <a href="{{ route('waste.logs.create') }}" class="btn btn-primary"><i class="bi bi-plus-circle me-1"></i> Input Waste</a>
+        <a href="{{ route('waste.logs.create') }}" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i> Tambah Waste</a>
     </div>
 </div>
 <div class="card mb-3"><div class="card-body py-2">
-    <form method="GET" class="row g-2">
-        <div class="col-md-3"><select name="store_id" class="form-select form-select-sm"><option value="">Semua Toko</option>@foreach($stores as $s)<option value="{{ $s->id }}" {{ request('store_id')==$s->id?'selected':'' }}>{{ $s->name }}</option>@endforeach</select></div>
-        <div class="col-md-2"><input type="date" name="date_from" class="form-control form-control-sm" value="{{ request('date_from') }}" placeholder="Dari"></div>
-        <div class="col-md-2"><input type="date" name="date_to" class="form-control form-control-sm" value="{{ request('date_to') }}" placeholder="Sampai"></div>
-        <div class="col-md-2 d-flex gap-1"><button type="submit" class="btn btn-primary btn-sm">Cari</button><a href="{{ route('waste.logs.index') }}" class="btn btn-outline-secondary btn-sm">×</a></div>
+    <form method="GET" class="row g-2 align-items-center">
+        <div class="col-md-3"><select name="store_id" class="form-select"><option value="">Semua Toko</option>@foreach($stores as $s)<option value="{{ $s->id }}" {{ request('store_id')==$s->id?'selected':'' }}>{{ $s->name }}</option>@endforeach</select></div>
+        <div class="col-md-2"><input type="date" name="date_from" class="form-control" value="{{ request('date_from') }}" title="Dari tanggal"></div>
+        <div class="col-md-2"><input type="date" name="date_to" class="form-control" value="{{ request('date_to') }}" title="Sampai tanggal"></div>
+        <div class="col-md-auto ms-auto d-flex gap-2"><button type="submit" class="btn btn-primary">Cari</button><a href="{{ route('waste.logs.index') }}" class="btn btn-outline-secondary">Reset</a></div>
     </form>
 </div></div>
 <div class="card"><div class="card-body p-0"><div class="table-responsive">
-    <table class="table table-index mb-0">
-        <thead><tr><th>Tanggal</th><th>Toko</th><th class="col-name">Bahan Rusak</th><th>Total Kerugian</th><th class="col-name">Catatan</th><th style="width:70px">Aksi</th></tr></thead>
+    <table class="table table-index table-balanced mb-0">
+        <thead><tr><th style="width:11%">Tanggal</th><th class="col-name" style="width:17%">Toko</th><th class="col-name" style="width:32%">Bahan Rusak</th><th style="width:14%">Total Kerugian</th><th class="col-name" style="width:18%">Catatan</th><th style="width:8%">Aksi</th></tr></thead>
         <tbody>
             @forelse($logs as $log)
             <tr>
                 <td class="text-nowrap">{{ \Carbon\Carbon::parse($log->waste_date)->format('d M Y') }}</td>
-                <td class="text-nowrap">{{ $log->store->name }}</td>
+                <td class="col-name">{{ $log->store->name }}</td>
                 <td class="col-name">
                     <div class="d-flex flex-wrap gap-1">
                         @foreach($log->items as $item)

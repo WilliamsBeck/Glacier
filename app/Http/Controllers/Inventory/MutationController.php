@@ -141,10 +141,10 @@ class MutationController extends Controller
                     $availDisplay = $pkg
                         ? floor($available / ($pkg->crate_to_pack * $pkg->pack_to_base)) . ' Dus ' .
                           floor(fmod($available, $pkg->crate_to_pack * $pkg->pack_to_base) / $pkg->pack_to_base) . ' Pack'
-                        : number_format($available, 0) . ' ' . $ing->unit_base;
+                        : number_format($available, 0, ',', '.') . ' ' . $ing->unit_base;
                     $overErrors["items.{$i}.qty_crate"] =
                         "Stok {$ing->name} tidak cukup — tersedia: {$availDisplay}, diminta: "
-                        . number_format($requested, 0) . " {$ing->unit_base}.";
+                        . number_format($requested, 0, ',', '.') . " {$ing->unit_base}.";
                 }
             }
             if (!empty($overErrors)) {

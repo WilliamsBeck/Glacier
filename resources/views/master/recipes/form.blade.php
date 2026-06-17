@@ -8,7 +8,7 @@
 @endphp
 <div class="page-header d-flex justify-content-between align-items-center">
     <h4 class="page-title">{{ $isDuplicate ? 'Duplikat Resep' : 'Buat Resep Baru' }}</h4>
-    <a href="{{ route('master.recipes.index') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Kembali</a>
+    <a href="{{ route('master.recipes.index') }}" class="btn btn-outline-secondary btn-sm btn-back"><i class="bi bi-arrow-left me-1"></i>Kembali</a>
 </div>
 
 @if($isDuplicate)

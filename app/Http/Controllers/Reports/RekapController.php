@@ -170,7 +170,7 @@ class RekapController extends Controller
         $data[] = [];
         $data[] = ['', '', 'TOTAL HPP Ideal', $result['summary']->hpp_ideal];
         $data[] = ['', '', 'Omset', $result['summary']->omset];
-        $data[] = ['', '', '% HPP', ($result['summary']->pct_hpp_ideal ? number_format($result['summary']->pct_hpp_ideal, 2) . '%' : '-')];
+        $data[] = ['', '', '% HPP', ($result['summary']->pct_hpp_ideal ? number_format($result['summary']->pct_hpp_ideal, 2, ',', '.') . '%' : '-')];
 
         $months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
         $filename = 'hpp_' . $store->name . '_' . $months[$month - 1] . $year . '.xlsx';

@@ -12,7 +12,7 @@
             <i class="bi bi-file-earmark-excel me-1"></i> Export Excel
         </a>
         <a href="{{ route('inventory.mutations.create') }}" class="btn btn-primary">
-            <i class="bi bi-plus-circle me-1"></i> Input Mutasi
+            <i class="bi bi-plus-lg me-1"></i> Tambah Mutasi
         </a>
     </div>
 </div>
@@ -23,7 +23,7 @@
         <form method="GET" class="row g-2 align-items-end">
             <div class="col-6 col-md-2">
                 <label class="form-label small fw-semibold mb-1">Tipe</label>
-                <select name="type" class="form-select form-select-sm">
+                <select name="type" class="form-select">
                     <option value="">Semua</option>
                     <option value="purchase_zhisheng"  {{ request('type') === 'purchase_zhisheng'  ? 'selected' : '' }}>Pembelian Pusat</option>
                     <option value="purchase_supplier"  {{ request('type') === 'purchase_supplier'  ? 'selected' : '' }}>Pembelian Supplier Lokal</option>
@@ -34,7 +34,7 @@
             </div>
             <div class="col-6 col-md-2">
                 <label class="form-label small fw-semibold mb-1">Toko</label>
-                <select name="store_id" class="form-select form-select-sm">
+                <select name="store_id" class="form-select">
                     <option value="">Semua</option>
                     @foreach($stores as $store)
                         <option value="{{ $store->id }}" {{ request('store_id') == $store->id ? 'selected' : '' }}>
@@ -45,7 +45,7 @@
             </div>
             <div class="col-6 col-md-2">
                 <label class="form-label small fw-semibold mb-1">Status</label>
-                <select name="status" class="form-select form-select-sm">
+                <select name="status" class="form-select">
                     <option value="">Semua</option>
                     <option value="draft"     {{ request('status') === 'draft'     ? 'selected' : '' }}>Draft</option>
                     <option value="confirmed" {{ request('status') === 'confirmed' ? 'selected' : '' }}>Confirmed</option>
@@ -54,15 +54,15 @@
             </div>
             <div class="col-6 col-md-2">
                 <label class="form-label small fw-semibold mb-1">Dari</label>
-                <input type="date" name="date_from" class="form-control form-control-sm" value="{{ request('date_from') }}">
+                <input type="date" name="date_from" class="form-control" value="{{ request('date_from') }}">
             </div>
             <div class="col-6 col-md-2">
                 <label class="form-label small fw-semibold mb-1">Sampai</label>
-                <input type="date" name="date_to" class="form-control form-control-sm" value="{{ request('date_to') }}">
+                <input type="date" name="date_to" class="form-control" value="{{ request('date_to') }}">
             </div>
-            <div class="col-6 col-md-2 d-flex gap-1">
-                <button type="submit" class="btn btn-primary btn-sm flex-grow-1">Cari</button>
-                <a href="{{ route('inventory.mutations.index') }}" class="btn btn-outline-secondary btn-sm">×</a>
+            <div class="col-md-auto ms-auto d-flex gap-2 align-items-end">
+                <button type="submit" class="btn btn-primary">Cari</button>
+                <a href="{{ route('inventory.mutations.index') }}" class="btn btn-outline-secondary">Reset</a>
             </div>
         </form>
     </div>
@@ -71,18 +71,18 @@
 <div class="card">
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-index mb-0">
+            <table class="table table-index table-balanced mb-0">
                 <thead>
                     <tr>
-                        <th class="col-name" style="min-width:130px">No SJ</th>
-                        <th style="min-width:130px">Tipe</th>
-                        <th style="min-width:150px">Pengirim</th>
-                        <th style="min-width:150px">Penerima</th>
-                        <th style="min-width:105px">Tgl Kirim</th>
-                        <th style="min-width:105px">Tgl Terima</th>
-                        <th style="width:60px">Item</th>
-                        <th style="width:110px">Status</th>
-                        <th style="width:70px">Aksi</th>
+                        <th class="col-name" style="width:14%">No SJ</th>
+                        <th style="width:12%">Tipe</th>
+                        <th class="col-name" style="width:16%">Pengirim</th>
+                        <th class="col-name" style="width:16%">Penerima</th>
+                        <th style="width:10%">Tgl Kirim</th>
+                        <th style="width:10%">Tgl Terima</th>
+                        <th style="width:6%">Item</th>
+                        <th style="width:8%">Status</th>
+                        <th style="width:8%">Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -119,9 +119,9 @@
                         {{-- Tipe --}}
                         <td><span class="badge {{ $tc[1] }}" style="font-size:.72rem">{{ $tc[0] }}</span></td>
                         {{-- Pengirim --}}
-                        <td>{!! $pengirim !!}</td>
+                        <td class="col-name">{!! $pengirim !!}</td>
                         {{-- Penerima --}}
-                        <td>{!! $penerima !!}</td>
+                        <td class="col-name">{!! $penerima !!}</td>
                         {{-- Tgl Transaksi / Tgl Stok (untuk opening_stock) --}}
                         <td class="text-nowrap">
                             {{ $mut->transaction_date ? $mut->transaction_date->format('d M Y') : '—' }}

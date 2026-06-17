@@ -143,13 +143,13 @@ $warnAt = $leadTimeDays ? ($leadTimeDays + ($orderCycleDays ? (int)ceil($orderCy
             <table class="table table-sm table-hover mb-0 stock-table align-middle">
                 <thead class="table-dark">
                     <tr>
-                        <th style="width:23%">Bahan</th>
-                        <th class="text-end" style="width:9%">Dus</th>
-                        <th class="text-end" style="width:9%">Pack</th>
-                        <th class="text-end" style="width:14%">Harga/Dus</th>
-                        <th class="text-end" style="width:14%">Subtotal</th>
-                        <th class="text-center" style="width:11%">DOS</th>
-                        <th class="text-center" style="width:11%">Min Stok</th>
+                        <th style="width:22%">Bahan</th>
+                        <th class="text-end" style="width:10%">Dus</th>
+                        <th class="text-end" style="width:10%">Pack</th>
+                        <th class="text-end" style="width:15%">Harga/Dus</th>
+                        <th class="text-end" style="width:15%">Subtotal</th>
+                        <th class="text-center" style="width:14%;padding-left:calc(4.5rem + 20px)">DOS</th>
+                        <th class="text-center" style="width:14%">Min Stok</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -206,19 +206,20 @@ $warnAt = $leadTimeDays ? ($leadTimeDays + ($orderCycleDays ? (int)ceil($orderCy
                     <tr class="{{ $trClass }} ing-main-row" data-ing="{{ $ingId }}">
 
                         {{-- Bahan --}}
-                        <td class="fw-semibold">
-                            {{ $primaryRow->ingredient->name }}
-                            <div class="fw-normal mt-1" style="font-size:.65rem">
-                                @if($primaryRow->packaging)
-                                    <button type="button" class="btn btn-sm btn-link p-0 text-decoration-none toggle-pkg"
-                                            data-target="ing-{{ $ingId }}" style="font-size:.7rem;vertical-align:baseline">
-                                        <i class="bi bi-caret-right-fill text-secondary me-1" style="font-size:.65rem"></i>
-                                        <span class="text-muted">{{ $ingRows->count() }} kemasan</span>
-                                    </button>
-                                @else
-                                    <span class="text-warning"><i class="bi bi-exclamation-triangle me-1"></i>Kemasan belum diset</span>
-                                @endif
-                            </div>
+                        <td class="fw-semibold align-middle">
+                            @if($primaryRow->packaging && $ingRows->count() == 1)
+                                <span class="toggle-pkg" data-target="ing-{{ $ingId }}" style="cursor:pointer">{{ $primaryRow->ingredient->name }}</span>
+                            @elseif($primaryRow->packaging && $ingRows->count() > 1)
+                                {{ $primaryRow->ingredient->name }}
+                                <button type="button" class="btn btn-sm btn-link p-0 text-decoration-none toggle-pkg ms-1 align-baseline"
+                                        data-target="ing-{{ $ingId }}" style="font-size:.7rem">
+                                    <i class="bi bi-caret-right-fill text-secondary me-1" style="font-size:.65rem"></i>
+                                    <span class="text-muted">{{ $ingRows->count() }} kemasan</span>
+                                </button>
+                            @else
+                                {{ $primaryRow->ingredient->name }}
+                                <span class="text-warning ms-2" style="font-size:.65rem"><i class="bi bi-exclamation-triangle me-1"></i>Kemasan belum diset</span>
+                            @endif
                         </td>
 
                         {{-- Total Dus --}}
@@ -246,7 +247,7 @@ $warnAt = $leadTimeDays ? ($leadTimeDays + ($orderCycleDays ? (int)ceil($orderCy
                         </td>
 
                         {{-- DOS --}}
-                        <td class="text-center">
+                        <td class="text-center" style="padding-left:calc(4.5rem + 20px)">
                             @if($totalBalance <= 0)
                                 <span class="badge bg-dark" style="font-size:.6rem">Habis</span>
                             @elseif($primaryRow->dosValue !== null)
@@ -257,7 +258,7 @@ $warnAt = $leadTimeDays ? ($leadTimeDays + ($orderCycleDays ? (int)ceil($orderCy
                                         default    => 'bg-success',
                                     };
                                 @endphp
-                                <span class="badge {{ $badge }}" style="font-size:.62rem">{{ $primaryRow->dosValue }} hr</span>
+                                <span class="badge {{ $badge }}" style="font-size:.62rem">{{ $primaryRow->dosValue }} hari</span>
                             @else
                                 <span class="text-muted">—</span>
                             @endif
@@ -276,7 +277,7 @@ $warnAt = $leadTimeDays ? ($leadTimeDays + ($orderCycleDays ? (int)ceil($orderCy
                                         default    => 'text-success',
                                     };
                                 @endphp
-                                <span class="small {{ $minClass }}">{{ number_format(ceil($primaryRow->parLevelPack), 0) }} Pack</span>
+                                <span class="small {{ $minClass }}">{{ number_format(ceil($primaryRow->parLevelPack), 0, ',', '.') }} Pack</span>
                             @else
                                 <span class="text-muted small">—</span>
                             @endif
@@ -293,7 +294,7 @@ $warnAt = $leadTimeDays ? ($leadTimeDays + ($orderCycleDays ? (int)ceil($orderCy
                                         <strong>{{ $row->packaging_name }}</strong>
                                     </div>
                                     <div class="text-muted" style="font-size:.62rem;line-height:1.3">
-                                        1 Dus = {{ $row->crate_to_pack }} Pack · 1 Pack = {{ rtrim(rtrim(number_format($row->ptb, 2, '.', ''), '0'), '.') }} {{ $row->ingredient->unit_base }}
+                                        {{ $row->crate_to_pack }} Pack × {{ rtrim(rtrim(number_format($row->ptb, 2, '.', ''), '0'), '.') }} {{ $row->ingredient->unit_base }}
                                         @if($row->pkg_supplier) · {{ $row->pkg_supplier }} @endif
                                     </div>
                                 @endif

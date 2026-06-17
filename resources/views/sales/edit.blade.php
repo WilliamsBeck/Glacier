@@ -9,7 +9,7 @@
             {{ $p['month'] }}/{{ $p['year'] }}
         </p>
     </div>
-    <a href="{{ route('sales.period.show', $p) }}" class="btn btn-outline-secondary btn-sm">
+    <a href="{{ route('sales.period.show', $p) }}" class="btn btn-outline-secondary btn-sm btn-back">
         <i class="bi bi-arrow-left me-1"></i>Kembali
     </a>
 </div>

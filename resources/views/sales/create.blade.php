@@ -5,13 +5,13 @@
 <div class="page-header d-flex justify-content-between align-items-center">
     <h4 class="page-title">Input Penjualan Bulanan</h4>
     <div class="d-flex gap-2">
-        <button type="button" class="btn btn-outline-success btn-sm" id="btnDownloadTemplate" onclick="downloadTemplate()">
+        <button type="button" class="btn btn-outline-success" id="btnDownloadTemplate" onclick="downloadTemplate()">
             <i class="bi bi-file-earmark-excel me-1"></i>Download Template
         </button>
-        <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalImportSales">
+        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalImportSales">
             <i class="bi bi-upload me-1"></i>Import Excel
         </button>
-        <a href="{{ route('sales.monthly.index') }}" class="btn btn-outline-secondary btn-sm">
+        <a href="{{ route('sales.monthly.index') }}" class="btn btn-outline-secondary btn-sm btn-back">
             <i class="bi bi-arrow-left me-1"></i>Kembali
         </a>
     </div>

@@ -4,7 +4,7 @@
 <div class="page-header d-flex justify-content-between align-items-start">
     <div><h4 class="page-title">Detail Waste</h4></div>
     <div class="d-flex gap-2">
-        <a href="{{ route('waste.logs.index') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Kembali</a>
+        <a href="{{ route('waste.logs.index') }}" class="btn btn-outline-secondary btn-sm btn-back"><i class="bi bi-arrow-left me-1"></i>Kembali</a>
         <a href="{{ route('waste.logs.edit', $log) }}" class="btn btn-warning btn-sm"><i class="bi bi-pencil me-1"></i>Edit</a>
         <form method="POST" action="{{ route('waste.logs.destroy', $log) }}"
               onsubmit="return confirm('Hapus catatan waste ini? Stok akan dikembalikan.')">

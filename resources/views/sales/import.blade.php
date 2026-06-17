@@ -4,7 +4,7 @@
 
 <div class="page-header d-flex justify-content-between align-items-center">
     <h4 class="page-title">Import Penjualan Menu</h4>
-    <a href="{{ route('sales.monthly.index') }}" class="btn btn-outline-secondary btn-sm">
+    <a href="{{ route('sales.monthly.index') }}" class="btn btn-outline-secondary btn-sm btn-back">
         <i class="bi bi-arrow-left me-1"></i>Kembali
     </a>
 </div>

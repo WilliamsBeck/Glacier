@@ -9,8 +9,8 @@
       <h4 class="mb-1 fw-semibold">Analisis Produksi</h4>
       <p class="text-muted small mb-0">Jumlah batch, kuantitas, dan biaya bahan baku produksi per periode</p>
     </div>
-    <a href="{{ route('production.logs.index', ['store_id' => $storeId]) }}" class="btn btn-sm btn-outline-secondary">
-      <i class="bi bi-arrow-left me-1"></i>Kembali ke Log Produksi
+    <a href="{{ route('production.logs.index', ['store_id' => $storeId]) }}" class="btn btn-outline-secondary btn-sm btn-back">
+      <i class="bi bi-arrow-left me-1"></i>Kembali
     </a>
   </div>
 

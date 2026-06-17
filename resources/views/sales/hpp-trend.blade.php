@@ -210,7 +210,7 @@ function renderChart(mode) {
                 y: {
                     ticks: {
                         callback: (v) => isPercent(mode)
-                            ? v.toFixed(1) + '%'
+                            ? v.toFixed(1).replace('.', ',') + '%'
                             : 'Rp ' + v.toLocaleString('id-ID'),
                     }
                 }
@@ -224,7 +224,7 @@ function renderChart(mode) {
                             if (val === null) return ctx.dataset.label + ': -';
                             return ctx.dataset.label + ': ' + (
                                 isPercent(mode)
-                                    ? val.toFixed(1) + '%'
+                                    ? val.toFixed(1).replace('.', ',') + '%'
                                     : 'Rp ' + val.toLocaleString('id-ID')
                             );
                         }

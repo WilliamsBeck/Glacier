@@ -7,7 +7,7 @@
     <div class="sidebar-menu">
 
         {{-- Dashboard --}}
-        <a href="{{ route('dashboard') }}" class="sidebar-link">
+        <a data-base-href="{{ route('dashboard') }}" href="{{ route('dashboard') }}" class="sidebar-link">
             <i class="bi bi-speedometer2"></i><span>Dashboard</span>
         </a>
 
@@ -35,7 +35,7 @@
 
 
         {{-- Mutasi Stok --}}
-        <a href="#mutasiMenu" class="sidebar-link collapsed" data-bs-toggle="collapse">
+        <a href="#mutasiMenu" class="sidebar-link collapsed btn-back" data-bs-toggle="collapse">
             <i class="bi bi-arrow-left-right"></i>
             <span>Mutasi Stok</span>
             <i class="bi bi-chevron-down ms-auto small"></i>

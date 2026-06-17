@@ -29,12 +29,12 @@
                 <label class="form-label fw-semibold small">Sampai Tanggal</label>
                 <input type="date" name="date_to" class="form-control form-control-sm" value="{{ $dateTo }}">
             </div>
-            <div class="col-md-5 d-flex gap-2">
-                <button type="submit" class="btn btn-primary btn-sm flex-fill">
+            <div class="col-md-5 d-flex gap-2 justify-content-end">
+                <button type="submit" class="btn btn-primary btn-laporan">
                     <i class="bi bi-search me-1"></i>Tampilkan
                 </button>
                 <a href="{{ route('reports.laporan.produksi.export', request()->query()) }}"
-                   class="btn btn-success btn-sm flex-fill">
+                   class="btn btn-success btn-laporan">
                     <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
                 </a>
             </div>
@@ -107,11 +107,11 @@ $days = \Carbon\Carbon::parse($dateFrom)->diffInDays(\Carbon\Carbon::parse($date
                     </div>
                 @else
                 <div class="table-responsive">
-                    <table class="table table-hover table-sm mb-0 align-middle">
-                        <thead class="table-light">
+                    <table class="table table-index mb-0 align-middle">
+                        <thead>
                             <tr>
                                 <th>Tanggal</th>
-                                <th>Produk</th>
+                                <th class="col-name">Produk</th>
                                 <th class="text-end">Qty Diproduksi</th>
                                 <th class="text-end">Biaya Bahan</th>
                                 <th class="text-center">Detail</th>
@@ -123,7 +123,7 @@ $days = \Carbon\Carbon::parse($dateFrom)->diffInDays(\Carbon\Carbon::parse($date
                                 <td class="text-muted small text-nowrap">
                                     {{ \Carbon\Carbon::parse($row->log->production_date)->isoFormat('D MMM Y') }}
                                 </td>
-                                <td class="fw-semibold">{{ $row->product?->name ?? '-' }}</td>
+                                <td class="col-name fw-semibold">{{ $row->product?->name ?? '-' }}</td>
                                 <td class="text-end">
                                     {{ number_format($row->qty, 2, ',', '.') }}
                                     <small class="text-muted">{{ $row->product?->unit_base }}</small>

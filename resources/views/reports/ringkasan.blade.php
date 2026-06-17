@@ -106,18 +106,18 @@ $avgHppPct   = $rows->whereNotNull('pct_hpp_ideal')->avg('pct_hpp_ideal');
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover table-sm mb-0 align-middle">
-                <thead class="table-dark">
+            <table class="table table-index table-balanced mb-0 align-middle">
+                <thead>
                     <tr>
-                        <th>Toko</th>
-                        <th class="text-end">Omset</th>
-                        <th class="text-end">HPP Ideal</th>
-                        <th class="text-center">% HPP Ideal</th>
-                        <th class="text-center">% HPP Aktual</th>
-                        <th class="text-end">Waste</th>
-                        <th class="text-end">Biaya Produksi</th>
-                        <th class="text-center">Batch</th>
-                        <th class="text-center">Margin</th>
+                        <th class="col-name" style="width:16%">Toko</th>
+                        <th class="text-end" style="width:13%">Omset</th>
+                        <th class="text-end" style="width:11%">HPP Ideal</th>
+                        <th class="text-end pe-5" style="width:12%">% HPP Ideal</th>
+                        <th class="text-center" style="width:10%">% HPP Aktual</th>
+                        <th class="text-end" style="width:9%">Waste</th>
+                        <th class="text-end" style="width:12%">Biaya Produksi</th>
+                        <th class="text-center" style="width:7%">Batch</th>
+                        <th class="text-center" style="width:10%">Margin</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -128,7 +128,7 @@ $avgHppPct   = $rows->whereNotNull('pct_hpp_ideal')->avg('pct_hpp_ideal');
                         $hppColor = fn($pct) => $pct === null ? 'secondary' : ($pct <= 30 ? 'success' : ($pct <= 35 ? 'warning' : 'danger'));
                     @endphp
                     <tr>
-                        <td class="fw-semibold">{{ $row->store->name }}</td>
+                        <td class="col-name fw-semibold">{{ $row->store->name }}</td>
                         <td class="text-end">
                             @if($row->omset)
                                 <span class="fw-semibold">Rp {{ number_format($row->omset, 0, ',', '.') }}</span>
@@ -139,9 +139,9 @@ $avgHppPct   = $rows->whereNotNull('pct_hpp_ideal')->avg('pct_hpp_ideal');
                         <td class="text-end">
                             {{ $row->hpp_ideal ? 'Rp ' . number_format($row->hpp_ideal, 0, ',', '.') : '—' }}
                         </td>
-                        <td class="text-center">
+                        <td class="text-end pe-5">
                             @if($pctI)
-                                <span class="badge bg-{{ $hppColor($pctI) }}">{{ number_format($pctI, 1, ',', '.') }}%</span>
+                                <span class="fw-semibold">{{ number_format($pctI, 1, ',', '.') }}%</span>
                             @else <span class="text-muted">—</span> @endif
                         </td>
                         <td class="text-center">
@@ -171,10 +171,10 @@ $avgHppPct   = $rows->whereNotNull('pct_hpp_ideal')->avg('pct_hpp_ideal');
                 @if($hasAnyData)
                 <tfoot class="table-secondary fw-semibold">
                     <tr>
-                        <td>TOTAL / RATA-RATA</td>
+                        <td class="col-name">TOTAL / RATA-RATA</td>
                         <td class="text-end">Rp {{ number_format($totalOmset, 0, ',', '.') }}</td>
                         <td class="text-end">—</td>
-                        <td class="text-center">{{ $avgHppPct ? number_format($avgHppPct, 1, ',', '.') . '%' : '—' }}</td>
+                        <td class="text-end pe-5">{{ $avgHppPct ? number_format($avgHppPct, 1, ',', '.') . '%' : '—' }}</td>
                         <td class="text-center">—</td>
                         <td class="text-end text-danger">Rp {{ number_format($totalWaste, 0, ',', '.') }}</td>
                         <td class="text-end">Rp {{ number_format($totalProd, 0, ',', '.') }}</td>

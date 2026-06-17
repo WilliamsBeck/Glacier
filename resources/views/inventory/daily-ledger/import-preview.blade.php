@@ -8,7 +8,7 @@
         <p class="text-muted small mb-0">{{ $store->name }} — {{ $bulanLbl }}</p>
     </div>
     <a href="{{ route('inventory.daily-ledger.index', ['store_id' => $store_id, 'month' => $month, 'year' => $year]) }}"
-       class="btn btn-outline-secondary btn-sm">
+       class="btn btn-outline-secondary btn-sm btn-back">
         <i class="bi bi-arrow-left me-1"></i>Kembali
     </a>
 </div>

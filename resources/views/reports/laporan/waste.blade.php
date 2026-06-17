@@ -29,12 +29,12 @@
                 <label class="form-label fw-semibold small">Sampai Tanggal</label>
                 <input type="date" name="date_to" class="form-control form-control-sm" value="{{ $dateTo }}">
             </div>
-            <div class="col-md-5 d-flex gap-2">
-                <button type="submit" class="btn btn-primary btn-sm flex-fill">
+            <div class="col-md-5 d-flex gap-2 justify-content-end">
+                <button type="submit" class="btn btn-primary btn-laporan">
                     <i class="bi bi-search me-1"></i>Tampilkan
                 </button>
                 <a href="{{ route('reports.laporan.waste.export', request()->query()) }}"
-                   class="btn btn-success btn-sm flex-fill">
+                   class="btn btn-success btn-laporan">
                     <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
                 </a>
             </div>
@@ -55,16 +55,20 @@ $topName  = $byIngredient->keys()->first();
 
 <div class="row g-3 mb-4">
     <div class="col-md-4">
-        <div class="stat-card border-danger">
+        <div class="stat-card border-danger h-100">
             <div class="stat-icon bg-danger-subtle text-danger"><i class="bi bi-trash3 fs-3"></i></div>
             <div class="stat-info">
                 <div class="stat-number text-danger" style="font-size:15px">Rp {{ number_format($grandTotal, 0, ',', '.') }}</div>
                 <div class="stat-label">Total Kerugian Waste</div>
+                <div class="small text-muted mt-1">
+                    Raw: <span class="fw-semibold">Rp {{ number_format($rawTotal, 0, ',', '.') }}</span>
+                    · Semi: <span class="fw-semibold">Rp {{ number_format($semiTotal, 0, ',', '.') }}</span>
+                </div>
             </div>
         </div>
     </div>
     <div class="col-md-4">
-        <div class="stat-card border-warning">
+        <div class="stat-card border-warning h-100">
             <div class="stat-icon bg-warning-subtle text-warning"><i class="bi bi-list-ul fs-3"></i></div>
             <div class="stat-info">
                 <div class="stat-number text-warning">{{ $rows->count() }}</div>
@@ -73,7 +77,7 @@ $topName  = $byIngredient->keys()->first();
         </div>
     </div>
     <div class="col-md-4">
-        <div class="stat-card border-secondary">
+        <div class="stat-card border-secondary h-100">
             <div class="stat-icon bg-secondary-subtle text-secondary"><i class="bi bi-trophy fs-3"></i></div>
             <div class="stat-info">
                 <div class="stat-number text-secondary" style="font-size:13px">{{ $topName ?? '-' }}</div>
@@ -100,34 +104,66 @@ $topName  = $byIngredient->keys()->first();
                     </div>
                 @else
                 <div class="table-responsive">
-                    <table class="table table-hover table-sm mb-0 align-middle">
-                        <thead class="table-light">
+                    <table class="table table-index table-balanced mb-0 align-middle">
+                        <thead>
                             <tr>
-                                <th>Tanggal</th>
-                                <th>Bahan</th>
-                                <th class="text-end">Qty Base</th>
-                                <th class="text-end">Harga/Base</th>
-                                <th class="text-end">Kerugian</th>
-                                <th>Catatan</th>
+                                <th style="width:12%">Tanggal</th>
+                                <th class="col-name" style="width:23%">Bahan</th>
+                                <th class="text-end" style="width:11%">Qty</th>
+                                <th class="text-end" style="width:15%">Harga/Dus</th>
+                                <th class="text-end" style="width:15%">Kerugian</th>
+                                <th class="col-name" style="width:24%">Catatan</th>
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach($rows as $row)
-                            <tr>
-                                <td class="text-muted small text-nowrap">
-                                    {{ \Carbon\Carbon::parse($row->wasteLog->waste_date)->isoFormat('D MMM Y') }}
-                                </td>
-                                <td>
-                                    <div class="fw-semibold">{{ $row->ingredient?->name ?? '-' }}</div>
-                                    <small class="text-muted">{{ $row->ingredient?->unit_base }}</small>
-                                </td>
-                                <td class="text-end">{{ number_format($row->qty_base, 0, ',', '.') }}</td>
-                                <td class="text-end">Rp {{ number_format($row->price_per_base, 0, ',', '.') }}</td>
-                                <td class="text-end fw-semibold text-danger">
-                                    Rp {{ number_format($row->subtotal_loss, 0, ',', '.') }}
-                                </td>
-                                <td class="text-muted small">{{ $row->wasteLog->notes ?? '-' }}</td>
-                            </tr>
+                            @php
+                                $labels = ['raw' => 'Bahan Baku (Raw)', 'semi_finished' => 'Setengah Jadi'];
+                                $groups = $rows->groupBy(fn($r) => $r->source_type ?? 'lainnya')->sortKeys();
+                            @endphp
+                            @foreach($groups as $stype => $g)
+                                <tr class="table-light">
+                                    <td colspan="4" class="fw-semibold text-uppercase small" style="letter-spacing:.03em">
+                                        <i class="bi bi-tag-fill me-1 text-secondary"></i>{{ $labels[$stype] ?? ucfirst($stype) }}
+                                        <span class="badge bg-secondary-subtle text-secondary ms-1">{{ $g->count() }} item</span>
+                                    </td>
+                                    <td class="text-end fw-semibold text-danger">Rp {{ number_format($g->sum('subtotal_loss'), 0, ',', '.') }}</td>
+                                    <td></td>
+                                </tr>
+                                @foreach($g as $row)
+                                @php
+                                    $pkg = $row->ingredient?->packagings->firstWhere('is_active', true)
+                                           ?? $row->ingredient?->packagings->first();
+                                    $dusSize = ($pkg && $pkg->crate_to_pack && $pkg->pack_to_base)
+                                               ? $pkg->crate_to_pack * $pkg->pack_to_base : null;
+                                    $asDus = $stype === 'raw' && $dusSize;
+                                @endphp
+                                <tr>
+                                    <td class="text-muted small text-nowrap">
+                                        {{ \Carbon\Carbon::parse($row->wasteLog->waste_date)->isoFormat('D MMM Y') }}
+                                    </td>
+                                    <td class="col-name ps-4">
+                                        <div class="fw-semibold">{{ $row->ingredient?->name ?? '-' }}</div>
+                                    </td>
+                                    <td class="text-end">
+                                        @if($asDus)
+                                            {{ rtrim(rtrim(number_format($row->qty_base / $dusSize, 2, ',', '.'), '0'), ',') }} <span class="text-muted small">Dus</span>
+                                        @else
+                                            {{ number_format($row->qty_base, 0, ',', '.') }} <span class="text-muted small">{{ $row->ingredient?->unit_base }}</span>
+                                        @endif
+                                    </td>
+                                    <td class="text-end">
+                                        @if($asDus)
+                                            Rp {{ number_format($row->price_per_base * $dusSize, 0, ',', '.') }}
+                                        @else
+                                            Rp {{ number_format($row->price_per_base, 0, ',', '.') }}
+                                        @endif
+                                    </td>
+                                    <td class="text-end fw-semibold text-danger">
+                                        Rp {{ number_format($row->subtotal_loss, 0, ',', '.') }}
+                                    </td>
+                                    <td class="col-name text-muted small">{{ $row->wasteLog->notes ?? '-' }}</td>
+                                </tr>
+                                @endforeach
                             @endforeach
                         </tbody>
                         <tfoot class="table-danger fw-semibold">

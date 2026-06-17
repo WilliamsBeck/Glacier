@@ -13,11 +13,11 @@
 <div class="d-flex justify-content-between align-items-start mb-3">
     <p class="text-muted mb-0 small">Per Periode — HPP Ideal vs Aktual</p>
     <div class="d-flex gap-2">
-        <a href="{{ route('sales.hpp.export', request()->query()) }}" class="btn btn-outline-success btn-sm">
+        <a href="{{ route('sales.hpp.export', request()->query()) }}" class="btn btn-outline-success">
             <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
         </a>
-        <a href="{{ route('sales.monthly.create') }}" class="btn btn-primary btn-sm">
-            <i class="bi bi-plus me-1"></i>Input Penjualan
+        <a href="{{ route('sales.monthly.create') }}" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i> Tambah Penjualan
         </a>
     </div>
 </div>
@@ -28,7 +28,7 @@
         <form method="GET" class="row g-2 align-items-end">
             <div class="col-md-3">
                 <label class="form-label small fw-semibold mb-1">Toko</label>
-                <select name="store_id" class="form-select form-select-sm" required>
+                <select name="store_id" class="form-select" required>
                     <option value="">— Pilih Toko —</option>
                     @foreach($stores as $s)
                         <option value="{{ $s->id }}" {{ $storeId==$s->id ? 'selected':'' }}>{{ $s->name }}</option>
@@ -37,7 +37,7 @@
             </div>
             <div class="col-md-2">
                 <label class="form-label small fw-semibold mb-1">Bulan</label>
-                <select name="month" class="form-select form-select-sm">
+                <select name="month" class="form-select">
                     @foreach($monthNames as $i => $nm)
                         @if($i>0)<option value="{{ $i }}" {{ $month==$i ? 'selected':'' }}>{{ $nm }}</option>@endif
                     @endforeach
@@ -45,17 +45,17 @@
             </div>
             <div class="col-md-1">
                 <label class="form-label small fw-semibold mb-1">Tahun</label>
-                <input type="number" name="year" class="form-control form-control-sm" value="{{ $year }}" min="2020">
+                <input type="number" name="year" class="form-control" value="{{ $year }}" min="2020">
             </div>
             <div class="col-md-2">
                 <label class="form-label small fw-semibold mb-1">Periode</label>
-                <select name="period_type" class="form-select form-select-sm">
+                <select name="period_type" class="form-select">
                     <option value="end_month" {{ ($periodType??'end_month')==='end_month'?'selected':'' }}>Akhir Bulan (1–30/31)</option>
                     <option value="mid_month" {{ ($periodType??'')==='mid_month'?'selected':'' }}>Tengah Bulan (1–15)</option>
                 </select>
             </div>
-            <div class="col-md-2">
-                <button type="submit" class="btn btn-primary btn-sm w-100">
+            <div class="col-md-auto ms-auto d-flex align-items-end">
+                <button type="submit" class="btn btn-primary">
                     <i class="bi bi-search me-1"></i>Tampilkan
                 </button>
             </div>
@@ -168,15 +168,15 @@
         <div class="card rounded-top-0">
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-sm table-hover mb-0 align-middle">
-                        <thead class="table-dark">
+                    <table class="table table-index table-balanced mb-0 align-middle">
+                        <thead>
                             <tr>
-                                <th></th>
-                                <th>Menu</th>
-                                <th class="text-end">Qty Terjual</th>
-                                <th class="text-end">HPP Ideal/pcs</th>
-                                <th class="text-end">Total HPP Ideal</th>
-                                <th class="text-end">% dari Total HPP</th>
+                                <th style="width:4%"></th>
+                                <th class="col-name" style="width:28%">Menu</th>
+                                <th class="text-end" style="width:17%">Qty Terjual</th>
+                                <th class="text-end" style="width:17%">HPP Ideal/pcs</th>
+                                <th class="text-end" style="width:17%">Total HPP Ideal</th>
+                                <th class="text-end" style="width:17%">% dari Total HPP</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -196,7 +196,7 @@
                                     </button>
                                     @endif
                                 </td>
-                                <td class="fw-semibold">{{ $row->menu->name }}</td>
+                                <td class="col-name fw-semibold">{{ $row->menu->name }}</td>
                                 <td class="text-end">{{ number_format($row->total_sold, 0, ',', '.') }}</td>
                                 <td class="text-end small text-muted">
                                     {{ $row->hpp_per_pcs > 0 ? $rp($row->hpp_per_pcs) : '—' }}
@@ -269,8 +269,8 @@
                         </tbody>
                         @if($menuRows->isNotEmpty())
                         <tfoot>
-                            <tr class="table-light fw-bold">
-                                <td>TOTAL</td>
+                            <tr class="table-secondary fw-bold">
+                                <td colspan="2" class="col-name">TOTAL</td>
                                 <td class="text-end">{{ number_format($menuRows->sum('total_sold'), 0, ',', '.') }}</td>
                                 <td></td>
                                 <td class="text-end">{{ $rp($menuRows->sum('hpp_ideal')) }}</td>
@@ -295,16 +295,16 @@
             @else
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-sm table-hover mb-0 align-middle">
-                        <thead class="table-dark">
+                    <table class="table table-index table-balanced mb-0 align-middle">
+                        <thead>
                             <tr>
-                                <th>Bahan Baku</th>
-                                <th class="text-end">Ideal<br><small class="fw-normal opacity-75">Dus</small></th>
-                                <th class="text-end">Aktual<br><small class="fw-normal opacity-75">Dus</small></th>
-                                <th class="text-end">Selisih<br><small class="fw-normal opacity-75">Dus</small></th>
-                                <th class="text-end">HPP Ideal</th>
-                                <th class="text-end">HPP Aktual</th>
-                                <th class="text-end">Selisih HPP</th>
+                                <th class="col-name" style="width:22%">Bahan Baku</th>
+                                <th class="text-end" style="width:13%">Ideal<br><small class="fw-normal opacity-75">Dus</small></th>
+                                <th class="text-end" style="width:13%">Aktual<br><small class="fw-normal opacity-75">Dus</small></th>
+                                <th class="text-end" style="width:13%">Selisih<br><small class="fw-normal opacity-75">Dus</small></th>
+                                <th class="text-end" style="width:13%">HPP Ideal</th>
+                                <th class="text-end" style="width:13%">HPP Aktual</th>
+                                <th class="text-end" style="width:13%">Selisih HPP</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -315,7 +315,7 @@
                                 $fmtDus = fn($v) => $v !== null ? number_format($v, 2, ',', '.') : '—';
                             @endphp
                             <tr>
-                                <td class="fw-semibold">{{ $r->ingredient->name }}</td>
+                                <td class="col-name fw-semibold">{{ $r->ingredient->name }}</td>
 
                                 {{-- Ideal Dus --}}
                                 <td class="text-end">
@@ -382,8 +382,8 @@
                             @endforeach
                         </tbody>
                         <tfoot>
-                            <tr class="table-light fw-bold">
-                                <td>TOTAL</td>
+                            <tr class="table-secondary fw-bold">
+                                <td class="col-name">TOTAL</td>
                                 <td></td><td></td><td></td>
                                 <td class="text-end">{{ $rp($ingredientRows->sum('hpp_ideal')) }}</td>
                                 <td class="text-end">

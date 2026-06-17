@@ -20,6 +20,7 @@ class DatabaseSeeder extends Seeder
             MonthlySaleSeeder::class,
             TransactionSeeder::class,
             HppReportSeeder::class,
+            DailyUsageSeeder::class,
         ]);
 
         $this->command->info('');

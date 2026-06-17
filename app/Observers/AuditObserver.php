@@ -15,7 +15,7 @@ class AuditObserver
             action: 'created',
             model: class_basename($model),
             modelId: $model->getKey(),
-            description: $this->label($model, 'Dibuat'),
+            description: $this->label($model, 'ditambahkan'),
             oldValues: null,
             newValues: $this->cleanValues($model->getAttributes()),
         );
@@ -33,7 +33,7 @@ class AuditObserver
             action: 'updated',
             model: class_basename($model),
             modelId: $model->getKey(),
-            description: $this->label($model, 'Diubah'),
+            description: $this->label($model, 'diperbarui'),
             oldValues: $this->cleanValues($old),
             newValues: $this->cleanValues($new),
         );
@@ -45,25 +45,43 @@ class AuditObserver
             action: 'deleted',
             model: class_basename($model),
             modelId: $model->getKey(),
-            description: $this->label($model, 'Dihapus'),
+            description: $this->label($model, 'dihapus'),
             oldValues: $this->cleanValues($model->getAttributes()),
             newValues: null,
         );
     }
 
+    // Nama model dalam Bahasa Indonesia untuk deskripsi yang ramah dibaca
+    private array $modelLabels = [
+        'Mutation' => 'Mutasi Stok', 'WasteLog' => 'Catatan Waste',
+        'ProductionLog' => 'Produksi', 'Opname' => 'Stok Opname',
+        'MonthlySale' => 'Penjualan Bulanan', 'MonthlyRevenue' => 'Omzet Bulanan',
+        'Store' => 'Toko', 'Supplier' => 'Supplier', 'Ingredient' => 'Bahan Baku',
+        'Menu' => 'Menu', 'Recipe' => 'Resep', 'User' => 'User',
+        'IngredientCategory' => 'Kategori Bahan', 'MenuCategory' => 'Kategori Menu',
+        'StoreStock' => 'Saldo Stok', 'HppMonthlyReport' => 'Laporan HPP',
+        'DailyConfirmation' => 'Konfirmasi Harian',
+    ];
+
     private function label(Model $model, string $verb): string
     {
-        $name = class_basename($model);
-        $id   = $model->getKey();
-        // Try to get a human-friendly identifier
+        $base = class_basename($model);
+        $name = $this->modelLabels[$base] ?? $base;
+
+        // Mutasi: pakai label tipe transaksi (Pembelian Pusat, Pembelian Internal, dst.)
+        if ($base === 'Mutation' && method_exists($model, 'getTypeLabelAttribute')) {
+            $name = $model->type_label;
+        }
+
+        // Identitas ramah bila ada (tanpa #id teknis)
         $extra = '';
-        foreach (['name', 'reference_no', 'invoice_no', 'title', 'code'] as $field) {
-            if (isset($model->$field)) {
+        foreach (['reference_no', 'invoice_no', 'name', 'title', 'code'] as $field) {
+            if (!empty($model->$field)) {
                 $extra = " — {$model->$field}";
                 break;
             }
         }
-        return "{$verb}: {$name} #{$id}{$extra}";
+        return "{$name}{$extra} {$verb}";
     }
 
     private function cleanValues(array $values): array

@@ -52,7 +52,7 @@ Route::middleware(['auth'])->group(function () {
         Route::resource('menus', MenuController::class);
         Route::delete('menus/{menu}/recipe-version/{group}', [MenuController::class, 'destroyRecipeVersion'])->name('menus.recipe-version.destroy');
         Route::resource('recipes', RecipeController::class);
-        Route::get('recipes/{recipe}/duplicate', [RecipeController::class, 'duplicate'])->name('master.recipes.duplicate');
+        Route::get('recipes/{recipe}/duplicate', [RecipeController::class, 'duplicate'])->name('recipes.duplicate');
         Route::resource('users', UserController::class);
         Route::post('users/{user}/assign-store', [UserController::class, 'assignStore'])->name('users.assign-store');
         Route::delete('users/{user}/revoke-store/{store}', [UserController::class, 'revokeStore'])->name('users.revoke-store');

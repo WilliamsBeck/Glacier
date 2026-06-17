@@ -2,147 +2,16 @@
 @section('title', isset($ingredient) ? 'Edit Bahan' : 'Tambah Bahan')
 
 @section('content')
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
-        rel="stylesheet">
 
-    <style>
-        .web3-form-container {
-            font-family: 'Plus Jakarta Sans', sans-serif;
-        }
+    <div class="pb-2">
 
-        /* CARD KONTEN: Dipecah menjadi card-card yang melayang elegan */
-        .web3-form-card {
-            background-color: #ffffff;
-            border-radius: 20px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.01);
-            border: 1px solid #e2e8f0;
-            padding: 28px;
-            height: 100%;
-        }
-
-        .section-title {
-            font-size: 1.05rem;
-            font-weight: 700;
-            color: #0f172a;
-            margin-bottom: 24px;
-            padding-bottom: 16px;
-            border-bottom: 1px solid #f1f5f9;
-            display: flex;
-            align-items: center;
-        }
-
-        /* LABEL INPUT */
-        .premium-label {
-            font-weight: 600;
-            color: #0f172a;
-            font-size: 0.9rem;
-            margin-bottom: 8px;
-            display: block;
-        }
-
-        /* INPUT FIELD UTAMA */
-        .premium-input {
-            border-radius: 12px !important;
-            background-color: #f8fafc !important;
-            border: 1px solid #cbd5e1 !important;
-            font-size: 0.95rem !important;
-            padding: 12px 16px !important;
-            color: #0f172a !important;
-            font-weight: 500;
-            transition: all 0.2s ease;
-        }
-
-        .premium-input:focus {
-            background-color: #ffffff !important;
-            border-color: #0f172a !important;
-            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05) !important;
-            outline: none;
-        }
-
-        /* INPUT FIELD SMALL (Untuk baris dinamis Kemasan & Komposisi) */
-        .premium-input-sm {
-            border-radius: 8px !important;
-            background-color: #f8fafc !important;
-            border: 1px solid #cbd5e1 !important;
-            font-size: 0.85rem !important;
-            padding: 8px 12px !important;
-            color: #0f172a !important;
-            font-weight: 500;
-            transition: all 0.2s ease;
-        }
-
-        .premium-input-sm:focus {
-            background-color: #ffffff !important;
-            border-color: #0f172a !important;
-            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05) !important;
-            outline: none;
-        }
-
-        .premium-input::placeholder,
-        .premium-input-sm::placeholder {
-            color: #94a3b8 !important;
-        }
-
-        /* TOGGLE SWITCH */
-        .form-switch .form-check-input {
-            width: 2.6em;
-            height: 1.3em;
-            cursor: pointer;
-            border: 1px solid #cbd5e1;
-            background-color: #f1f5f9;
-        }
-
-        .form-switch .form-check-input:checked {
-            background-color: #16a34a;
-            border-color: #16a34a;
-        }
-
-        /* Gaya khusus Baris Kemasan & Komposisi */
-        .dynamic-row-box {
-            background-color: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 12px;
-            position: relative;
-        }
-
-        .pkg-inactive {
-            opacity: 0.65;
-        }
-
-        .pkg-inactive::before {
-            content: '⏸ NONAKTIF';
-            position: absolute;
-            top: 8px;
-            left: 50%;
-            transform: translateX(-50%);
-            font-size: 0.65rem;
-            font-weight: 700;
-            color: #64748b;
-            letter-spacing: 1px;
-            pointer-events: none;
-            background: #f1f5f9;
-            padding: 2px 8px;
-            border-radius: 4px;
-        }
-    </style>
-
-    <div class="web3-form-container pb-5">
-
-        <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="page-header d-flex justify-content-between align-items-start">
             <div>
-                <h3 class="fw-700 mb-1" style="font-weight: 700; color: #0f172a; letter-spacing: -0.5px;">
-                    {{ isset($ingredient) ? 'Edit Bahan: ' . $ingredient->name : 'Tambah Bahan Baru' }}
-                </h3>
-                <p class="text-muted small mb-0" style="font-size: 0.88rem;">Lengkapi data dasar, kemasan, atau komposisi
-                    bahan</p>
+                <h1 class="page-title">{{ isset($ingredient) ? 'Edit Bahan: ' . $ingredient->name : 'Tambah Bahan' }}</h1>
+                <p class="page-subtitle">Lengkapi data dasar, kemasan, atau komposisi bahan</p>
             </div>
-            <a href="{{ route('master.ingredients.index') }}"
-                class="btn btn-link text-secondary text-decoration-none fw-semibold small">
-                <i class="bi bi-arrow-left me-1"></i> Kembali
+            <a href="{{ route('master.ingredients.index') }}" class="btn btn-outline-secondary btn-back">
+                <i class="bi bi-arrow-left me-1"></i>Kembali
             </a>
         </div>
 
@@ -153,34 +22,32 @@
             <div class="row g-4">
                 {{-- KOLOM KIRI: Info Dasar --}}
                 <div class="col-lg-4">
-                    <div class="web3-form-card">
-                        <div class="section-title">
+                    <div class="card p-4">
+                        <div class="fw-semibold border-bottom pb-2 mb-3">
                             <i class="bi bi-info-circle-fill me-2 text-primary"></i> Info Dasar
                         </div>
 
                         <div class="mb-4">
-                            <label class="premium-label">Nama Bahan <span class="text-danger">*</span></label>
-                            <input type="text" name="name" class="form-control premium-input"
+                            <label class="form-label">Nama Bahan <span class="text-danger">*</span></label>
+                            <input type="text" name="name" class="form-control"
                                 value="{{ old('name', $ingredient->name ?? '') }}" placeholder="Contoh: Susu Full Cream"
                                 required>
                         </div>
 
                         <div class="mb-4">
-                            <label class="premium-label">Tipe Bahan <span class="text-danger">*</span></label>
-                            <select name="type" id="typeSelect" class="form-select premium-input" required
+                            <label class="form-label">Tipe Bahan <span class="text-danger">*</span></label>
+                            <select name="type" id="typeSelect" class="form-select" required
                                 onchange="onTypeChange()">
                                 <option value="">— Pilih Tipe —</option>
-                                <option value="raw" {{ old('type', $ingredient->type ?? '') === 'raw' ? 'selected' : '' }}>
-                                    Bahan
-                                    Baku (Raw)</option>
-                                <option value="semi_finished" {{ old('type', $ingredient->type ?? '') === 'semi_finished' ? 'selected' : '' }}>Setengah Jadi (Semi)</option>
+                                <option value="raw" {{ old('type', $ingredient->type ?? '') === 'raw' ? 'selected' : '' }}>Raw</option>
+                                <option value="semi_finished" {{ old('type', $ingredient->type ?? '') === 'semi_finished' ? 'selected' : '' }}>Semi</option>
                             </select>
                         </div>
 
                         <div class="mb-4" id="wrapCategory"
                             style="{{ old('type', $ingredient->type ?? '') === 'semi_finished' ? 'display:none' : '' }}">
-                            <label class="premium-label">Kategori</label>
-                            <select name="category" class="form-select premium-input">
+                            <label class="form-label">Kategori</label>
+                            <select name="category" class="form-select">
                                 <option value="">— Pilih Kategori —</option>
                                 @foreach($categories as $cat)
                                     <option value="{{ $cat->name }}" {{ old('category', $ingredient->category ?? '') === $cat->name ? 'selected' : '' }}>
@@ -197,8 +64,8 @@
                         </div>
 
                         <div class="mb-4">
-                            <label class="premium-label">Satuan Dasar <span class="text-danger">*</span></label>
-                            <select name="unit_base" id="unitBase" class="form-select premium-input" required>
+                            <label class="form-label">Satuan Dasar <span class="text-danger">*</span></label>
+                            <select name="unit_base" id="unitBase" class="form-select" required>
                                 <option value="">— Pilih Satuan —</option>
                                 <option value="gram" {{ old('unit_base', $ingredient->unit_base ?? '') === 'gram' ? 'selected' : '' }}>Gram</option>
                                 <option value="pcs" {{ old('unit_base', $ingredient->unit_base ?? '') === 'pcs' ? 'selected' : '' }}>Pcs</option>
@@ -209,7 +76,7 @@
                             <div class="form-check form-switch d-flex align-items-center gap-3 ps-0 mt-3">
                                 <input class="form-check-input m-0" type="checkbox" name="is_active" value="1" id="actIng"
                                     {{ old('is_active', $ingredient->is_active ?? true) ? 'checked' : '' }}>
-                                <label class="form-check-label premium-label mb-0" for="actIng" style="cursor: pointer;">Set
+                                <label class="form-check-label form-label mb-0" for="actIng" style="cursor: pointer;">Set
                                     Bahan Aktif</label>
                             </div>
                         </div>
@@ -222,8 +89,8 @@
                     {{-- BAGIAN KEMASAN (HANYA RAW) --}}
                     <div id="sectionPackaging"
                         style="{{ (old('type', $ingredient->type ?? '') === 'semi_finished') ? 'display:none' : '' }}">
-                        <div class="web3-form-card">
-                            <div class="section-title d-flex justify-content-between align-items-center">
+                        <div class="card p-4">
+                            <div class="fw-semibold border-bottom pb-2 mb-3 d-flex justify-content-between align-items-center">
                                 <div><i class="bi bi-box-seam-fill me-2 text-primary"></i> Data Kemasan</div>
                                 @php
                                     $currentUnit = old('unit_base', $ingredient->unit_base ?? '');
@@ -240,7 +107,7 @@
                                     <div class="text-secondary small fw-bold mb-3 text-uppercase"
                                         style="letter-spacing: 0.5px;">Kemasan Tersimpan:</div>
                                     @foreach($ingredient->packagings as $pack)
-                                        <div class="dynamic-row-box {{ !$pack->is_active ? 'pkg-inactive' : '' }}"
+                                        <div class="border rounded p-3 mb-3 {{ !$pack->is_active ? 'opacity-75' : '' }}"
                                             id="pkgRow-{{ $pack->id }}"
                                             style="background:{{ $pack->is_active ? '#ffffff' : '#f8fafc' }}">
                                             <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
@@ -269,15 +136,15 @@
                                             </div>
                                             <div class="row g-3">
                                                 <div class="col-md-6">
-                                                    <label class="premium-label" style="font-size: 0.8rem;">Nama Kemasan</label>
+                                                    <label class="form-label" style="font-size: 0.8rem;">Nama Kemasan</label>
                                                     <input type="text" name="existing_packagings[{{ $pack->id }}][packaging_name]"
-                                                        class="form-control premium-input-sm packaging-name-input"
+                                                        class="form-control form-control-sm packaging-name-input"
                                                         value="{{ $pack->packaging_name }}" required>
                                                 </div>
                                                 <div class="col-md-6">
-                                                    <label class="premium-label" style="font-size: 0.8rem;">Supplier</label>
+                                                    <label class="form-label" style="font-size: 0.8rem;">Supplier</label>
                                                     <select name="existing_packagings[{{ $pack->id }}][supplier_id]"
-                                                        class="form-select premium-input-sm packaging-supplier-input">
+                                                        class="form-select form-select-sm packaging-supplier-input">
                                                         <option value="">— Tidak Ada —</option>
                                                         @foreach($suppliers as $s)
                                                             <option value="{{ $s->id }}" {{ $pack->supplier_id == $s->id ? 'selected' : '' }}>{{ $s->name }}</option>
@@ -285,23 +152,23 @@
                                                     </select>
                                                 </div>
                                                 <div class="col-md-4">
-                                                    <label class="premium-label" style="font-size: 0.8rem;">Jml Pack per Dus</label>
+                                                    <label class="form-label" style="font-size: 0.8rem;">Jml Pack per Dus</label>
                                                     <input type="number" name="existing_packagings[{{ $pack->id }}][crate_to_pack]"
-                                                        class="form-control premium-input-sm crate-input"
+                                                        class="form-control form-control-sm crate-input"
                                                         value="{{ $pack->crate_to_pack }}" min="1" required>
                                                 </div>
                                                 <div class="col-md-4">
-                                                    <label class="premium-label" style="font-size: 0.8rem;">Isi per Pack (<span
+                                                    <label class="form-label" style="font-size: 0.8rem;">Isi per Pack (<span
                                                             class="unit-label">{{ ucfirst($ingredient->unit_base) }}</span>)</label>
                                                     <input type="number" name="existing_packagings[{{ $pack->id }}][pack_to_base]"
-                                                        class="form-control premium-input-sm pack-input"
+                                                        class="form-control form-control-sm pack-input"
                                                         value="{{ (int) $pack->pack_to_base }}" step="1" min="1" required>
                                                 </div>
                                                 <div class="col-md-4">
-                                                    <label class="premium-label" style="font-size: 0.8rem;">Total Isi per
+                                                    <label class="form-label" style="font-size: 0.8rem;">Total Isi per
                                                         Dus</label>
                                                     <input type="text"
-                                                        class="form-control premium-input-sm bg-light text-muted fw-bold total-display"
+                                                        class="form-control form-control-sm bg-light text-muted fw-bold total-display"
                                                         value="{{ number_format((int) ($pack->crate_to_pack * $pack->pack_to_base), 0, ',', '.') }} {{ ucfirst($ingredient->unit_base) }}"
                                                         readonly>
                                                 </div>
@@ -319,43 +186,43 @@
                             </div>
                             <div id="packagingRows">
                                 @unless($hasExistingPack)
-                                    <div class="dynamic-row-box packaging-row">
+                                    <div class="border rounded p-3 mb-3 packaging-row">
                                         <button type="button" class="btn-close position-absolute top-0 end-0 m-3 remove-row"
                                             style="display:none"></button>
                                         <div class="row g-3">
                                             <div class="col-md-6">
-                                                <label class="premium-label" style="font-size: 0.8rem;">Nama Kemasan</label>
+                                                <label class="form-label" style="font-size: 0.8rem;">Nama Kemasan</label>
                                                 <input type="text" name="packagings[0][packaging_name]"
-                                                    class="form-control premium-input-sm packaging-name-input"
+                                                    class="form-control form-control-sm packaging-name-input"
                                                     placeholder="Contoh: Dus Zhisheng">
                                             </div>
                                             <div class="col-md-6">
-                                                <label class="premium-label" style="font-size: 0.8rem;">Supplier</label>
+                                                <label class="form-label" style="font-size: 0.8rem;">Supplier</label>
                                                 <select name="packagings[0][supplier_id]"
-                                                    class="form-select premium-input-sm packaging-supplier-input">
+                                                    class="form-select form-select-sm packaging-supplier-input">
                                                     <option value="">— Tidak Ada —</option>
                                                     @foreach($suppliers as $s)<option value="{{ $s->id }}">{{ $s->name }}
                                                     </option>@endforeach
                                                 </select>
                                             </div>
                                             <div class="col-md-4">
-                                                <label class="premium-label" style="font-size: 0.8rem;">Jml Pack per Dus</label>
+                                                <label class="form-label" style="font-size: 0.8rem;">Jml Pack per Dus</label>
                                                 <input type="number" name="packagings[0][crate_to_pack]"
-                                                    class="form-control premium-input-sm crate-input" min="1"
+                                                    class="form-control form-control-sm crate-input" min="1"
                                                     placeholder="Contoh: 12">
                                             </div>
                                             <div class="col-md-4">
-                                                <label class="premium-label" style="font-size: 0.8rem;">Isi per Pack (<span
+                                                <label class="form-label" style="font-size: 0.8rem;">Isi per Pack (<span
                                                         class="unit-label">satuan</span>)</label>
                                                 <input type="number" name="packagings[0][pack_to_base]"
-                                                    class="form-control premium-input-sm pack-input" step="1" min="1"
+                                                    class="form-control form-control-sm pack-input" step="1" min="1"
                                                     placeholder="Contoh: 500">
                                             </div>
                                             <div class="col-md-4">
-                                                <label class="premium-label" style="font-size: 0.8rem;">Total Isi per
+                                                <label class="form-label" style="font-size: 0.8rem;">Total Isi per
                                                     Dus</label>
                                                 <input type="text"
-                                                    class="form-control premium-input-sm bg-light text-muted fw-bold total-display"
+                                                    class="form-control form-control-sm bg-light text-muted fw-bold total-display"
                                                     readonly placeholder="Dihitung otomatis">
                                             </div>
                                         </div>
@@ -364,8 +231,7 @@
                             </div>
 
                             <button type="button" id="addPackaging"
-                                class="btn btn-dark btn-sm rounded-pill px-3 py-2 mt-2 fw-medium"
-                                style="background-color: #0f172a;">
+                                class="btn btn-outline-primary btn-sm mt-2">
                                 <i class="bi bi-plus-lg me-1"></i> Tambah Baris Kemasan
                             </button>
                         </div>
@@ -374,8 +240,8 @@
                     {{-- BAGIAN KOMPOSISI (HANYA SEMI FINISHED) --}}
                     <div id="sectionComposition"
                         style="{{ (old('type', $ingredient->type ?? '') !== 'semi_finished') ? 'display:none' : '' }}">
-                        <div class="web3-form-card">
-                            <div class="section-title"><i class="bi bi-layers-fill me-2 text-primary"></i> Komposisi Bahan
+                        <div class="card p-4">
+                            <div class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-layers-fill me-2 text-primary"></i> Komposisi Bahan
                                 Baku</div>
 
                             {{-- Komposisi tersimpan (hanya mode edit) --}}
@@ -409,10 +275,10 @@
 
                             {{-- Form tambah komposisi baru --}}
                             <div class="mb-4 bg-light p-3 rounded border" style="border-color: #e2e8f0 !important;">
-                                <label class="premium-label d-flex align-items-center mb-0 gap-2">
+                                <label class="form-label d-flex align-items-center mb-0 gap-2">
                                     Jika membuat
                                     <input type="text" name="total_output" id="totalOutput"
-                                        class="form-control premium-input-sm text-center num-fmt" style="width:110px"
+                                        class="form-control form-control-sm text-center num-fmt" style="width:110px"
                                         placeholder="cth: 11.000">
                                     <span class="badge bg-white text-dark border px-2 py-1"><span
                                             id="unitLabelComp">{{ $ingredient->unit_base ?? 'gram' }}</span>
@@ -421,11 +287,11 @@
                             </div>
 
                             <div class="row g-2 mb-2 px-1">
-                                <div class="col-5"><span class="premium-label text-muted" style="font-size: 0.8rem;">Bahan
+                                <div class="col-5"><span class="form-label text-muted" style="font-size: 0.8rem;">Bahan
                                         Baku Master</span></div>
-                                <div class="col-3"><span class="premium-label text-muted" style="font-size: 0.8rem;">Qty
+                                <div class="col-3"><span class="form-label text-muted" style="font-size: 0.8rem;">Qty
                                         digunakan</span></div>
-                                <div class="col-3"><span class="premium-label text-muted" style="font-size: 0.8rem;">Per 1
+                                <div class="col-3"><span class="form-label text-muted" style="font-size: 0.8rem;">Per 1
                                         <span id="perUnitHeaderLabel">{{ $ingredient->unit_base ?? 'gram' }}</span></span>
                                 </div>
                                 <div class="col-1"></div>
@@ -435,7 +301,7 @@
                                 <div class="composition-row row g-2 mb-3 align-items-center">
                                     <div class="col-5">
                                         <select name="compositions[0][child_id]"
-                                            class="form-select premium-input-sm child-select">
+                                            class="form-select form-select-sm child-select">
                                             <option value="">— Pilih Bahan —</option>
                                             @foreach($rawIngredients as $raw)
                                                 <option value="{{ $raw->id }}" data-unit="{{ $raw->unit_base }}">
@@ -447,7 +313,7 @@
                                     <div class="col-3">
                                         <div class="input-group input-group-sm">
                                             <input type="text" name="compositions[0][qty_used]"
-                                                class="form-control premium-input-sm qty-used-input num-fmt"
+                                                class="form-control form-control-sm qty-used-input num-fmt"
                                                 placeholder="cth: 3.000"
                                                 style="border-right: 0; border-radius: 8px 0 0 8px !important;">
                                             <span
@@ -457,7 +323,7 @@
                                     </div>
                                     <div class="col-3">
                                         <input type="text"
-                                            class="form-control premium-input-sm bg-light per-unit-display text-muted fw-bold"
+                                            class="form-control form-control-sm bg-light per-unit-display text-muted fw-bold"
                                             readonly placeholder="—">
                                     </div>
                                     <div class="col-1 d-flex justify-content-center">
@@ -471,8 +337,7 @@
                             </div>
 
                             <button type="button" id="addComposition"
-                                class="btn btn-dark btn-sm rounded-pill px-3 py-2 mt-2 fw-medium"
-                                style="background-color: #0f172a;">
+                                class="btn btn-outline-primary btn-sm mt-2">
                                 <i class="bi bi-plus-lg me-1"></i> Tambah Bahan Lagi
                             </button>
                         </div>
@@ -481,52 +346,50 @@
                 </div>
             </div>
 
-            <div class="d-flex gap-3 mt-4 pt-4 border-top">
-                <button type="submit" name="action" value="save" class="btn btn-dark px-5 py-2.5 fw-bold"
-                    style="background-color: #0f172a; border-radius: 12px; font-size: 0.95rem;">
-                    <i class="bi bi-save me-1"></i> Simpan Data Bahan
+            <div class="d-flex gap-2 mt-4 pt-4 border-top">
+                <button type="submit" name="action" value="save" class="btn btn-primary">
+                    <i class="bi bi-check-lg me-1"></i> Simpan Data Bahan
                 </button>
                 @unless(isset($ingredient))
-                    <button type="submit" name="action" value="save_and_new"
-                        class="btn btn-light border px-4 py-2.5 fw-semibold text-secondary"
-                        style="background-color: #ffffff; border-radius: 12px; font-size: 0.95rem;">
-                        <i class="bi bi-plus-circle me-1"></i> Simpan & Tambah Baru
+                    <button type="submit" name="action" value="save_and_new" class="btn btn-outline-secondary">
+                        <i class="bi bi-plus-circle me-1"></i> Simpan &amp; Tambah Baru
                     </button>
                 @endunless
+                <a href="{{ route('master.ingredients.index') }}" class="btn btn-outline-secondary">Batal</a>
             </div>
         </form>
     </div>
 
     <template id="packagingTemplate">
-        <div class="dynamic-row-box packaging-row">
+        <div class="border rounded p-3 mb-3 packaging-row">
             <button type="button" class="btn-close position-absolute top-0 end-0 m-3 remove-row"></button>
             <div class="row g-3">
                 <div class="col-md-6">
-                    <label class="premium-label" style="font-size: 0.8rem;">Nama Kemasan</label>
-                    <input type="text" name="" class="form-control premium-input-sm packaging-name-input"
+                    <label class="form-label" style="font-size: 0.8rem;">Nama Kemasan</label>
+                    <input type="text" name="" class="form-control form-control-sm packaging-name-input"
                         placeholder="Contoh: Dus Zhisheng">
                 </div>
                 <div class="col-md-6">
-                    <label class="premium-label" style="font-size: 0.8rem;">Supplier</label>
-                    <select name="" class="form-select premium-input-sm packaging-supplier-input">
+                    <label class="form-label" style="font-size: 0.8rem;">Supplier</label>
+                    <select name="" class="form-select form-select-sm packaging-supplier-input">
                         <option value="">— Tidak Ada —</option>
                         @foreach($suppliers as $s)<option value="{{ $s->id }}">{{ $s->name }}</option>@endforeach
                     </select>
                 </div>
                 <div class="col-md-4">
-                    <label class="premium-label" style="font-size: 0.8rem;">Jml Pack per Dus</label>
-                    <input type="number" name="" class="form-control premium-input-sm crate-input" min="1"
+                    <label class="form-label" style="font-size: 0.8rem;">Jml Pack per Dus</label>
+                    <input type="number" name="" class="form-control form-control-sm crate-input" min="1"
                         placeholder="Contoh: 12">
                 </div>
                 <div class="col-md-4">
-                    <label class="premium-label" style="font-size: 0.8rem;">Isi per Pack (<span
+                    <label class="form-label" style="font-size: 0.8rem;">Isi per Pack (<span
                             class="unit-label">satuan</span>)</label>
-                    <input type="number" name="" class="form-control premium-input-sm pack-input" step="1" min="1"
+                    <input type="number" name="" class="form-control form-control-sm pack-input" step="1" min="1"
                         placeholder="Contoh: 500">
                 </div>
                 <div class="col-md-4">
-                    <label class="premium-label" style="font-size: 0.8rem;">Total Isi per Dus</label>
-                    <input type="text" class="form-control premium-input-sm bg-light text-muted fw-bold total-display"
+                    <label class="form-label" style="font-size: 0.8rem;">Total Isi per Dus</label>
+                    <input type="text" class="form-control form-control-sm bg-light text-muted fw-bold total-display"
                         readonly placeholder="Dihitung otomatis">
                 </div>
             </div>
@@ -537,7 +400,7 @@
         // ── Hapus kemasan via AJAX (hindari nested form) ─────────── [cite: 230]
         function deletePackaging(packId, btn) {
             if (!confirm('Hapus kemasan ini?')) return;[cite: 230]
-            const row = btn.closest('.dynamic-row-box');
+            const row = btn.closest('.border rounded p-3 mb-3');
             row.style.opacity = '0.5';[cite: 230]
             btn.disabled = true;[cite: 230]
             fetch('{{ url("master/packagings") }}/' + packId, {
@@ -595,7 +458,7 @@
                     }
                     if (row) {
                         row.style.background = res.is_active ? '#ffffff' : '#f8fafc';[cite: 236, 237]
-                        row.classList.toggle('pkg-inactive', !res.is_active);[cite: 237]
+                        row.classList.toggle('opacity-75', !res.is_active);[cite: 237]
                     }
                 })
                 .catch(function () {
@@ -683,16 +546,16 @@
             rawIngredients.forEach(r => { opts += `<option value="${r.id}" data-unit="${r.unit_base}">${r.name}</option>`; });[cite: 257]
             return `<div class="composition-row row g-2 mb-3 align-items-center">
                 <div class="col-5">
-                    <select name="compositions[${idx}][child_id]" class="form-select premium-input-sm child-select">${opts}</select>
+                    <select name="compositions[${idx}][child_id]" class="form-select form-select-sm child-select">${opts}</select>
                 </div>
                 <div class="col-3">
                     <div class="input-group input-group-sm">
-                        <input type="text" name="compositions[${idx}][qty_used]" class="form-control premium-input-sm qty-used-input num-fmt" placeholder="cth: 3.000" style="border-right: 0; border-radius: 8px 0 0 8px !important;">
+                        <input type="text" name="compositions[${idx}][qty_used]" class="form-control form-control-sm qty-used-input num-fmt" placeholder="cth: 3.000" style="border-right: 0; border-radius: 8px 0 0 8px !important;">
                         <span class="input-group-text bg-white small unit-label-comp text-muted fw-semibold" style="border: 1px solid #cbd5e1; border-left: 0; border-radius: 0 8px 8px 0;">satuan</span>
                     </div>
                 </div>
                 <div class="col-3">
-                    <input type="text" class="form-control premium-input-sm bg-light per-unit-display text-muted fw-bold" readonly placeholder="—">
+                    <input type="text" class="form-control form-control-sm bg-light per-unit-display text-muted fw-bold" readonly placeholder="—">
                 </div>
                 <div class="col-1 d-flex justify-content-center">
                     <button type="button" class="btn btn-light text-danger border btn-sm remove-comp-row" style="border-radius: 8px;"><i class="bi bi-x-lg"></i></button>
@@ -739,7 +602,7 @@
         }
 
         function recalcAll() {
-            document.querySelectorAll('.packaging-row, .dynamic-row-box').forEach(recalcRow);
+            document.querySelectorAll('.packaging-row, .border rounded p-3 mb-3').forEach(recalcRow);
         }
 
         function attachRowEvents(row, idx) {
@@ -773,7 +636,7 @@
 
         document.addEventListener('DOMContentLoaded', function () {
             // Existing packagings: attach recalc events
-            document.querySelectorAll('.dynamic-row-box').forEach(function (row) {
+            document.querySelectorAll('.border rounded p-3 mb-3').forEach(function (row) {
                 row.querySelector('.crate-input')?.addEventListener('input', () => recalcRow(row));
                 row.querySelector('.pack-input')?.addEventListener('input', () => recalcRow(row));
             });

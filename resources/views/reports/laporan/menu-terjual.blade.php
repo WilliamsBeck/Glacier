@@ -46,12 +46,12 @@
                     <option value="mid_month" {{ $periodType === 'mid_month' ? 'selected' : '' }}>Tengah Bulan</option>
                 </select>
             </div>
-            <div class="col-md-3 d-flex gap-2">
-                <button type="submit" class="btn btn-primary btn-sm flex-fill">
+            <div class="col-md-3 d-flex gap-2 justify-content-end">
+                <button type="submit" class="btn btn-primary btn-laporan">
                     <i class="bi bi-search me-1"></i>Tampilkan
                 </button>
                 <a href="{{ route('reports.laporan.menu-terjual.export', request()->query()) }}"
-                   class="btn btn-success btn-sm flex-fill">
+                   class="btn btn-success btn-laporan">
                     <i class="bi bi-file-earmark-excel me-1"></i>Export
                 </a>
             </div>
@@ -69,7 +69,7 @@
                 <i class="bi bi-cup-straw fs-3"></i>
             </div>
             <div class="stat-info">
-                <div class="stat-number text-primary">{{ number_format($totalSold) }}</div>
+                <div class="stat-number text-primary">{{ number_format($totalSold, 0, ',', '.') }}</div>
                 <div class="stat-label">Total Menu Terjual</div>
             </div>
         </div>
@@ -118,39 +118,51 @@
                     </div>
                 @else
                 <div class="table-responsive">
-                    <table class="table table-hover table-sm mb-0 align-middle">
-                        <thead class="table-light">
+                    <table class="table table-index table-balanced mb-0 align-middle">
+                        <thead>
                             <tr>
-                                <th>No</th>
-                                <th>Kategori</th>
-                                <th>Nama Menu</th>
-                                <th class="text-end">Qty Terjual</th>
-                                <th class="text-end">% Share</th>
-                                <th class="text-end">Pendapatan</th>
+                                <th style="width:6%">No</th>
+                                <th class="col-name" style="width:40%">Nama Menu</th>
+                                <th class="text-end" style="width:18%">Qty Terjual</th>
+                                <th class="text-end" style="width:18%">% Share</th>
+                                <th class="text-end" style="width:18%">Pendapatan</th>
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach($rows as $i => $row)
-                            <tr>
-                                <td class="text-muted small">{{ $i + 1 }}</td>
-                                <td>
-                                    <span class="badge bg-secondary-subtle text-secondary">
-                                        {{ $row->menu?->menuCategory?->name ?? 'Lainnya' }}
-                                    </span>
-                                </td>
-                                <td class="fw-semibold">{{ $row->menu?->name ?? '-' }}</td>
-                                <td class="text-end fw-semibold">{{ number_format($row->total_sold) }}</td>
-                                <td class="text-end text-muted small">
-                                    {{ $totalSold > 0 ? number_format($row->total_sold / $totalSold * 100, 1, ',', '.') : 0 }}%
-                                </td>
-                                <td class="text-end">Rp {{ number_format($row->total_revenue, 0, ',', '.') }}</td>
-                            </tr>
+                            @php $no = 0; @endphp
+                            @foreach($rows->groupBy(fn($r) => $r->menu?->menuCategory?->name ?? 'Lainnya') as $catName => $catRows)
+                                @php
+                                    $catQty = $catRows->sum('total_sold');
+                                    $catRev = $catRows->sum('total_revenue');
+                                @endphp
+                                <tr class="table-light">
+                                    <td colspan="2" class="fw-semibold text-uppercase small" style="letter-spacing:.03em">
+                                        <i class="bi bi-tag-fill me-1 text-secondary"></i>{{ $catName }}
+                                    </td>
+                                    <td class="text-end fw-semibold">{{ number_format($catQty, 0, ',', '.') }}</td>
+                                    <td class="text-end fw-semibold text-muted small">
+                                        {{ $totalSold > 0 ? number_format($catQty / $totalSold * 100, 1, ',', '.') : 0 }}%
+                                    </td>
+                                    <td class="text-end fw-semibold">Rp {{ number_format($catRev, 0, ',', '.') }}</td>
+                                </tr>
+                                @foreach($catRows as $row)
+                                    @php $no++; @endphp
+                                    <tr>
+                                        <td class="text-muted small">{{ $no }}</td>
+                                        <td class="col-name fw-semibold ps-4">{{ $row->menu?->name ?? '-' }}</td>
+                                        <td class="text-end fw-semibold">{{ number_format($row->total_sold, 0, ',', '.') }}</td>
+                                        <td class="text-end text-muted small">
+                                            {{ $totalSold > 0 ? number_format($row->total_sold / $totalSold * 100, 1, ',', '.') : 0 }}%
+                                        </td>
+                                        <td class="text-end">Rp {{ number_format($row->total_revenue, 0, ',', '.') }}</td>
+                                    </tr>
+                                @endforeach
                             @endforeach
                         </tbody>
                         <tfoot class="table-primary fw-semibold">
                             <tr>
-                                <td colspan="3">TOTAL</td>
-                                <td class="text-end">{{ number_format($totalSold) }}</td>
+                                <td colspan="2">TOTAL</td>
+                                <td class="text-end">{{ number_format($totalSold, 0, ',', '.') }}</td>
                                 <td class="text-end">100%</td>
                                 <td class="text-end">Rp {{ number_format($totalRevenue, 0, ',', '.') }}</td>
                             </tr>
@@ -163,19 +175,53 @@
     </div>
 
     {{-- PIE CHART BY CATEGORY --}}
-    <div class="col-lg-4">
-        <div class="card h-100">
+    <div class="col-lg-4 d-flex flex-column">
+        <div class="card">
             <div class="card-header fw-semibold">
                 <i class="bi bi-pie-chart me-1"></i>Komposisi per Kategori
             </div>
-            <div class="card-body d-flex align-items-center justify-content-center">
+            <div class="card-body">
                 @if($byCategory->isEmpty())
-                    <div class="text-center text-muted">Tidak ada data</div>
+                    <div class="text-center text-muted py-5">Tidak ada data</div>
                 @else
-                    <canvas id="catChart" style="max-height:280px"></canvas>
+                    <div style="position:relative;height:340px">
+                        <canvas id="catChart"></canvas>
+                    </div>
                 @endif
             </div>
         </div>
+
+        {{-- RECAP: MENU TERLARIS --}}
+        @if($rows->isNotEmpty())
+        <div class="card mt-4 flex-grow-1" style="min-height:240px">
+            <div class="card-header fw-semibold">
+                <i class="bi bi-trophy me-1"></i>Menu Terlaris
+            </div>
+            <div class="card-body p-0" style="position:relative">
+              <div style="position:absolute; inset:0; overflow-y:auto" class="p-3">
+                @foreach($rows->sortByDesc('total_sold')->values() as $i => $row)
+                    @php
+                        $share = $totalSold > 0 ? $row->total_sold / $totalSold * 100 : 0;
+                        $rank  = $loop->iteration;
+                    @endphp
+                    <div class="d-flex align-items-center gap-3 {{ !$loop->last ? 'mb-3' : '' }}">
+                        <span class="badge {{ $rank <= 3 ? 'bg-primary' : 'bg-secondary-subtle text-secondary' }}"
+                              style="width:24px">{{ $rank }}</span>
+                        <div class="flex-fill" style="min-width:0">
+                            <div class="d-flex justify-content-between">
+                                <span class="fw-semibold text-truncate me-3">{{ $row->menu?->name ?? '-' }}</span>
+                                <span class="small text-muted text-nowrap">{{ number_format($row->total_sold, 0, ',', '.') }} pcs<span class="ms-4">{{ number_format($share, 1, ',', '.') }}%</span></span>
+                            </div>
+                            <div class="progress mt-1" style="height:5px">
+                                <div class="progress-bar" style="width:{{ $share }}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                @endforeach
+              </div>
+            </div>
+        </div>
+        @endif
     </div>
 </div>
 
@@ -195,15 +241,45 @@ $catLabels = $byCategory->keys()->values()->all();
 $catData   = $byCategory->values()->all();
 $palette   = ['#6366f1','#f59e0b','#10b981','#ef4444','#3b82f6','#8b5cf6','#ec4899','#14b8a6','#f97316','#84cc16'];
 @endphp
+const catData = @json($catData);
+const catTotal = catData.reduce((a, b) => a + b, 0);
+const fmt = n => n.toLocaleString('id-ID');
+const pct = v => catTotal > 0 ? (v / catTotal * 100).toFixed(1).replace('.', ',') : '0';
+
 new Chart(document.getElementById('catChart'), {
     type: 'doughnut',
     data: {
         labels: @json($catLabels),
-        datasets: [{ data: @json($catData), backgroundColor: @json($palette), borderWidth: 2 }]
+        datasets: [{ data: catData, backgroundColor: @json($palette), borderWidth: 2 }]
     },
     options: {
-        plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } },
-        cutout: '55%'
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '55%',
+        plugins: {
+            legend: {
+                position: 'bottom',
+                labels: {
+                    font: { size: 11 },
+                    boxWidth: 12,
+                    padding: 10,
+                    generateLabels(chart) {
+                        const ds = chart.data.datasets[0];
+                        return chart.data.labels.map((label, i) => ({
+                            text: `${label} — ${fmt(ds.data[i])} (${pct(ds.data[i])}%)`,
+                            fillStyle: ds.backgroundColor[i],
+                            strokeStyle: ds.backgroundColor[i],
+                            index: i
+                        }));
+                    }
+                }
+            },
+            tooltip: {
+                callbacks: {
+                    label: ctx => ` ${fmt(ctx.parsed)} terjual (${pct(ctx.parsed)}%)`
+                }
+            }
+        }
     }
 });
 </script>

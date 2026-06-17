@@ -8,7 +8,7 @@
         <p class="page-subtitle">Kelola hak akses dan data pengguna sistem</p>
     </div>
     <a href="{{ route('master.users.create') }}" class="btn btn-primary">
-        <i class="bi bi-plus-lg"></i> Tambah User
+        <i class="bi bi-plus-lg me-1"></i> Tambah User
     </a>
 </div>
 
@@ -27,7 +27,7 @@
                 </select>
             </div>
             <div class="col-md-3 d-flex gap-2 justify-content-end">
-                <button type="submit" class="btn btn-primary">Filter</button>
+                <button type="submit" class="btn btn-primary">Cari</button>
                 <a href="{{ route('master.users.index') }}" class="btn btn-outline-secondary">Reset</a>
             </div>
         </form>
@@ -36,7 +36,7 @@
 
 <div class="card">
     <div class="table-responsive">
-        <table class="table table-index mb-0">
+        <table class="table table-index table-balanced mb-0">
             <thead>
                 <tr>
                     <th width="48">#</th>

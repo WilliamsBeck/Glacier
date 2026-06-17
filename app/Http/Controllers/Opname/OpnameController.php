@@ -603,9 +603,9 @@ class OpnameController extends Controller
                 $i + 1,
                 $item->ingredient?->name ?? '-',
                 $item->ingredient?->unit_base ?? '-',
-                number_format($item->system_qty, 3),
-                number_format($item->physical_qty, 3),
-                number_format($item->variance, 3),
+                number_format($item->system_qty, 3, ',', '.'),
+                number_format($item->physical_qty, 3, ',', '.'),
+                number_format($item->variance, 3, ',', '.'),
                 $item->variance > 0 ? 'Lebih' : ($item->variance < 0 ? 'Kurang' : 'Sesuai'),
             ];
         }

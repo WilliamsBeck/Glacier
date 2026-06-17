@@ -5,13 +5,13 @@
 <div class="page-header d-flex justify-content-between align-items-center">
     <h4 class="page-title">Buat Stok Opname Baru</h4>
     <div class="d-flex gap-2">
-        <button type="button" class="btn btn-outline-success btn-sm" onclick="downloadOpnameTemplate()">
+        <button type="button" class="btn btn-outline-success" onclick="downloadOpnameTemplate()">
             <i class="bi bi-file-earmark-excel me-1"></i>Download Template
         </button>
-        <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalImportOpname">
+        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalImportOpname">
             <i class="bi bi-upload me-1"></i>Import Excel
         </button>
-        <a href="{{ route('opname.opnames.index') }}" class="btn btn-outline-secondary btn-sm">
+        <a href="{{ route('opname.opnames.index') }}" class="btn btn-outline-secondary btn-sm btn-back">
             <i class="bi bi-arrow-left me-1"></i>Kembali
         </a>
     </div>

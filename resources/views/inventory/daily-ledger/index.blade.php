@@ -10,10 +10,10 @@
     @if(request('store_id') && request('month') && request('year'))
     <div class="d-flex gap-2">
         <a href="{{ route('inventory.daily-ledger.export-template', request()->only('store_id','month','year')) }}"
-           class="btn btn-success btn-sm">
+           class="btn btn-outline-success">
             <i class="bi bi-file-earmark-excel me-1"></i>Download Template
         </a>
-        <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalImportUsage">
+        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalImportUsage">
             <i class="bi bi-upload me-1"></i>Import Excel
         </button>
     </div>
@@ -355,7 +355,7 @@
                         <th style="background:#27ae60;color:#fff">PACK</th>
                         @foreach($sectionLabels as $key => $label)
                             @foreach($activeDays[$key] as $d)
-                                <th style="background:{{ $sectionH2[$key] }};color:#fff;min-width:30px">{{ $d }}</th>
+                                <th class="dl-sec-col" style="background:{{ $sectionH2[$key] }};color:#fff">{{ $d }}</th>
                             @endforeach
                         @endforeach
                     </tr>
@@ -480,7 +480,7 @@
                             @foreach($sectionLabels as $key => $label)
                                 @foreach($activeDays[$key] as $d)
                                     @php $v = $toDus($row['days'][$d][$key][$pkgKey] ?? 0, $pkg); @endphp
-                                    <td class="text-center" style="{{ $v ? 'background:'.$sectionCell[$key] : '' }}">{{ $v }}</td>
+                                    <td class="text-center dl-sec-col" style="{{ $v ? 'background:'.$sectionCell[$key] : '' }}">{{ $v }}</td>
                                 @endforeach
                             @endforeach
                         </tr>
