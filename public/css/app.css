@@ -17,10 +17,10 @@
     --text-2:        #475569;   /* secondary text */
     --text-3:        #94A3B8;   /* tertiary / placeholder */
 
-    --accent:        #5B6CF0;   /* soft indigo — single accent only */
-    --accent-hover:  #4F5DE0;
-    --accent-soft:   #EEF1FE;   /* tint for active states / soft fill */
-    --accent-text:   #4338CA;   /* readable on accent-soft */
+    --accent:        #006275;
+    --accent-hover:  #004f5f;
+    --accent-soft:   #e0f4f7;   /* tint for active states / soft fill */
+    --accent-text:   #005566;   /* readable on accent-soft */
 
     /* Semantic (used sparingly) */
     --success:       #16A34A;
@@ -33,7 +33,7 @@
     --info-soft:     #CFFAFE;
 
     /* — Sidebar (neutral dark slate, no navy/gradient) — */
-    --sidebar-bg:    #353A8C;   /* indigo dalam — senada tombol tapi kalem di mata */
+    --sidebar-bg:    #006275;
     --sidebar-fg:    rgba(255, 255, 255, .80);
     --sidebar-strong: #FFFFFF;        /* teks brand / hover / aktif */
     --sidebar-hover: rgba(255, 255, 255, .12);

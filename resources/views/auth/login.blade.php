@@ -116,8 +116,8 @@
             transition: border-color .18s, box-shadow .18s;
         }
         input:focus {
-            border-color: #6366f1;
-            box-shadow: 0 0 0 3px rgba(99,102,241,.13);
+            border-color: #006275;
+            box-shadow: 0 0 0 3px rgba(0,98,117,.13);
             background: #fff;
         }
         input.is-invalid { border-color: #ef4444 !important; }
@@ -133,7 +133,7 @@
             color: #9ca3af; font-size: .95rem; padding: 0;
             line-height: 1; transition: color .15s;
         }
-        .eye-btn:hover { color: #6366f1; }
+        .eye-btn:hover { color: #006275; }
 
         /* remember */
         .remember-row {
@@ -142,7 +142,7 @@
         }
         .remember-row input[type="checkbox"] {
             width: 16px; height: 16px;
-            accent-color: #6366f1;
+            accent-color: #006275;
             border-radius: 4px; cursor: pointer;
             flex: none;
         }
@@ -154,13 +154,13 @@
         /* submit */
         .btn-login {
             width: 100%; padding: 13px;
-            background: #4f6ef7;
+            background: #006275;
             color: #fff; border: none; border-radius: 10px;
             font-family: inherit; font-size: .93rem; font-weight: 700;
             cursor: pointer; letter-spacing: .01em;
             transition: background .18s, transform .1s;
         }
-        .btn-login:hover  { background: #3b5bf5; }
+        .btn-login:hover  { background: #004f5f; }
         .btn-login:active { transform: scale(.985); }
 
         /* error */
@@ -216,13 +216,13 @@
             @csrf
 
             <div class="field">
-                <label for="email">Email</label>
-                <input type="email" id="email" name="email"
-                       value="{{ old('email') }}"
-                       placeholder="email@mitrack.id"
-                       class="{{ $errors->has('email') ? 'is-invalid' : '' }}"
-                       required autofocus>
-                @error('email')
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username"
+                       value="{{ old('username') }}"
+                       placeholder="Masukkan username"
+                       class="{{ $errors->has('username') ? 'is-invalid' : '' }}"
+                       required autofocus autocomplete="username">
+                @error('username')
                     <div class="invalid-msg">{{ $message }}</div>
                 @enderror
             </div>

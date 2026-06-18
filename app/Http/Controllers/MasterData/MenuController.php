@@ -9,12 +9,10 @@ class MenuController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Menu::withCount('recipes')
-            ->withCount(['recipes as recipe_versions_count' => function ($q) {
-                $q->select(DB::raw('COUNT(DISTINCT effective_from)'));
-            }])
-            ->leftJoin('menu_categories as mc', 'menus.category_id', '=', 'mc.id')
-            ->select('menus.*');
+        $query = Menu::select('menus.*',
+                DB::raw('(SELECT COUNT(DISTINCT recipe_group_id) + (CASE WHEN SUM(CASE WHEN recipe_group_id IS NULL THEN 1 ELSE 0 END) > 0 THEN 1 ELSE 0 END) FROM recipes WHERE recipes.menu_id = menus.id) as recipe_versions_count')
+            )
+            ->leftJoin('menu_categories as mc', 'menus.category_id', '=', 'mc.id');
 
         if ($request->search)      $query->where('menus.name', 'like', "%{$request->search}%");
         if ($request->category_id) $query->where('menus.category_id', $request->category_id);
