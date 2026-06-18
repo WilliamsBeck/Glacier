@@ -3,6 +3,7 @@ namespace App\Services;
 
 use App\Models\Mutation;
 use Illuminate\Support\Facades\DB;
+use App\Services\FifoService;
 
 class MutationService
 {
@@ -33,6 +34,11 @@ class MutationService
                         'Mutation', $mutation->id,
                         "Ref: {$mutation->reference_no}"
                     );
+                    // Re-sync FIFO: deduction yang terjadi saat batch ini masih draft
+                    // (mis. sale_internal dikonfirmasi sebelum pembelian ini) tidak sempat
+                    // ter-apply karena getFifoItems hanya melihat confirmed batches.
+                    // Recalculate memastikan semua deduction ter-apply ulang secara berurutan.
+                    FifoService::recalculate($mutation->destination_store_id, $ingredientId);
 
                 } elseif ($mutation->isSale()) {
                     // sale_internal: deduct dari toko pengirim (ada di sistem)
