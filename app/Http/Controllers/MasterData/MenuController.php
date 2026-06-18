@@ -12,10 +12,20 @@ class MenuController extends Controller
         $query = Menu::withCount('recipes')
             ->withCount(['recipes as recipe_versions_count' => function ($q) {
                 $q->select(DB::raw('COUNT(DISTINCT effective_from)'));
-            }]);
-        if ($request->search) $query->where('name', 'like', "%{$request->search}%");
-        $menus = $query->latest()->paginate(20);
-        return view('master.menus.index', compact('menus'));
+            }])
+            ->leftJoin('menu_categories as mc', 'menus.category_id', '=', 'mc.id')
+            ->select('menus.*');
+
+        if ($request->search)      $query->where('menus.name', 'like', "%{$request->search}%");
+        if ($request->category_id) $query->where('menus.category_id', $request->category_id);
+
+        $query->orderByRaw('mc.sort_order IS NULL')
+              ->orderBy('mc.sort_order')
+              ->orderBy('menus.id');
+
+        $menus          = $query->paginate(20)->withQueryString();
+        $menuCategories = MenuCategory::ordered()->get();
+        return view('master.menus.index', compact('menus', 'menuCategories'));
     }
 
     public function create()
@@ -159,7 +169,10 @@ class MenuController extends Controller
 
     public function destroyRecipeVersion(Menu $menu, string $group)
     {
-        $menu->recipes()->where('recipe_group_id', $group)->delete();
+        $query = $group === 'kosong'
+            ? $menu->recipes()->whereNull('recipe_group_id')
+            : $menu->recipes()->where('recipe_group_id', $group);
+        $query->delete();
         return back()->with('success', 'Versi resep dihapus.');
     }
 }

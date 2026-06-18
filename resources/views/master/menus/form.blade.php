@@ -393,8 +393,9 @@
             let opts = '<option value="">— Pilih Bahan —</option>';
             ingredientOptions.forEach(i => {
                 const sel = (data && i.id == data.ingredient_id) ? 'selected' : '';
-                opts += `<option value="${i.id}" ${sel}">${i.label}</option>`;
+                opts += `<option value="${i.id}" ${sel}>${i.label}</option>`;
             });
+            const qtyVal = data?.qty_usage ? (Number.isInteger(+data.qty_usage) ? +data.qty_usage : parseFloat(data.qty_usage)) : '';
             const tr = document.createElement('div');
             tr.className = 'recipe-row row g-2 mb-3 align-items-center';
             tr.innerHTML = `
@@ -402,7 +403,7 @@
                         <select name="items[${idx}][ingredient_id]" class="form-select form-select-sm">${opts}</select>
                     </div>
                     <div class="col-3">
-                        <input type="number" name="items[${idx}][qty_usage]" class="form-control form-control-sm" step="1" min="1" value="${data?.qty_usage ?? ''}" placeholder="cth: 50">
+                        <input type="number" name="items[${idx}][qty_usage]" class="form-control form-control-sm" step="1" min="1" value="${qtyVal}" placeholder="cth: 50">
                     </div>
                     <div class="col-3">
                         <input type="text" name="items[${idx}][unit]" class="form-control form-control-sm bg-light text-center unit-display text-muted fw-bold border-0" readonly value="${data?.unit ?? ''}" placeholder="—">

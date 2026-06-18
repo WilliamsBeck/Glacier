@@ -18,11 +18,19 @@
 <div class="card mb-3">
     <div class="card-body">
         <form method="GET" class="row g-2 align-items-center">
-            <div class="col-md-6">
+            <div class="col-md-5">
                 <input type="text" name="search" class="form-control"
                        placeholder="Cari nama menu…" value="{{ request('search') }}">
             </div>
-            <div class="col-md-6 d-flex gap-2 justify-content-end">
+            <div class="col-md-3">
+                <select name="category_id" class="form-select">
+                    <option value="">Semua Kategori</option>
+                    @foreach($menuCategories as $cat)
+                        <option value="{{ $cat->id }}" {{ request('category_id') == $cat->id ? 'selected' : '' }}>{{ $cat->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-md-4 d-flex gap-2 justify-content-end">
                 <button type="submit" class="btn btn-primary">Cari</button>
                 <a href="{{ route('master.menus.index') }}" class="btn btn-outline-secondary">Reset</a>
             </div>
@@ -35,8 +43,9 @@
         <table class="table table-index table-balanced mb-0">
             <thead>
                 <tr>
-                    <th width="48">#</th>
+                    <th width="56" class="text-nowrap">#</th>
                     <th class="col-name">Nama Menu</th>
+                    <th>Kategori</th>
                     <th>Versi Resep</th>
                     <th>Status</th>
                     <th width="80">Aksi</th>
@@ -45,10 +54,11 @@
             <tbody>
                 @forelse($menus as $menu)
                     <tr>
-                        <td class="text-soft">{{ $menus->firstItem() + $loop->index }}</td>
+                        <td class="text-soft text-nowrap">{{ $menus->firstItem() + $loop->index }}</td>
                         <td class="col-name">
                             <span class="fw-medium">{{ $menu->name }}</span>
                         </td>
+                        <td class="text-soft small">{{ $menu->menuCategory?->name ?? '—' }}</td>
                         <td>
                             @if($menu->recipe_versions_count > 0)
                                 <span class="badge bg-primary">{{ $menu->recipe_versions_count }} versi</span>
@@ -69,7 +79,7 @@
                         <td>
                             <x-action-menu>
                                 <x-action-view :href="route('master.menus.show', $menu)" />
-                                <x-action-edit :href="route('master.menus.edit', $menu)" label="Edit &amp; Resep" />
+                                <x-action-edit :href="route('master.menus.edit', $menu)" label="Edit & Resep" />
                                 <x-action-delete :action="route('master.menus.destroy', $menu)"
                                                  confirm="Hapus menu ini beserta semua resepnya?" />
                             </x-action-menu>
@@ -77,7 +87,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="5" class="py-5 text-soft text-center">
+                        <td colspan="6" class="py-5 text-soft text-center">
                             <i class="bi bi-cup-straw fs-3 d-block mb-2 opacity-25"></i>
                             Belum ada data menu.
                         </td>
