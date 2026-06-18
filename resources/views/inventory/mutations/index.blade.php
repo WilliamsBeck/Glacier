@@ -20,47 +20,59 @@
 {{-- FILTER --}}
 <div class="card mb-3">
     <div class="card-body py-2">
-        <form method="GET" class="row g-2 align-items-end">
-            <div class="col-6 col-md-2">
+        {{-- Data toko untuk JS filter --}}
+        <script>
+        const allFilterStores  = @json($filterStores->map(fn($s)=>['id'=>$s->id,'name'=>$s->name])->values());
+        const myFilterStores   = @json($stores->map(fn($s)=>['id'=>$s->id,'name'=>$s->name])->values());
+        const purchaseTypes    = ['purchase_zhisheng','purchase_supplier'];
+        </script>
+
+        <form method="GET" class="row g-2 align-items-end flex-nowrap">
+            <div class="col">
                 <label class="form-label small fw-semibold mb-1">Tipe</label>
-                <select name="type" class="form-select">
+                <select id="filter-type" name="type" class="form-select form-select-sm">
                     <option value="">Semua</option>
                     <option value="purchase_zhisheng"  {{ request('type') === 'purchase_zhisheng'  ? 'selected' : '' }}>Pembelian Pusat</option>
                     <option value="purchase_supplier"  {{ request('type') === 'purchase_supplier'  ? 'selected' : '' }}>Pembelian Supplier Lokal</option>
                     <option value="sale_internal"      {{ request('type') === 'sale_internal'      ? 'selected' : '' }}>Pembelian Internal</option>
                     <option value="sale_external"      {{ request('type') === 'sale_external'      ? 'selected' : '' }}>Pembelian Eksternal</option>
-                    <option value="opening_stock"      {{ request('type') === 'opening_stock'      ? 'selected' : '' }}>Input Stok Awal</option>
                 </select>
             </div>
-            <div class="col-6 col-md-2">
-                <label class="form-label small fw-semibold mb-1">Toko</label>
-                <select name="store_id" class="form-select">
+            <div class="col">
+                <label class="form-label small fw-semibold mb-1">Toko Pengirim</label>
+                <select id="filter-source" name="source_store_id" class="form-select form-select-sm">
                     <option value="">Semua</option>
-                    @foreach($stores as $store)
-                        <option value="{{ $store->id }}" {{ request('store_id') == $store->id ? 'selected' : '' }}>
-                            {{ $store->name }}
-                        </option>
+                    @foreach($filterStores as $store)
+                        <option value="{{ $store->id }}" {{ request('source_store_id') == $store->id ? 'selected' : '' }}>{{ $store->name }}</option>
                     @endforeach
                 </select>
             </div>
-            <div class="col-6 col-md-2">
+            <div class="col">
+                <label class="form-label small fw-semibold mb-1">Toko Penerima</label>
+                <select id="filter-dest" name="dest_store_id" class="form-select form-select-sm">
+                    <option value="">Semua</option>
+                    @foreach($filterStores as $store)
+                        <option value="{{ $store->id }}" {{ request('dest_store_id') == $store->id ? 'selected' : '' }}>{{ $store->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col">
                 <label class="form-label small fw-semibold mb-1">Status</label>
-                <select name="status" class="form-select">
+                <select name="status" class="form-select form-select-sm">
                     <option value="">Semua</option>
                     <option value="draft"     {{ request('status') === 'draft'     ? 'selected' : '' }}>Draft</option>
                     <option value="confirmed" {{ request('status') === 'confirmed' ? 'selected' : '' }}>Confirmed</option>
-                    <option value="cancelled" {{ request('status') === 'cancelled' ? 'selected' : '' }}>Cancelled</option>
                 </select>
             </div>
-            <div class="col-6 col-md-2">
+            <div class="col">
                 <label class="form-label small fw-semibold mb-1">Dari</label>
-                <input type="date" name="date_from" class="form-control" value="{{ request('date_from') }}">
+                <input type="date" name="date_from" class="form-control form-control-sm" value="{{ request('date_from') }}">
             </div>
-            <div class="col-6 col-md-2">
+            <div class="col">
                 <label class="form-label small fw-semibold mb-1">Sampai</label>
-                <input type="date" name="date_to" class="form-control" value="{{ request('date_to') }}">
+                <input type="date" name="date_to" class="form-control form-control-sm" value="{{ request('date_to') }}">
             </div>
-            <div class="col-md-auto ms-auto d-flex gap-2 align-items-end">
+            <div class="col-auto d-flex gap-2 align-items-end">
                 <button type="submit" class="btn btn-primary">Cari</button>
                 <a href="{{ route('inventory.mutations.index') }}" class="btn btn-outline-secondary">Reset</a>
             </div>
@@ -182,4 +194,41 @@
     <div class="card-footer">{{ $mutations->withQueryString()->links() }}</div>
     @endif
 </div>
+@push('scripts')
+<script>
+(function() {
+    const typeEl   = document.getElementById('filter-type');
+    const sourceEl = document.getElementById('filter-source');
+    const destEl   = document.getElementById('filter-dest');
+    const currentDest = destEl.value;
+
+    function rebuildOptions(selectEl, list, currentVal) {
+        const prev = currentVal ?? selectEl.value;
+        selectEl.innerHTML = '<option value="">Semua</option>';
+        list.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s.id;
+            opt.textContent = s.name;
+            if (String(s.id) === String(prev)) opt.selected = true;
+            selectEl.appendChild(opt);
+        });
+    }
+
+    function applyRules() {
+        const isPurchase = purchaseTypes.includes(typeEl.value);
+
+        // Toko Pengirim: nonaktif saat pembelian pusat/supplier
+        sourceEl.disabled = isPurchase;
+        if (isPurchase) sourceEl.value = '';
+
+        // Toko Penerima: hanya toko area sendiri saat pembelian pusat/supplier
+        const list = isPurchase ? myFilterStores : allFilterStores;
+        rebuildOptions(destEl, list, currentDest);
+    }
+
+    typeEl.addEventListener('change', applyRules);
+    applyRules(); // jalankan saat load agar konsisten dengan request filter yg ada
+})();
+</script>
+@endpush
 @endsection

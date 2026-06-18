@@ -2,9 +2,11 @@
 @section('title', 'Kelola Kategori')
 
 @section('content')
-<div class="page-header">
-    <h1 class="page-title">Kelola Kategori</h1>
-    <p class="page-subtitle">Atur kategori untuk bahan baku dan menu</p>
+<div class="page-header d-flex justify-content-between align-items-start">
+    <div>
+        <h1 class="page-title">Kelola Kategori</h1>
+        <p class="page-subtitle">Atur kategori untuk bahan baku dan menu</p>
+    </div>
 </div>
 
 {{-- TABS --}}
@@ -25,6 +27,9 @@
 
     {{-- ===================== TAB BAHAN BAKU ===================== --}}
     <div class="tab-pane fade show active" id="pane-bahan" role="tabpanel">
+        <div class="mb-2 d-flex justify-content-end gap-2">
+            @include('master.partials.import-buttons', ['entity' => 'ingredient-categories', 'label' => 'Kategori Bahan'])
+        </div>
         <div class="row g-3">
             <div class="col-lg-8">
                 <div class="card">
@@ -113,6 +118,9 @@
 
     {{-- ===================== TAB MENU ===================== --}}
     <div class="tab-pane fade" id="pane-menu" role="tabpanel">
+        <div class="mb-2 d-flex justify-content-end gap-2">
+            @include('master.partials.import-buttons', ['entity' => 'menu-categories', 'label' => 'Kategori Menu'])
+        </div>
         <div class="row g-3">
             <div class="col-lg-8">
                 <div class="card">

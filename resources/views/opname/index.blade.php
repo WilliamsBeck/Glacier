@@ -32,7 +32,7 @@
     <form method="GET" class="row g-2 align-items-center">
         <div class="col-md-2"><select name="store_id" class="form-select"><option value="">Semua Toko</option>@foreach($stores as $s)<option value="{{ $s->id }}" {{ request('store_id')==$s->id?'selected':'' }}>{{ $s->name }}</option>@endforeach</select></div>
         <div class="col-md-2"><select name="period_type" class="form-select"><option value="">Semua Periode</option><option value="mid_month" {{ request('period_type')==='mid_month'?'selected':'' }}>Periode 1–15</option><option value="end_month" {{ request('period_type')==='end_month'?'selected':'' }}>Periode 1–30/31</option></select></div>
-        <div class="col-md-1"><input type="number" name="month" class="form-control" placeholder="Bln" min="1" max="12" value="{{ request('month') }}"></div>
+        <div class="col-md-2"><select name="month" class="form-select"><option value="">Semua Bulan</option>@foreach(['1'=>'Januari','2'=>'Februari','3'=>'Maret','4'=>'April','5'=>'Mei','6'=>'Juni','7'=>'Juli','8'=>'Agustus','9'=>'September','10'=>'Oktober','11'=>'November','12'=>'Desember'] as $num=>$nama)<option value="{{ $num }}" {{ request('month')==$num?'selected':'' }}>{{ $nama }}</option>@endforeach</select></div>
         <div class="col-md-1"><input type="number" name="year" class="form-control" placeholder="Thn" value="{{ request('year', date('Y')) }}"></div>
         <div class="col-md-auto ms-auto d-flex gap-2"><button type="submit" class="btn btn-primary">Cari</button><a href="{{ route('opname.opnames.index') }}" class="btn btn-outline-secondary">Reset</a></div>
     </form>

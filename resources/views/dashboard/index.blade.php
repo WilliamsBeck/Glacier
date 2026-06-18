@@ -8,14 +8,16 @@
         <h4 class="page-title">Dashboard</h4>
         <p class="text-muted mb-0">
             Selamat datang, <strong>{{ auth()->user()->name }}</strong>
-            @if($selectedStore)
-                · <span class="badge bg-primary-subtle text-primary">
-                    <i class="bi bi-shop me-1"></i>{{ $selectedStore->name }}
-                </span>
-                <a href="{{ route('dashboard') }}" class="small text-decoration-none ms-1"
-                   onclick="localStorage.removeItem('sb_store_id')">(semua toko)</a>
-            @else
-                · <span class="text-muted small">Semua toko</span>
+            @if(!auth()->user()->isSuperAdmin())
+                @if($selectedStore)
+                    · <span class="badge bg-primary-subtle text-primary">
+                        <i class="bi bi-shop me-1"></i>{{ $selectedStore->name }}
+                    </span>
+                    <a href="{{ route('dashboard') }}" class="small text-decoration-none ms-1"
+                       onclick="localStorage.removeItem('sb_store_id')">(semua toko)</a>
+                @else
+                    · <span class="text-muted small">Semua toko</span>
+                @endif
             @endif
         </p>
     </div>

@@ -1,3 +1,5 @@
+@php $old = $oldItem ?? []; @endphp
+
 {{-- Bahan --}}
 <td>
     <select name="items[{{ $idx }}][ingredient_id]" class="form-select form-select-sm" required onchange="onIngredientChange(this.value, {{ $idx }})">
@@ -5,13 +7,15 @@
         @php
             $catOrder  = \App\Models\IngredientCategory::orderedNames();
             $catLabels = \App\Models\IngredientCategory::labelsMap();
+            $oldIngId  = $old['ingredient_id'] ?? null;
         @endphp
         @foreach($catOrder as $cat)
             @php $group = $ingredients->filter(fn($i) => $i->type === 'raw' && $i->category === $cat); @endphp
             @if($group->isNotEmpty())
                 <optgroup label="{{ $catLabels[$cat] }}">
                     @foreach($group as $ing)
-                        <option value="{{ $ing->id }}" data-unit="{{ $ing->unit_base }}">{{ $ing->name }}</option>
+                        <option value="{{ $ing->id }}" data-unit="{{ $ing->unit_base }}"
+                            {{ $oldIngId == $ing->id ? 'selected' : '' }}>{{ $ing->name }}</option>
                     @endforeach
                 </optgroup>
             @endif
@@ -20,7 +24,8 @@
         @if($nocat->isNotEmpty())
             <optgroup label="Lainnya">
                 @foreach($nocat as $ing)
-                    <option value="{{ $ing->id }}" data-unit="{{ $ing->unit_base }}">{{ $ing->name }}</option>
+                    <option value="{{ $ing->id }}" data-unit="{{ $ing->unit_base }}"
+                        {{ $oldIngId == $ing->id ? 'selected' : '' }}>{{ $ing->name }}</option>
                 @endforeach
             </optgroup>
         @endif
@@ -28,12 +33,12 @@
         @if($semi->isNotEmpty())
             <optgroup label="Setengah Jadi">
                 @foreach($semi as $ing)
-                    <option value="{{ $ing->id }}" data-unit="{{ $ing->unit_base }}">{{ $ing->name }}</option>
+                    <option value="{{ $ing->id }}" data-unit="{{ $ing->unit_base }}"
+                        {{ $oldIngId == $ing->id ? 'selected' : '' }}>{{ $ing->name }}</option>
                 @endforeach
             </optgroup>
         @endif
     </select>
-    {{-- Info text di bawah bahan (qty available, stock price) --}}
     <div class="qty-available-info d-none small text-muted mt-1"></div>
     <div class="stock-price-info d-none small text-info mt-1"></div>
 </td>
@@ -46,27 +51,32 @@
         </select>
     </div>
     <span class="text-muted small no-packaging-label">—</span>
+    {{-- Simpan packaging_id lama agar JS bisa restore setelah loadPackagings --}}
+    <span class="d-none old-packaging-id">{{ $old['packaging_id'] ?? '' }}</span>
+    <span class="d-none old-price-per-base">{{ $old['price_per_base'] ?? '' }}</span>
 </td>
 
 {{-- Dus --}}
 <td>
-    <input type="number" name="items[{{ $idx }}][qty_crate]" class="form-control form-control-sm qty-input" min="0" placeholder="0" oninput="checkRowStock({{ $idx }})">
+    <input type="number" name="items[{{ $idx }}][qty_crate]" class="form-control form-control-sm qty-input" min="0" placeholder="0"
+           value="{{ $old['qty_crate'] ?? '' }}" oninput="checkRowStock({{ $idx }})">
 </td>
 
 {{-- Pack --}}
 <td>
-    <input type="number" name="items[{{ $idx }}][qty_pack]" class="form-control form-control-sm qty-input" min="0" placeholder="0" oninput="checkRowStock({{ $idx }})">
+    <input type="number" name="items[{{ $idx }}][qty_pack]" class="form-control form-control-sm qty-input" min="0" placeholder="0"
+           value="{{ $old['qty_pack'] ?? '' }}" oninput="checkRowStock({{ $idx }})">
 </td>
 
 {{-- Satuan --}}
 <td>
-    <input type="number" name="items[{{ $idx }}][qty_base]" class="form-control form-control-sm qty-input" step="0.01" min="0" placeholder="0" oninput="checkRowStock({{ $idx }})">
+    <input type="number" name="items[{{ $idx }}][qty_base]" class="form-control form-control-sm qty-input" step="0.01" min="0" placeholder="0"
+           value="{{ $old['qty_base'] ?? '' }}" oninput="checkRowStock({{ $idx }})">
     <span class="d-none label-qty-base"></span>
 </td>
 
 {{-- Harga --}}
 <td>
-    {{-- Harga per Dus (saat ada packaging) --}}
     <div class="wrap-price-crate d-none">
         <div class="input-group input-group-sm">
             <span class="input-group-text">Rp</span>
@@ -74,7 +84,6 @@
         </div>
         <div class="form-text price-info d-none text-primary"></div>
     </div>
-    {{-- Harga per satuan (fallback) --}}
     <div class="wrap-price-direct d-none">
         <div class="input-group input-group-sm">
             <span class="input-group-text">Rp</span>
@@ -82,7 +91,6 @@
                    oninput="document.querySelector('#row-{{ $idx }} .price-per-base-hidden').value = this.value">
         </div>
     </div>
-    {{-- Harga jual (sale_internal/external) --}}
     <div class="sale-price d-none mt-1">
         <div class="input-group input-group-sm">
             <span class="input-group-text">Jual</span>
@@ -91,8 +99,7 @@
         </div>
     </div>
     <span class="text-muted small no-price-label">—</span>
-    {{-- Hidden price_per_base --}}
-    <input type="hidden" name="items[{{ $idx }}][price_per_base]" class="price-per-base-hidden" value="0">
+    <input type="hidden" name="items[{{ $idx }}][price_per_base]" class="price-per-base-hidden" value="{{ $old['price_per_base'] ?? '0' }}">
 </td>
 
 {{-- Hapus --}}

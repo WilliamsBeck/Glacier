@@ -43,12 +43,12 @@
                     <select name="type" id="typeSelect" class="form-select" required onchange="handleTypeChange()">
                         <option value="">— Pilih Tipe —</option>
                         <optgroup label="Pembelian dari Supplier">
-                            <option value="purchase_zhisheng">Pembelian Pusat</option>
-                            <option value="purchase_supplier">Pembelian Supplier Lokal</option>
+                            <option value="purchase_zhisheng" {{ old('type') === 'purchase_zhisheng' ? 'selected' : '' }}>Pembelian Pusat</option>
+                            <option value="purchase_supplier" {{ old('type') === 'purchase_supplier' ? 'selected' : '' }}>Pembelian Supplier Lokal</option>
                         </optgroup>
                         <optgroup label="Pembelian dari Toko">
-                            <option value="sale_internal">Pembelian Internal</option>
-                            <option value="sale_external">Pembelian Eksternal</option>
+                            <option value="sale_internal"  {{ old('type') === 'sale_internal'  ? 'selected' : '' }}>Pembelian Internal</option>
+                            <option value="sale_external"  {{ old('type') === 'sale_external'  ? 'selected' : '' }}>Pembelian Eksternal</option>
                         </optgroup>
                     </select>
                 </div>
@@ -57,8 +57,10 @@
                     <label class="form-label fw-semibold" id="labelSource">Toko Pengirim</label>
                     <select name="source_store_id" id="sourceStoreSelect" class="form-select" onchange="onSourceStoreChange()">
                         <option value="">— Pilih Toko —</option>
-                        @foreach($stores as $store)
-                            <option value="{{ $store->id }}">{{ $store->name }}</option>
+                        @foreach($sourceStores as $store)
+                            <option value="{{ $store->id }}" {{ old('source_store_id') == $store->id ? 'selected' : '' }}>
+                                {{ $store->name }}
+                            </option>
                         @endforeach
                     </select>
                 </div>
@@ -69,7 +71,7 @@
                         <option value="">— Pilih Toko —</option>
                         @foreach($stores as $store)
                             <option value="{{ $store->id }}"
-                                {{ count($stores) === 1 ? 'selected' : '' }}>
+                                {{ old('destination_store_id', count($stores) === 1 ? $store->id : '') == $store->id ? 'selected' : '' }}>
                                 {{ $store->name }}
                             </option>
                         @endforeach
@@ -88,26 +90,25 @@
 
                 <div class="col-md-3" id="wrapInvoice">
                     <label class="form-label fw-semibold">No. SJ</label>
-                    <input type="text" name="invoice_no" class="form-control" placeholder="Nomor Surat Jalan (opsional)">
+                    <input type="text" name="invoice_no" class="form-control" placeholder="Nomor Surat Jalan (opsional)" value="{{ old('invoice_no') }}">
                 </div>
 
                 <div class="col-md-3">
                     <label class="form-label fw-semibold" id="labelTxDate">Tanggal Pengiriman <span class="text-danger">*</span></label>
-                    <input type="date" name="transaction_date" id="inputTxDate" class="form-control" required>
+                    <input type="date" name="transaction_date" id="inputTxDate" class="form-control" required value="{{ old('transaction_date') }}">
                     <div class="invalid-feedback" id="errTxDate"></div>
                 </div>
 
                 <div class="col-md-3" id="wrapDelivery">
                     <label class="form-label fw-semibold" id="labelDelivery">Tanggal Penerimaan</label>
-                    <input type="date" name="delivery_date" id="inputDelivery" class="form-control"
-                           value="">
+                    <input type="date" name="delivery_date" id="inputDelivery" class="form-control" value="{{ old('delivery_date') }}">
                     <div class="invalid-feedback" id="errDelivery"></div>
                     <div class="form-text text-muted" id="hintDelivery">Kosongkan jika barang belum diterima — simpan sebagai <em>draft</em> dulu.</div>
                 </div>
 
                 <div class="col-md-3">
                     <label class="form-label fw-semibold">Catatan</label>
-                    <input type="text" name="notes" class="form-control" placeholder="Opsional">
+                    <input type="text" name="notes" class="form-control" placeholder="Opsional" value="{{ old('notes') }}">
                 </div>
             </div>
         </div>
@@ -115,12 +116,7 @@
 
     {{-- ═══════════ DAFTAR BAHAN (BAWAH, TABEL) ═══════════ --}}
     <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center fw-semibold">
-            <span>Daftar Bahan</span>
-            <button type="button" class="btn btn-sm btn-success" onclick="addRow()">
-                <i class="bi bi-plus-circle me-1"></i> Tambah Bahan
-            </button>
-        </div>
+        <div class="card-header fw-semibold">Daftar Bahan</div>
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table table-sm align-middle mb-0" id="bahanTable">
@@ -136,12 +132,26 @@
                         </tr>
                     </thead>
                     <tbody id="itemsContainer">
-                        <tr class="item-row" id="row-0">
-                            @include('inventory.mutations._item_row', ['idx' => 0, 'ingredients' => $ingredients])
-                        </tr>
+                        @php $oldItems = old('items', []); @endphp
+                        @if(count($oldItems) > 0)
+                            @foreach($oldItems as $i => $oldItem)
+                                <tr class="item-row" id="row-{{ $i }}">
+                                    @include('inventory.mutations._item_row', ['idx' => $i, 'ingredients' => $ingredients, 'oldItem' => $oldItem])
+                                </tr>
+                            @endforeach
+                        @else
+                            <tr class="item-row" id="row-0">
+                                @include('inventory.mutations._item_row', ['idx' => 0, 'ingredients' => $ingredients])
+                            </tr>
+                        @endif
                     </tbody>
                 </table>
             </div>
+        </div>
+        <div class="card-footer border-top-0 pt-0 pb-3 px-3">
+            <button type="button" class="btn btn-sm btn-outline-success" onclick="addRow()">
+                <i class="bi bi-plus-circle me-1"></i> Tambah Bahan
+            </button>
         </div>
     </div>
 
@@ -165,7 +175,7 @@
 
 @push('scripts')
 <script>
-var rowCount = 1;
+var rowCount = {{ max(1, count(old('items', [1]))) }};
 
 // Data lengkap ingredient + packagings (termasuk supplier_id untuk filtering)
 var ingredientData = @json($ingredientJs);
@@ -754,17 +764,15 @@ function loadPackagings(ingId, idx) {
 function fillPackagings(select, wrapper, packagings, idx, ingId) {
     if (!packagings.length) {
         wrapper.classList.add('d-none');
-        // Tidak ada kemasan → pakai harga per satuan langsung
         showDirectPrice(idx);
         return;
     }
-    // Ambil unit bahan untuk ditampilkan (pcs / gr / dll)
     var ing  = ingredientData.find(function(i) { return i.id == ingId; });
     var unit = ing ? ing.unit : 'sat';
 
     packagings.forEach(function(p) {
-        var ctp     = Math.round(p.crate_to_pack);   // integer, tanpa desimal
-        var ptb     = Math.round(p.pack_to_base);    // integer, tanpa desimal
+        var ctp     = Math.round(p.crate_to_pack);
+        var ptb     = Math.round(p.pack_to_base);
         var perBase = ctp * ptb;
         var opt = document.createElement('option');
         opt.value = p.id;
@@ -774,6 +782,36 @@ function fillPackagings(select, wrapper, packagings, idx, ingId) {
         select.appendChild(opt);
     });
     wrapper.classList.remove('d-none');
+
+    // Coba restore old packaging dari data server (saat ada validasi error)
+    var row = document.getElementById('row-' + idx);
+    var oldPkgSpan = row ? row.querySelector('.old-packaging-id') : null;
+    var oldPkgId   = oldPkgSpan ? oldPkgSpan.textContent.trim() : '';
+    if (oldPkgId) {
+        select.value = oldPkgId;
+        oldPkgSpan.textContent = ''; // clear agar tidak restore dua kali
+    } else if (packagings.length === 1) {
+        // Auto-select satu-satunya kemasan
+        select.value = packagings[0].id;
+    }
+
+    // Trigger packaging change untuk set crateToBase + tampilkan harga
+    if (select.value) onPackagingChange(idx);
+
+    // Restore harga setelah packaging terset (crateToBase sudah ada)
+    if (oldPkgId) {
+        var oldPriceSpan = row ? row.querySelector('.old-price-per-base') : null;
+        var oldPriceBase = oldPriceSpan ? parseFloat(oldPriceSpan.textContent.trim()) : 0;
+        if (oldPriceBase > 0) {
+            var ctb = parseFloat(row.dataset.crateToBase || 0);
+            var priceInput = row.querySelector('.price-crate-input');
+            if (priceInput && ctb > 0) {
+                priceInput.value = NumberFmt.format(Math.round(oldPriceBase * ctb));
+                onPriceCrateChange(idx);
+            }
+            if (oldPriceSpan) oldPriceSpan.textContent = '';
+        }
+    }
 }
 
 function onPackagingChange(idx) {
@@ -1084,7 +1122,24 @@ function updateRemoveButtons() {
     });
 }
 
-// Kondisi awal: kunci dropdown bahan sampai tipe mutasi dipilih
-document.addEventListener('DOMContentLoaded', toggleIngredientLock);
+// Kondisi awal
+document.addEventListener('DOMContentLoaded', function() {
+    // Jika ada old type (setelah validasi error), restore state form
+    var typeSelect = document.getElementById('typeSelect');
+    if (typeSelect && typeSelect.value) {
+        handleTypeChange();
+        // Restore packaging & price untuk setiap row yang sudah punya ingredient
+        document.querySelectorAll('.item-row').forEach(function(row) {
+            var idx    = row.id.replace('row-', '');
+            var ingSel = row.querySelector('select[name$="[ingredient_id]"]');
+            if (ingSel && ingSel.value) {
+                onIngredientChange(ingSel.value, idx);
+            }
+        });
+        updateRemoveButtons();
+        recalcTotals();
+    }
+    toggleIngredientLock();
+});
 </script>
 @endpush

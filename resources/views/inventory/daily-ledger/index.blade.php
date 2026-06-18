@@ -203,9 +203,6 @@
         <button id="btnResetOrder" type="button" class="btn btn-outline-secondary btn-sm" title="Reset ke urutan default (kategori)">
             <i class="bi bi-arrow-counterclockwise"></i>
         </button>
-        <button onclick="window.print()" class="btn btn-outline-secondary btn-sm">
-            <i class="bi bi-printer me-1"></i> Print
-        </button>
     </div>
 </div>
 
@@ -446,14 +443,14 @@
                             @for($d = 1; $d <= $daysInMonth; $d++)
                                 @php $val = $trow['days'][$d]['pemakaian']; @endphp
                                 <td class="p-0 td-usage-cell" style="{{ $val > 0 ? 'background:#fdecea' : '' }}">
-                                    <input type="number"
+                                    <input type="text" inputmode="numeric" pattern="[0-9]*"
                                            class="usage-input"
                                            data-store="{{ $storeId }}"
                                            data-ing="{{ $ingId }}"
                                            data-pkg="{{ $pkgId ?? '' }}"
                                            data-date="{{ sprintf('%04d-%02d-%02d', $year, $month, $d) }}"
                                            value="{{ $val > 0 ? (int)$val : '' }}"
-                                           min="0" step="1"
+                                           autocomplete="off"
                                            {{ $isLocked ? 'disabled' : '' }}
                                            style="width:100%;border:none;background:transparent;text-align:center;font-size:0.7rem;padding:2px 1px{{ $isLocked ? ';cursor:not-allowed;opacity:0.6' : '' }}">
                                 </td>
@@ -523,9 +520,7 @@
     outline: 2px solid #3498db;
     background: #ebf5fb !important;
 }
-/* Hilangkan panah spinner */
-.usage-input::-webkit-inner-spin-button,
-.usage-input::-webkit-outer-spin-button { display: none; }
+/* Hanya angka yang boleh diketik */
 .usage-input { -moz-appearance: textfield; }
 /* Overstock alert */
 .input-overstock {
@@ -553,32 +548,38 @@
 
 @push('scripts')
 <script>
-var saveUrl     = '{{ route("inventory.daily-ledger.save-usage") }}';
-var confirmUrl  = '{{ route("inventory.daily-ledger.confirm-date") }}';
-var csrfToken   = '{{ csrf_token() }}';
-var saveTimers  = {};
+var saveUrl    = '{{ route("inventory.daily-ledger.save-usage") }}';
+var confirmUrl = '{{ route("inventory.daily-ledger.confirm-date") }}';
+var csrfToken  = '{{ csrf_token() }}';
+var saveTimers = {};
 
-// ── Kumpulkan semua input pemakaian ────────────────────────────
-var allInputs = Array.from(document.querySelectorAll('.usage-input'));
+// ── Event delegation: satu listener di tbody, bukan per-input ──
+var ledgerTable = document.querySelector('.daily-ledger-table');
+if (ledgerTable) {
 
-allInputs.forEach(function(input, globalIdx) {
-    input.dataset.saved = input.value; // nilai terakhir valid (untuk revert bila ditolak server)
-
-    // ── Input realtime: update tampilan stok akhir (boleh minus) ────────
-    input.addEventListener('input', function() {
-        checkOverstock(this.closest('tr'), this);
-        updateRowSummary(this.closest('tr'));
+    // FOCUS: catat nilai awal untuk revert bila server menolak
+    ledgerTable.addEventListener('focusin', function(e) {
+        var el = e.target;
+        if (!el.classList.contains('usage-input') || el.dataset.saved !== undefined) return;
+        el.dataset.saved = el.value;
     });
 
-    // ── Change: simpan ke server ──────────────────────────────
-    input.addEventListener('change', function() {
-        var el      = this;
+    // INPUT: buang karakter non-angka, update stok akhir realtime
+    ledgerTable.addEventListener('input', function(e) {
+        var el = e.target;
+        if (!el.classList.contains('usage-input')) return;
+        var clean = el.value.replace(/[^0-9]/g, '');
+        if (el.value !== clean) el.value = clean;
+        updateRowSummary(el.closest('tr'));
+    });
+
+    // CHANGE: simpan ke server
+    ledgerTable.addEventListener('change', function(e) {
+        var el = e.target;
+        if (!el.classList.contains('usage-input')) return;
+
         var ingId   = el.dataset.ing;
         var qtyPack = parseFloat(el.value) || 0;
-
-        // Peringatan jika melebihi stok — TAPI tetap disimpan (stok akhir jadi minus)
-        checkOverstock(el.closest('tr'), el);
-
         el.closest('td').style.background = qtyPack > 0 ? '#fdecea' : '';
 
         clearTimeout(saveTimers[ingId + el.dataset.date]);
@@ -603,7 +604,6 @@ allInputs.forEach(function(input, globalIdx) {
             .then(function(r) { return r.json().then(function(d){ return { ok: r.ok, data: d }; }); })
             .then(function(res) {
                 if (!res.ok || (res.data && res.data.error)) {
-                    // mis. periode sudah ditutup opname → tampilkan pesan, kembalikan nilai
                     document.getElementById('saveStatus').textContent = '⚠ ' + ((res.data && res.data.error) || 'Gagal simpan');
                     el.value = el.dataset.saved || '';
                     el.closest('td').style.background = (parseFloat(el.value) || 0) > 0 ? '#fdecea' : '';
@@ -612,9 +612,7 @@ allInputs.forEach(function(input, globalIdx) {
                 }
                 el.dataset.saved = el.value;
                 document.getElementById('saveStatus').textContent = 'Tersimpan ✓';
-                setTimeout(function() {
-                    document.getElementById('saveStatus').textContent = '';
-                }, 1500);
+                setTimeout(function() { document.getElementById('saveStatus').textContent = ''; }, 1500);
                 updateRowSummary(el.closest('tr'));
             })
             .catch(function() {
@@ -623,22 +621,21 @@ allInputs.forEach(function(input, globalIdx) {
         }, 500);
     });
 
-    // ── Enter: pindah ke cell bawah di kolom yang sama ────────
-    input.addEventListener('keydown', function(e) {
+    // KEYDOWN Enter: pindah ke baris bawah kolom yang sama (lazy query)
+    ledgerTable.addEventListener('keydown', function(e) {
         if (e.key !== 'Enter') return;
+        var el = e.target;
+        if (!el.classList.contains('usage-input')) return;
         e.preventDefault();
-
-        // Cari index input ini di antara semua input pemakaian di tabel
-        var colInputs = allInputs.filter(function(i) {
-            return i.dataset.date === input.dataset.date;
-        });
-        var curIdx = colInputs.indexOf(input);
+        var date      = el.dataset.date;
+        var colInputs = Array.from(ledgerTable.querySelectorAll('.usage-input[data-date="' + date + '"]'));
+        var curIdx    = colInputs.indexOf(el);
         if (curIdx >= 0 && curIdx < colInputs.length - 1) {
             colInputs[curIdx + 1].focus();
             colInputs[curIdx + 1].select();
         }
     });
-});
+}
 
 // ── Over-stok DIBIARKAN: pemakaian boleh melebihi stok → stok akhir minus (per kemasan).
 //    Tidak ada peringatan; fungsi ini hanya membersihkan sisa alert/highlight lama.
@@ -740,8 +737,7 @@ document.querySelectorAll('.confirm-date-th').forEach(function(th) {
 });
 </script>
 
-{{-- Reorder bahan baku (per user) --}}
-<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js"></script>
+{{-- Reorder bahan baku (per user) — SortableJS di-load lazy hanya saat dipakai --}}
 <script>
 (function() {
     const table     = document.querySelector('.daily-ledger-table');
@@ -755,20 +751,33 @@ document.querySelectorAll('.confirm-date-th').forEach(function(th) {
     const resetUrl   = '{{ route("inventory.daily-ledger.reset-order") }}';
     let sortable     = null;
     let reorderMode  = false;
+    let sortableLoaded = false;
+
+    function loadSortable(cb) {
+        if (typeof Sortable !== 'undefined') { cb(); return; }
+        if (sortableLoaded) { var t = setInterval(function(){ if(typeof Sortable!=='undefined'){clearInterval(t);cb();} },50); return; }
+        sortableLoaded = true;
+        var s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js';
+        s.onload = cb;
+        document.head.appendChild(s);
+    }
 
     btnToggle.addEventListener('click', function() {
         reorderMode = !reorderMode;
         if (reorderMode) {
-            table.classList.add('reorder-mode');
-            btnToggle.classList.remove('btn-outline-primary');
-            btnToggle.classList.add('btn-primary');
-            btnToggle.innerHTML = '<i class="bi bi-check-lg me-1"></i> Selesai';
-            sortable = Sortable.create(table, {
-                draggable: 'tbody.ing-group',
-                handle: '.drag-handle',
-                animation: 150,
-                ghostClass: 'sortable-ghost',
-                onEnd: saveOrder,
+            loadSortable(function() {
+                table.classList.add('reorder-mode');
+                btnToggle.classList.remove('btn-outline-primary');
+                btnToggle.classList.add('btn-primary');
+                btnToggle.innerHTML = '<i class="bi bi-check-lg me-1"></i> Selesai';
+                sortable = Sortable.create(table, {
+                    draggable: 'tbody.ing-group',
+                    handle: '.drag-handle',
+                    animation: 150,
+                    ghostClass: 'sortable-ghost',
+                    onEnd: saveOrder,
+                });
             });
         } else {
             table.classList.remove('reorder-mode');

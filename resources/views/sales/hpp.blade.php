@@ -80,60 +80,63 @@
 @if($summary && ($summary->omset > 0 || $summary->hpp_ideal > 0))
 <div class="row g-3 mb-3">
     <div class="col-md-3">
-        <div class="card border-0 bg-primary text-white h-100">
+        <div class="card border-0 h-100" style="background:#2563eb;">
             <div class="card-body">
-                <div class="small opacity-75 mb-1">Total Omset</div>
-                <div class="fs-5 fw-bold">{{ $rp($summary->omset) }}</div>
+                <div class="mb-1" style="color:rgba(255,255,255,.7);font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">Total Omset</div>
+                <div class="fs-5 fw-bold" style="color:#fff;">{{ $rp($summary->omset) }}</div>
             </div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card border-0 bg-info text-white h-100">
+        <div class="card border-0 h-100" style="background:#0891b2;">
             <div class="card-body">
-                <div class="small opacity-75 mb-1">HPP Ideal</div>
-                <div class="fs-5 fw-bold">{{ $rp($summary->hpp_ideal) }}</div>
-                <div class="small opacity-75">
+                <div class="mb-1" style="color:rgba(255,255,255,.7);font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">HPP Ideal</div>
+                <div class="fs-5 fw-bold" style="color:#fff;">{{ $rp($summary->hpp_ideal) }}</div>
+                <div class="mt-1" style="color:rgba(255,255,255,.85);font-size:.8rem;">
                     {{ $pct($summary->margin_ideal) }} margin
-                    @if($summary->margin_ideal !== null)
-                        · HPP {{ $pct(100 - $summary->margin_ideal) }}
-                    @endif
+                    @if($summary->margin_ideal !== null) · HPP {{ $pct(100 - $summary->margin_ideal) }}@endif
                 </div>
             </div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card border-0 h-100 {{ $summary->hpp_aktual !== null ? 'bg-warning' : 'bg-light' }}">
+        @if($summary->hpp_aktual !== null)
+        <div class="card border-0 h-100" style="background:#d97706;">
             <div class="card-body">
-                <div class="small text-muted mb-1">HPP Aktual</div>
-                @if($summary->hpp_aktual !== null)
-                    <div class="fs-5 fw-bold">{{ $rp($summary->hpp_aktual) }}</div>
-                    <div class="small text-muted">
-                        {{ $pct($summary->margin_aktual) }} margin
-                        · HPP {{ $pct(100 - $summary->margin_aktual) }}
-                    </div>
-                @else
-                    <div class="text-muted">Belum ada SO Akhir</div>
-                    <small class="text-muted">Generate setelah approve opname</small>
-                @endif
+                <div class="mb-1" style="color:rgba(255,255,255,.7);font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">HPP Aktual</div>
+                <div class="fs-5 fw-bold" style="color:#fff;">{{ $rp($summary->hpp_aktual) }}</div>
+                <div class="mt-1" style="color:rgba(255,255,255,.85);font-size:.8rem;">{{ $pct($summary->margin_aktual) }} margin · HPP {{ $pct(100 - $summary->margin_aktual) }}</div>
             </div>
         </div>
+        @else
+        <div class="card border-0 h-100" style="background:#d97706;">
+            <div class="card-body">
+                <div class="mb-1" style="color:rgba(255,255,255,.7);font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">HPP Aktual</div>
+                <div style="color:#fff;font-weight:600;">Belum ada SO Akhir</div>
+                <div style="color:rgba(255,255,255,.8);font-size:.8rem;">Generate setelah approve opname</div>
+            </div>
+        </div>
+        @endif
     </div>
     <div class="col-md-3">
-        <div class="card border-0 h-100 {{ $summary->selisih_hpp !== null ? ($summary->selisih_hpp > 0 ? 'bg-danger text-white' : 'bg-success text-white') : 'bg-light' }}">
+        @if($summary->selisih_hpp !== null)
+            @php $bg = $summary->selisih_hpp > 0 ? '#dc2626' : '#16a34a'; @endphp
+            <div class="card border-0 h-100" style="background:{{ $bg }};">
+                <div class="card-body">
+                    <div class="mb-1" style="color:rgba(255,255,255,.7);font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">Selisih HPP (Aktual − Ideal)</div>
+                    <div class="fs-5 fw-bold" style="color:#fff;">{{ $summary->selisih_hpp >= 0 ? '+' : '' }}{{ $rp($summary->selisih_hpp) }}</div>
+                    <div class="mt-1" style="color:rgba(255,255,255,.85);font-size:.8rem;">{{ $summary->selisih_hpp > 0 ? 'Boros' : ($summary->selisih_hpp < 0 ? 'Efisien' : 'Sesuai') }}</div>
+                </div>
+            </div>
+        @else
+        <div class="card border-0 h-100" style="background:#6b7280;">
             <div class="card-body">
-                <div class="small opacity-75 mb-1">Selisih HPP (Aktual − Ideal)</div>
-                @if($summary->selisih_hpp !== null)
-                    <div class="fs-5 fw-bold">
-                        {{ $summary->selisih_hpp >= 0 ? '+' : '' }}{{ $rp($summary->selisih_hpp) }}
-                    </div>
-                    <div class="small opacity-75">
-                        {{ $summary->selisih_hpp > 0 ? 'Boros' : ($summary->selisih_hpp < 0 ? 'Efisien' : 'Sesuai') }}
-                    </div>
-                @else
-                    <div class="text-muted">—</div>
-                @endif
+                <div class="mb-1" style="color:rgba(255,255,255,.7);font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">Selisih HPP (Aktual − Ideal)</div>
+                <div style="color:#fff;font-weight:600;">—</div>
+                <div style="color:rgba(255,255,255,.8);font-size:.8rem;">Tersedia setelah HPP Aktual ada</div>
             </div>
         </div>
+        @endif
     </div>
 </div>
 @endif

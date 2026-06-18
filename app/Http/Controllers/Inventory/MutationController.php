@@ -18,21 +18,28 @@ class MutationController extends Controller
             ->where(function($q) use ($storeIds) {
                 $q->whereIn('destination_store_id',$storeIds)->orWhereIn('source_store_id',$storeIds);
             });
-        if ($request->type)     $query->where('type',$request->type);
-        if ($request->store_id) $query->where(function($q) use ($request) {
-            $q->where('destination_store_id',$request->store_id)->orWhere('source_store_id',$request->store_id);
-        });
-        if ($request->status)   $query->where('status',$request->status);
+        if ($request->type)            $query->where('type', $request->type);
+        if ($request->source_store_id) $query->where('source_store_id', $request->source_store_id);
+        if ($request->dest_store_id)   $query->where('destination_store_id', $request->dest_store_id);
+        if ($request->status)          $query->where('status', $request->status);
         if ($request->date_from) $query->where('transaction_date','>=',$request->date_from);
         if ($request->date_to)   $query->where('transaction_date','<=',$request->date_to);
-        $mutations = $query->latest()->paginate(20);
-        $stores    = auth()->user()->accessibleStores();
-        return view('inventory.mutations.index', compact('mutations','stores'));
+        $mutations   = $query->latest()->paginate(20);
+        $stores      = auth()->user()->accessibleStores();
+        $myStoreIds  = $stores->pluck('id')->all();
+        // Filter dropdown: toko sendiri di atas, sisanya di bawah
+        $allStores   = Store::where('is_active', true)->orderBy('name')->get();
+        $filterStores = $allStores->sortBy(fn($s) => in_array($s->id, $myStoreIds) ? 0 : 1)->values();
+        return view('inventory.mutations.index', compact('mutations','stores','filterStores','myStoreIds'));
     }
 
     public function create()
     {
-        $stores    = auth()->user()->accessibleStores();
+        $stores        = auth()->user()->accessibleStores();
+        $myStoreIds    = $stores->pluck('id')->all();
+        // Source store: semua toko aktif, toko sendiri di atas
+        $allStores     = Store::where('is_active', true)->orderBy('name')->get();
+        $sourceStores  = $allStores->sortBy(fn($s) => in_array($s->id, $myStoreIds) ? 0 : 1)->values();
         $suppliers = Supplier::where('is_active',true)->orderBy('name')->get();
 
         // Data supplier untuk JS filtering (pusat vs lokal)
@@ -88,7 +95,7 @@ class MutationController extends Controller
             ];
         })->values()->all();
 
-        return view('inventory.mutations.create', compact('stores','suppliers','ingredients','zhishengId','ingredientJs','suppliersJs'));
+        return view('inventory.mutations.create', compact('stores','sourceStores','myStoreIds','suppliers','ingredients','zhishengId','ingredientJs','suppliersJs'));
     }
 
     public function store(Request $request)
