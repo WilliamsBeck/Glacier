@@ -173,6 +173,9 @@
                         <td>
                             <x-action-menu>
                                 <x-action-view :href="route('inventory.mutations.show', $mut)" />
+                                @if($mut->status === 'draft' && $mut->type !== 'opening_stock')
+                                    <x-action-edit :href="route('inventory.mutations.edit', $mut)" />
+                                @endif
                                 <x-action-delete :action="route('inventory.mutations.destroy', $mut)"
                                                  confirm="Hapus mutasi {{ $mut->reference_no }} secara permanen?" />
                             </x-action-menu>

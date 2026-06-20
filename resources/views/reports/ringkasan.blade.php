@@ -53,6 +53,7 @@ $totalOmset  = $rows->whereNotNull('omset')->sum('omset');
 $totalWaste  = $rows->sum('total_waste');
 $totalProd   = $rows->sum('prod_cost');
 $totalBatch  = $rows->sum('prod_batch');
+$totalHppAktual = $rows->whereNotNull('hpp_aktual')->sum('hpp_aktual');
 $avgHppPct   = $rows->whereNotNull('pct_hpp_ideal')->avg('pct_hpp_ideal');
 @endphp
 
@@ -109,15 +110,15 @@ $avgHppPct   = $rows->whereNotNull('pct_hpp_ideal')->avg('pct_hpp_ideal');
             <table class="table table-index table-balanced mb-0 align-middle">
                 <thead>
                     <tr>
-                        <th class="col-name" style="width:16%">Toko</th>
-                        <th class="text-end" style="width:13%">Omset</th>
-                        <th class="text-end" style="width:11%">HPP Ideal</th>
-                        <th class="text-end pe-5" style="width:12%">% HPP Ideal</th>
-                        <th class="text-center" style="width:10%">% HPP Aktual</th>
-                        <th class="text-end" style="width:9%">Waste</th>
-                        <th class="text-end" style="width:12%">Biaya Produksi</th>
-                        <th class="text-center" style="width:7%">Batch</th>
-                        <th class="text-center" style="width:10%">Margin</th>
+                        <th class="col-name" style="width:13%">Toko</th>
+                        <th class="text-end">Omset</th>
+                        <th class="text-end">HPP Ideal</th>
+                        <th class="text-end">% HPP Ideal</th>
+                        <th class="text-end">HPP Aktual</th>
+                        <th class="text-end">% HPP Aktual</th>
+                        <th class="text-end">Waste</th>
+                        <th class="text-end">Biaya Produksi</th>
+                        <th class="text-end">Margin</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -139,15 +140,20 @@ $avgHppPct   = $rows->whereNotNull('pct_hpp_ideal')->avg('pct_hpp_ideal');
                         <td class="text-end">
                             {{ $row->hpp_ideal ? 'Rp ' . number_format($row->hpp_ideal, 0, ',', '.') : '—' }}
                         </td>
-                        <td class="text-end pe-5">
+                        <td class="text-end">
                             @if($pctI)
                                 <span class="fw-semibold">{{ number_format($pctI, 1, ',', '.') }}%</span>
                             @else <span class="text-muted">—</span> @endif
                         </td>
-                        <td class="text-center">
+                        <td class="text-end">
+                            @if($row->hpp_aktual !== null)
+                                Rp {{ number_format($row->hpp_aktual, 0, ',', '.') }}
+                            @else <span class="text-muted small">Belum ada opname</span> @endif
+                        </td>
+                        <td class="text-end">
                             @if($pctA)
                                 <span class="badge bg-{{ $hppColor($pctA) }}">{{ number_format($pctA, 1, ',', '.') }}%</span>
-                            @else <span class="text-muted small">Belum ada opname</span> @endif
+                            @else <span class="text-muted">—</span> @endif
                         </td>
                         <td class="text-end {{ $row->total_waste > 0 ? 'text-danger' : 'text-muted' }}">
                             {{ $row->total_waste > 0 ? 'Rp ' . number_format($row->total_waste, 0, ',', '.') : '—' }}
@@ -155,10 +161,7 @@ $avgHppPct   = $rows->whereNotNull('pct_hpp_ideal')->avg('pct_hpp_ideal');
                         <td class="text-end">
                             {{ $row->prod_cost > 0 ? 'Rp ' . number_format($row->prod_cost, 0, ',', '.') : '—' }}
                         </td>
-                        <td class="text-center">
-                            {{ $row->prod_batch > 0 ? $row->prod_batch : '—' }}
-                        </td>
-                        <td class="text-center">
+                        <td class="text-end">
                             @if($row->margin_ideal !== null)
                                 <span class="fw-semibold {{ $row->margin_ideal >= 60 ? 'text-success' : ($row->margin_ideal >= 50 ? 'text-warning' : 'text-danger') }}">
                                     {{ number_format($row->margin_ideal, 1, ',', '.') }}%
@@ -174,12 +177,12 @@ $avgHppPct   = $rows->whereNotNull('pct_hpp_ideal')->avg('pct_hpp_ideal');
                         <td class="col-name">TOTAL / RATA-RATA</td>
                         <td class="text-end">Rp {{ number_format($totalOmset, 0, ',', '.') }}</td>
                         <td class="text-end">—</td>
-                        <td class="text-end pe-5">{{ $avgHppPct ? number_format($avgHppPct, 1, ',', '.') . '%' : '—' }}</td>
-                        <td class="text-center">—</td>
+                        <td class="text-end">{{ $avgHppPct ? number_format($avgHppPct, 1, ',', '.') . '%' : '—' }}</td>
+                        <td class="text-end">Rp {{ number_format($totalHppAktual, 0, ',', '.') }}</td>
+                        <td class="text-end">—</td>
                         <td class="text-end text-danger">Rp {{ number_format($totalWaste, 0, ',', '.') }}</td>
                         <td class="text-end">Rp {{ number_format($totalProd, 0, ',', '.') }}</td>
-                        <td class="text-center">{{ $totalBatch }}</td>
-                        <td></td>
+                        <td class="text-end">—</td>
                     </tr>
                 </tfoot>
                 @endif

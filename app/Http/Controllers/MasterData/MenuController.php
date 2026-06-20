@@ -28,7 +28,7 @@ class MenuController extends Controller
 
     public function create()
     {
-        $ingredients     = Ingredient::where('is_active', true)->orderBy('name')->get();
+        $ingredients     = Ingredient::where('ingredients.is_active', true)->orderedByCategory()->get();
         $menuCategories  = MenuCategory::ordered()->get();
         $stores          = Store::where('is_active', true)->orderBy('name')->get();
         return view('master.menus.form', compact('ingredients', 'menuCategories', 'stores'));
@@ -82,7 +82,7 @@ class MenuController extends Controller
         // 1 versi = 1 recipe_group_id (banyak toko share resep yang sama)
         $recipes        = $menu->recipes()->orderByDesc('effective_from')->get()
             ->groupBy('recipe_group_id');
-        $ingredients    = Ingredient::where('is_active', true)->orderBy('name')->get();
+        $ingredients    = Ingredient::where('ingredients.is_active', true)->orderedByCategory()->get();
         $menuCategories = MenuCategory::ordered()->get();
         $stores         = Store::where('is_active', true)->orderBy('name')->get();
         return view('master.menus.form', compact('menu', 'recipes', 'ingredients', 'menuCategories', 'stores'));

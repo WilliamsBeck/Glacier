@@ -18,7 +18,7 @@
     </a>
 </div>
 
-<form method="POST" action="{{ route('waste.logs.store') }}" id="wasteForm">
+<form method="POST" action="{{ route('waste.logs.store') }}" id="wasteForm" data-confirm="Catat waste ini? Stok akan berkurang." data-confirm-type="warning" data-confirm-ok="Ya, catat">
     @csrf
     <div class="row g-3">
 
@@ -29,7 +29,7 @@
                 <div class="card-body">
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Toko <span class="text-danger">*</span></label>
-                        <select name="store_id" class="form-select" required>
+                        <select name="store_id" id="waste_store_id" class="form-select" required>
                             <option value="">— Pilih Toko —</option>
                             @foreach($stores as $s)
                                 <option value="{{ $s->id }}" {{ (old('store_id') == $s->id || (count($stores)==1)) ? 'selected' : '' }}>
@@ -37,6 +37,15 @@
                                 </option>
                             @endforeach
                         </select>
+                        <script>
+                        (function() {
+                            var sel = document.getElementById('waste_store_id');
+                            if (sel && !sel.value) {
+                                var saved = localStorage.getItem('sb_store_id');
+                                if (saved) sel.value = saved;
+                            }
+                        })();
+                        </script>
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Tanggal <span class="text-danger">*</span></label>
@@ -125,8 +134,7 @@
             </div>
 
             <div class="mt-3">
-                <button type="submit" class="btn btn-danger px-4"
-                        onclick="return confirm('Catat waste ini? Stok akan berkurang.')">
+                <button type="submit" class="btn btn-danger px-4">
                     <i class="bi bi-trash3 me-1"></i> Catat Waste
                 </button>
                 <a href="{{ route('waste.logs.index') }}" class="btn btn-outline-secondary ms-2">Batal</a>
@@ -401,7 +409,6 @@ function onIngredientChange(idx) {
     // Reset unit label
     var ing  = ingredientJs.find(function(i){ return i.id == ingId; });
     var unit = ing ? ing.unit : 'pcs';
-    row.querySelector('.label-unit').textContent = unit;
 
     // Show/hide kerugian
     updateLossDisplay(idx, null, type);
@@ -420,7 +427,7 @@ function onIngredientChange(idx) {
             + ' data-ctb="'+ctb+'"'
             + ' data-ptb="'+p.pack_to_base+'">'
             + p.packaging_name
-            + ' (1 Dus = '+p.crate_to_pack+' Pack × '+p.pack_to_base+' '+unit+')'
+            + ' (@ '+p.crate_to_pack+' pack)'
             + '</option>';
     });
     pkgSel.innerHTML = pkgHtml;
@@ -459,7 +466,7 @@ document.addEventListener('input', function(e) {
 });
 
 // ── Store changed → reset all price caches & recalc ──────────────────────────
-document.querySelector('select[name="store_id"]')?.addEventListener('change', function() {
+function onStoreChange() {
     batchCache = {};
     document.querySelectorAll('.waste-row').forEach(function(row) {
         var idx    = row.id.replace('wrow-', '');
@@ -468,6 +475,13 @@ document.querySelector('select[name="store_id"]')?.addEventListener('change', fu
         if (type) fetchPriceAndCalc(idx);
     });
     recheckAllStockWarnings();
+}
+
+document.querySelector('select[name="store_id"]')?.addEventListener('change', onStoreChange);
+
+document.addEventListener('DOMContentLoaded', function() {
+    var storeSel = document.querySelector('select[name="store_id"]');
+    if (storeSel && storeSel.value) onStoreChange();
 });
 
 // ── Add row ───────────────────────────────────────────────────────────────────
@@ -487,11 +501,10 @@ function addWasteRow() {
                     '<option value="">— Pilih Kemasan —</option>' +
                 '</select>' +
             '</div>' +
-            '<span class="text-muted small">—</span>' +
         '</td>' +
-        '<td><div class="wrap-crate d-none"><input type="number" name="items['+idx+'][qty_crate]" class="form-control form-control-sm" min="0" placeholder="0"></div><span class="text-muted">—</span></td>' +
-        '<td><div class="wrap-pack d-none"><input type="number" name="items['+idx+'][qty_pack]" class="form-control form-control-sm" min="0" placeholder="0"></div><span class="text-muted">—</span></td>' +
-        '<td><input type="number" name="items['+idx+'][qty_base]" class="form-control form-control-sm" step="0.01" min="0" placeholder="0"><span class="label-unit text-muted small d-block" style="font-size:.7rem">pcs</span></td>' +
+        '<td><div class="wrap-crate d-none"><input type="number" name="items['+idx+'][qty_crate]" class="form-control form-control-sm" min="0" placeholder="0"></div></td>' +
+        '<td><div class="wrap-pack d-none"><input type="number" name="items['+idx+'][qty_pack]" class="form-control form-control-sm" min="0" placeholder="0"></div></td>' +
+        '<td><input type="number" name="items['+idx+'][qty_base]" class="form-control form-control-sm" step="0.01" min="0" placeholder="0"><span class="label-unit text-muted small d-block" style="font-size:.7rem"></span></td>' +
         '<td>' +
             '<div class="wrap-nominal" style="display:none"></div>' +
             '<div class="wrap-raw-loss">' +

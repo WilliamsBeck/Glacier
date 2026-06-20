@@ -7,10 +7,7 @@
         <p class="page-subtitle">Jadwal: tgl 15 (periode 1–15) dan akhir bulan (periode 1–30/31) tiap toko</p>
     </div>
     <div class="d-flex gap-2">
-        <a href="{{ route('opname.opnames.import.form') }}" class="btn btn-outline-primary">
-            <i class="bi bi-upload me-1"></i>Import Excel
-        </a>
-        <a href="{{ route('opname.opnames.create') }}" class="btn btn-primary">
+<a href="{{ route('opname.opnames.create') }}" class="btn btn-primary">
             <i class="bi bi-plus-lg me-1"></i> Tambah Opname
         </a>
     </div>
@@ -45,7 +42,7 @@
             <tr>
                 <td class="col-name fw-semibold">{{ $op->store->name }}</td>
                 <td>{{ \Carbon\Carbon::parse($op->opname_date)->format('d M Y') }}</td>
-                <td><span class="badge bg-secondary">{{ $op->period_type === 'mid_month' ? 'Tgl 1–15' : 'Tgl 1–30/31' }} {{ $op->period_month }}/{{ $op->period_year }}</span></td>
+                <td><span class="badge bg-secondary">{{ $op->period_type === 'mid_month' ? 'Tengah Bulan' : 'Akhir Bulan' }}</span></td>
                 <td>
                     @if($op->status==='draft') <span class="badge bg-warning">Draft</span>
                     @else <span class="badge bg-success">Disetujui</span> @endif
@@ -62,7 +59,7 @@
                 </td>
             </tr>
             @empty
-            <tr><td colspan="6" class="py-4 text-soft"><i class="bi bi-clipboard-check fs-2 d-block mb-2 opacity-25"></i>Belum ada opname</td></tr>
+            <tr><td colspan="6" class="py-5 text-center text-soft"><i class="bi bi-clipboard-check fs-2 d-block mb-2 opacity-25"></i>Belum ada opname</td></tr>
             @endforelse
         </tbody>
     </table>

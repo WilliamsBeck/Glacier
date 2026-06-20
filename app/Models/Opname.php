@@ -7,13 +7,13 @@ class Opname extends Model
 {
     protected $fillable = [
         'store_id', 'opname_date', 'period_month', 'period_year',
-        'period_type', 'status', 'performed_by', 'approved_by', 'notes',
+        'period_type', 'status', 'performed_by', 'approved_by', 'notes', 'opname_mode',
     ];
     protected $casts = ['opname_date' => 'date'];
     public function store()       { return $this->belongsTo(Store::class); }
     public function performedBy() { return $this->belongsTo(User::class, 'performed_by'); }
     public function approvedBy()  { return $this->belongsTo(User::class, 'approved_by'); }
-    public function items()       { return $this->hasMany(OpnameItem::class); }
+    public function items() { return $this->hasMany(OpnameItem::class); }
 
     /**
      * Tanggal opname approved TERBARU untuk sebuah toko (batas tutup periode).

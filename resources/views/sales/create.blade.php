@@ -96,43 +96,41 @@
             <span class="text-muted small fw-normal">Kosongkan baris yang tidak terjual</span>
         </div>
         <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-sm table-hover mb-0 align-middle">
-                    <thead class="table-dark">
-                        <tr>
-                            <th style="min-width:200px">Menu</th>
-                            <th class="text-center border-start" style="width:150px">
-                                Qty Terjual (pcs)
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($menus as $i => $menu)
-                        <tr>
-                            <td class="fw-semibold">
-                                <input type="hidden" name="items[{{ $i }}][menu_id]" value="{{ $menu->id }}">
-                                {{ $menu->name }}
-                                @if($menu->menuCategory)
-                                    <small class="text-muted ms-1">{{ $menu->menuCategory->name }}</small>
-                                @endif
-                            </td>
-                            <td class="border-start">
-                                <input type="text"
-                                       name="items[{{ $i }}][total_sold]"
-                                       class="form-control form-control-sm text-center num-fmt"
-                                       value="{{ old("items.{$i}.total_sold", '') }}"
-                                       placeholder="">
-                            </td>
-                        </tr>
-                        @endforeach
-                    </tbody>
-                    <tfoot>
-                        <tr class="table-light fw-bold">
-                            <td class="text-end">TOTAL TERJUAL</td>
-                            <td class="text-center border-start" id="total-qty">—</td>
-                        </tr>
-                    </tfoot>
-                </table>
+            @php $half = (int) ceil($menus->count() / 2); @endphp
+            <div class="row g-0">
+                @foreach([$menus->take($half), $menus->slice($half)] as $col => $chunk)
+                <div class="col-md-6 {{ $col === 0 ? 'border-end' : '' }}">
+                    <table class="table table-sm table-hover mb-0 align-middle">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Menu</th>
+                                <th class="text-center border-start" style="width:130px">Qty (pcs)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($chunk as $i => $menu)
+                            <tr>
+                                <td class="fw-semibold">
+                                    <input type="hidden" name="items[{{ $i }}][menu_id]" value="{{ $menu->id }}">
+                                    {{ $menu->name }}
+                                </td>
+                                <td class="border-start">
+                                    <input type="text"
+                                           name="items[{{ $i }}][total_sold]"
+                                           class="form-control form-control-sm text-center num-fmt"
+                                           value="{{ old("items.{$i}.total_sold", '') }}"
+                                           placeholder="">
+                                </td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+                @endforeach
+            </div>
+            <div class="d-flex justify-content-between align-items-center px-3 py-2 border-top bg-light fw-bold">
+                <span>TOTAL TERJUAL</span>
+                <span id="total-qty">—</span>
             </div>
         </div>
         <div class="card-footer text-end">

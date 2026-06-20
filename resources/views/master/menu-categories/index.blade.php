@@ -61,7 +61,7 @@
                             <td class="text-center">
                                 @if($count === 0)
                                 <form method="POST" action="{{ route('master.menu-categories.destroy', $cat) }}"
-                                      onsubmit="return confirm('Hapus kategori {{ $cat->name }}?')">
+                                      data-confirm="Hapus kategori {{ $cat->name }}?" data-confirm-type="error" data-confirm-danger="1" data-confirm-ok="Ya, hapus">
                                     @csrf @method('DELETE')
                                     <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2">
                                         <i class="bi bi-trash"></i>

@@ -80,6 +80,7 @@ class OpnameController extends Controller
                 'period_year'  => $year,
                 'period_type'  => $periodType,
                 'status'       => 'draft',
+                'opname_mode'  => $request->input('opname_mode', 'bulanan'),
                 'performed_by' => auth()->id(),
                 'notes'        => $request->notes,
             ]);
@@ -174,6 +175,16 @@ class OpnameController extends Controller
                 $sysQty = round((float)($remainingByIng[$ing->id] ?? 0), 4);
                 $saveItem($ing->id, null, $sysQty, 'ing_' . $ing->id);
             }
+            // Batch tambahan (harga berbeda) — key: pkg_X_bN atau ing_X_bN
+            $pkgCache = $allPackagings->keyBy('id');
+            foreach ($submittedItems as $rowKey => $data) {
+                if (!preg_match('/^(pkg|ing)_\d+_b\d+$/', $rowKey)) continue;
+                $ingId = isset($data['ingredient_id']) ? (int)$data['ingredient_id'] : null;
+                $pkgId = isset($data['packaging_id'])  && $data['packaging_id'] !== '' ? (int)$data['packaging_id'] : null;
+                if (!$ingId) continue;
+                $pkgObj = $pkgId ? $pkgCache[$pkgId] ?? null : null;
+                $saveItem($ingId, $pkgObj, 0, $rowKey);
+            }
         });
 
         return redirect()->route('opname.opnames.show', $opname)
@@ -203,7 +214,8 @@ class OpnameController extends Controller
         $allIngredients = Ingredient::where('is_active', true)->where('type', '!=', 'semi_finished')
             ->leftJoin('ingredient_categories as ic', 'ingredients.category', '=', 'ic.name')
             ->orderByRaw('ic.sort_order IS NULL')->orderBy('ic.sort_order')->orderBy('ingredients.id')
-            ->select('ingredients.*')->get();
+            ->select('ingredients.*', 'ic.sort_order as cat_sort_order')->get();
+        $catSortMap     = $allIngredients->pluck('cat_sort_order', 'id'); // ingredient_id → cat_sort_order
         $ingIdsWithPkg  = $allPackagings->pluck('ingredient_id')->unique()->all();
         $pkgIds         = $allPackagings->pluck('id')->all();
 
@@ -290,6 +302,7 @@ class OpnameController extends Controller
             $result[] = [
                 'row_key'        => 'pkg_' . $pkg->id,
                 'ingredient_id'  => $ing->id,
+                'cat_sort_order' => $catSortMap[$ing->id] ?? 9999,
                 'name'           => $ing->name,
                 'unit_base'      => $ing->unit_base,
                 'packaging_id'   => $pkg->id,
@@ -313,6 +326,7 @@ class OpnameController extends Controller
             $result[] = [
                 'row_key'        => 'ing_' . $ing->id,
                 'ingredient_id'  => $ing->id,
+                'cat_sort_order' => $catSortMap[$ing->id] ?? 9999,
                 'name'           => $ing->name,
                 'unit_base'      => $ing->unit_base,
                 'packaging_id'   => null,
@@ -325,8 +339,12 @@ class OpnameController extends Controller
             ];
         }
 
-        // Urutkan: nama bahan asc, lalu row_key asc (untuk multi-kemasan)
-        usort($result, fn($a, $b) => $a['name'] <=> $b['name'] ?: $a['row_key'] <=> $b['row_key']);
+        // Urutkan: kategori (sort_order) → ingredient_id → row_key (untuk multi-kemasan)
+        usort($result, fn($a, $b) =>
+            ($a['cat_sort_order'] ?? 9999) <=> ($b['cat_sort_order'] ?? 9999)
+            ?: $a['ingredient_id'] <=> $b['ingredient_id']
+            ?: $a['row_key'] <=> $b['row_key']
+        );
 
         return response()->json($result);
     }
@@ -334,7 +352,8 @@ class OpnameController extends Controller
     public function show(Opname $opname)
     {
         $opname->load(['store', 'items.ingredient', 'items.packaging.supplier', 'performedBy', 'approvedBy']);
-        $priceMap   = $this->buildPriceMap($opname);
+        $opname->setRelation('items', $this->sortedItems($opname));
+        $priceMap   = $this->displayPriceMap($opname);
         $lockData   = $this->buildLockData($opname);
         return view('opname.show', compact('opname', 'priceMap') + $lockData);
     }
@@ -343,9 +362,39 @@ class OpnameController extends Controller
     {
         abort_if($opname->status === 'approved', 403, 'Opname yang sudah approved tidak bisa diedit.');
         $opname->load(['items.ingredient', 'items.packaging.supplier', 'store', 'performedBy', 'approvedBy']);
-        $priceMap = $this->buildPriceMap($opname);
+        $opname->setRelation('items', $this->sortedItems($opname));
+        $priceMap = $this->displayPriceMap($opname);
         $lockData = $this->buildLockData($opname);
         return view('opname.show', compact('opname', 'priceMap') + $lockData);
+    }
+
+    // Harga untuk tampilan: opname approved → pakai harga beku (price_per_base item);
+    // draft → harga rata-rata sisa batch terkini (live).
+    private function displayPriceMap(Opname $opname): array
+    {
+        if ($opname->status === 'approved') {
+            $map = [];
+            foreach ($opname->items as $item) {
+                if (($item->price_per_base ?? 0) > 0) {
+                    $map[$item->ingredient_id] = (float) $item->price_per_base;
+                }
+            }
+            // Lengkapi bahan yg belum punya harga beku dengan harga live
+            $live = $this->buildPriceMap($opname);
+            return $map + $live;
+        }
+        return $this->buildPriceMap($opname);
+    }
+
+    private function sortedItems(Opname $opname)
+    {
+        $catOrder = \App\Models\IngredientCategory::pluck('sort_order', 'name');
+        return $opname->items->sortBy([
+            fn($a, $b) => ($catOrder[$a->ingredient->category ?? ''] ?? 9999)
+                      <=> ($catOrder[$b->ingredient->category ?? ''] ?? 9999),
+            fn($a, $b) => $a->ingredient_id <=> $b->ingredient_id,
+            fn($a, $b) => $a->id <=> $b->id,
+        ])->values();
     }
 
     private function buildLockData(Opname $opname): array
@@ -421,17 +470,66 @@ class OpnameController extends Controller
                 $systemQty   = round($item->system_qty, 4);
                 $variance    = round($physicalQty - $systemQty, 4);
 
-                $item->update([
+                $updateData = [
                     'physical_crate' => $data['physical_crate'] ?? null,
                     'physical_pack'  => $data['physical_pack']  ?? null,
                     'physical_base'  => $data['physical_base']  ?? null,
                     'physical_qty'   => $physicalQty,
                     'variance'       => $variance,
-                ]);
+                ];
+
+                // Simpan harga/dus → price_per_base (berlaku untuk semua mode jika diisi)
+                if (isset($data['price_per_dus']) && (float)$data['price_per_dus'] > 0) {
+                    $pkg         = $item->packaging;
+                    $crateToBase = $pkg ? (float)$pkg->crate_to_pack * (float)$pkg->pack_to_base : 0;
+                    $updateData['price_per_base'] = $crateToBase > 0
+                        ? (float)$data['price_per_dus'] / $crateToBase
+                        : (float)$data['price_per_dus'];
+                }
+
+                $item->update($updateData);
             }
         });
 
         return back()->with('success', 'Stok fisik disimpan.');
+    }
+
+    public function addBatch(Request $request, Opname $opname)
+    {
+        abort_if($opname->status === 'approved', 403);
+        abort_if($opname->opname_mode !== 'stok_awal', 403, 'Hanya mode stok_awal yang mendukung multi-batch.');
+
+        $request->validate([
+            'ingredient_id' => 'required|exists:ingredients,id',
+            'packaging_id'  => 'nullable|exists:ingredient_packagings,id',
+        ]);
+
+        OpnameItem::create([
+            'opname_id'     => $opname->id,
+            'ingredient_id' => $request->ingredient_id,
+            'packaging_id'  => $request->packaging_id ?: null,
+            'system_qty'    => 0,
+            'physical_qty'  => 0,
+            'variance'      => 0,
+        ]);
+
+        return back()->with('success', 'Baris batch baru ditambahkan.');
+    }
+
+    public function destroyItem(Opname $opname, OpnameItem $item)
+    {
+        abort_if($opname->status === 'approved', 403);
+        abort_if($item->opname_id !== $opname->id, 404);
+
+        $count = $opname->items()
+            ->where('ingredient_id', $item->ingredient_id)
+            ->where('packaging_id', $item->packaging_id)
+            ->count();
+
+        abort_if($count <= 1, 422, 'Tidak bisa menghapus baris terakhir untuk bahan ini.');
+
+        $item->delete();
+        return back()->with('success', 'Baris batch dihapus.');
     }
 
     /**
@@ -463,10 +561,42 @@ class OpnameController extends Controller
                 ->with('error', MonthLockService::lockMessage($opname->period_month, $opname->period_year));
         }
 
+        // Tidak bisa hapus jika sudah ada mutasi atau pencatatan harian SETELAH tanggal opname
+        // (transaksi setelahnya bergantung pada stok dari opname ini)
+        $afterDate = \Carbon\Carbon::parse($opname->opname_date)->toDateString();
+
+        $hasMutation = \App\Models\Mutation::where(function ($q) use ($opname) {
+                $q->where('destination_store_id', $opname->store_id)
+                  ->orWhere('source_store_id', $opname->store_id);
+            })
+            ->where('status', 'confirmed')
+            ->whereNotIn('type', ['opening_stock'])
+            ->where(\DB::raw('COALESCE(delivery_date, transaction_date)'), '>', $afterDate)
+            ->exists();
+
+        $hasDaily = \App\Models\DailyUsage::where('store_id', $opname->store_id)
+            ->where('qty_pack', '>', 0)
+            ->where('usage_date', '>', $afterDate)
+            ->whereExists(fn($q) => $q->from('daily_confirmations')
+                ->whereColumn('daily_confirmations.store_id', 'daily_usages.store_id')
+                ->whereColumn('daily_confirmations.confirmation_date', 'daily_usages.usage_date'))
+            ->exists();
+
+        if ($hasMutation || $hasDaily) {
+            $reasons = array_filter([
+                $hasMutation ? 'sudah ada mutasi' : null,
+                $hasDaily    ? 'sudah ada pencatatan harian terkonfirmasi' : null,
+            ]);
+            return redirect()->route('opname.opnames.show', $opname)
+                ->with('error', 'Opname tidak dapat dihapus karena ' . implode(' dan ', $reasons)
+                    . ' setelah tanggal ' . \Carbon\Carbon::parse($opname->opname_date)->isoFormat('D MMMM Y') . '.');
+        }
+
         DB::transaction(function () use ($opname) {
             if ($opname->status === 'approved') {
                 // ── Kumpulkan ingredient yang terdampak ────────────────────────
                 $affectedIngIds = $opname->items->pluck('ingredient_id')->unique()->all();
+                $storeId        = $opname->store_id;
 
                 // ── Hapus stock_ledger adjustment dari opname ini ──────────────
                 StockLedger::where('reference_type', 'Opname')
@@ -481,10 +611,18 @@ class OpnameController extends Controller
                         $m->delete();
                     });
 
+                // ── Hapus opname & items DULU sebelum recalculate ─────────────
+                // Supaya FifoService::recalculate tidak lagi membaca variance
+                // dari opname ini (step 7: negative variance deduction).
+                $opname->items()->delete();
+                $opname->delete();
+
                 // ── Recalculate FIFO & store_stocks untuk semua bahan terdampak ─
                 foreach ($affectedIngIds as $ingId) {
-                    FifoService::recalculate($opname->store_id, $ingId);
+                    FifoService::recalculate($storeId, $ingId);
                 }
+
+                return; // sudah dihapus, skip delete di bawah
             }
 
             $opname->items()->delete();
@@ -520,116 +658,282 @@ class OpnameController extends Controller
                 FifoService::recalculate($opname->store_id, $item->ingredient_id);
             }
 
-            // ── Langkah 2: bootstrap FIFO untuk item yang physical_qty > 0
-            //    tapi saldo FIFO masih 0 setelah langkah di atas.
-            //    Ini terjadi ketika tidak ada batch (data baru / data dihapus).
-            //    Buat satu opening_stock mutation dari hasil opname agar saldo
-            //    stok dan pencatatan harian bulan depan punya acuan yang benar.
-            // ────────────────────────────────────────────────────────────────────
-            // Set saldo FIFO setiap (bahan × KEMASAN) = jumlah fisik opname.
-            // Selisih POSITIF → buat batch opening_stock per kemasan.
-            // Selisih NEGATIF → ditangani FifoService::recalculate (step 7) per kemasan.
+            // ── Langkah 2: bootstrap FIFO ────────────────────────────────────────
+            // Mode stok_awal: setiap item buat mutation-item LANGSUNG (satu per batch)
+            //   agar harga per-batch tersimpan terpisah di FIFO.
+            // Mode bulanan: pakai delta (physical − curr) agar tidak double-count.
             $opening = null;
-            foreach ($opname->items as $item) {
-                if ($item->physical_qty <= 0) continue;
 
-                // Saldo FIFO PER KEMASAN saat ini
-                $curr = \App\Models\MutationItem::whereHas('mutation', fn($q) =>
-                        $q->where('destination_store_id', $opname->store_id)->where('status', 'confirmed'))
-                    ->where('ingredient_id', $item->ingredient_id)
-                    ->when($item->packaging_id,
-                        fn($q) => $q->where('packaging_id', $item->packaging_id),
-                        fn($q) => $q->whereNull('packaging_id'))
-                    ->sum('remaining_qty');
+            if ($opname->opname_mode === 'stok_awal') {
+                // Stok awal — langsung buat satu mutation item per opname item
+                foreach ($opname->items as $item) {
+                    if ($item->physical_qty <= 0) continue;
 
-                $delta = round($item->physical_qty - $curr, 4);
-                if ($delta <= 0) continue; // cukup / kekurangan (negatif ditangani step 7)
+                    $lastPrice = \App\Models\MutationItem::whereHas('mutation', fn($q) =>
+                            $q->where('destination_store_id', $opname->store_id)->where('status', 'confirmed')
+                              ->whereIn('type', ['purchase_zhisheng', 'purchase_supplier', 'opening_stock', 'sale_internal']))
+                        ->where('ingredient_id', $item->ingredient_id)
+                        ->where('packaging_id', $item->packaging_id)
+                        ->where('price_per_base', '>', 0)
+                        ->latest('id')->value('price_per_base') ?? 0;
+                    if ((float) $item->price_per_base > 0) {
+                        $lastPrice = (float) $item->price_per_base;
+                    }
 
-                // Harga: terakhir dari pembelian bahan ini; fallback ke harga manual opname
-                $lastPrice = \App\Models\MutationItem::whereHas('mutation', fn($q) =>
-                        $q->where('destination_store_id', $opname->store_id)->where('status', 'confirmed')
-                          ->whereIn('type', ['purchase_zhisheng', 'purchase_supplier', 'opening_stock', 'sale_internal']))
-                    ->where('ingredient_id', $item->ingredient_id)
-                    ->where('packaging_id', $item->packaging_id)
-                    ->where('price_per_base', '>', 0)
-                    ->latest('id')->value('price_per_base') ?? 0;
-                // Harga manual opname (mode Stok Awal) MENANG bila diisi; selain itu harga beli terakhir kemasan ini
-                if ((float) $item->price_per_base > 0) {
-                    $lastPrice = (float) $item->price_per_base;
+                    $opening = $opening ?: \App\Models\Mutation::create([
+                        'type'                 => 'opening_stock',
+                        'destination_store_id' => $opname->store_id,
+                        'transaction_date'     => $opname->opname_date,
+                        'delivery_date'        => $opname->opname_date,
+                        'status'               => 'confirmed',
+                        'notes'                => 'Auto-generated dari Opname #' . $opname->id,
+                        'created_by'           => auth()->id(),
+                        'confirmed_by'         => auth()->id(),
+                    ]);
+
+                    $pkg         = $item->packaging;
+                    $ptb         = $pkg ? (float)$pkg->pack_to_base : 0;
+                    $crateToBase = ($pkg && $pkg->crate_to_pack && $ptb) ? (float)$pkg->crate_to_pack * $ptb : 0;
+
+                    // Hanya simpan porsi Dus + Pack ke FIFO (abaikan sisa gram/pcs eceran)
+                    $physCrate = (int)($item->physical_crate ?? 0);
+                    $physPack  = (int)($item->physical_pack  ?? 0);
+                    $qty = ($crateToBase > 0 ? $physCrate * $crateToBase : 0)
+                         + ($ptb > 0        ? $physPack  * $ptb         : 0);
+                    if ($qty <= 0) $qty = round($item->physical_qty, 4); // fallback tanpa packaging
+
+                    \App\Models\MutationItem::create([
+                        'mutation_id'            => $opening->id,
+                        'ingredient_id'          => $item->ingredient_id,
+                        'packaging_id'           => $item->packaging_id,
+                        'qty_crate'              => $physCrate,
+                        'qty_pack'               => $physPack,
+                        'qty_base'               => 0,
+                        'total_in_base'          => $qty,
+                        'remaining_qty'          => $qty,
+                        'price_per_base'         => $lastPrice,
+                        'selling_price_per_base' => 0,
+                        'cost_subtotal'          => $qty * $lastPrice,
+                    ]);
                 }
+            } else {
+                // Bulanan — delta-based (physical − curr FIFO)
+                foreach ($opname->items as $item) {
+                    if ($item->physical_qty <= 0) continue;
 
-                $opening = $opening ?: \App\Models\Mutation::create([
-                    'type'                 => 'opening_stock',
-                    'destination_store_id' => $opname->store_id,
-                    'transaction_date'     => $opname->opname_date,
-                    'delivery_date'        => $opname->opname_date,
-                    'status'               => 'confirmed',
-                    'notes'                => 'Auto-generated dari Opname #' . $opname->id,
-                    'created_by'           => auth()->id(),
-                    'confirmed_by'         => auth()->id(),
-                ]);
+                    $curr = \App\Models\MutationItem::whereHas('mutation', fn($q) =>
+                            $q->where('destination_store_id', $opname->store_id)->where('status', 'confirmed'))
+                        ->where('ingredient_id', $item->ingredient_id)
+                        ->when($item->packaging_id,
+                            fn($q) => $q->where('packaging_id', $item->packaging_id),
+                            fn($q) => $q->whereNull('packaging_id'))
+                        ->sum('remaining_qty');
 
-                $pkg         = $item->packaging;
-                $crateToBase = ($pkg && $pkg->crate_to_pack && $pkg->pack_to_base) ? $pkg->crate_to_pack * $pkg->pack_to_base : 0;
+                    $pkg         = $item->packaging;
+                    $ptb         = $pkg ? (float)$pkg->pack_to_base : 0;
+                    $crateToBase = ($pkg && $pkg->crate_to_pack && $ptb) ? (float)$pkg->crate_to_pack * $ptb : 0;
 
-                \App\Models\MutationItem::create([
-                    'mutation_id'            => $opening->id,
-                    'ingredient_id'          => $item->ingredient_id,
-                    'packaging_id'           => $item->packaging_id,
-                    'qty_crate'              => $crateToBase > 0 ? (int) floor($delta / $crateToBase) : 0,
-                    'qty_pack'               => 0,
-                    'qty_base'               => 0,
-                    'total_in_base'          => $delta,
-                    'remaining_qty'          => $delta,
-                    'price_per_base'         => $lastPrice,
-                    'selling_price_per_base' => 0,
-                    'cost_subtotal'          => $delta * $lastPrice,
-                ]);
+                    // Hanya porsi Dus + Pack yang masuk FIFO
+                    $physCrate = (int)($item->physical_crate ?? 0);
+                    $physPack  = (int)($item->physical_pack  ?? 0);
+                    $packedQty = ($crateToBase > 0 ? $physCrate * $crateToBase : 0)
+                               + ($ptb > 0        ? $physPack  * $ptb         : 0);
+                    if ($packedQty <= 0) $packedQty = round($item->physical_qty, 4); // fallback
+
+                    $delta = round($packedQty - $curr, 4);
+                    if ($delta <= 0) continue;
+
+                    $lastPrice = \App\Models\MutationItem::whereHas('mutation', fn($q) =>
+                            $q->where('destination_store_id', $opname->store_id)->where('status', 'confirmed')
+                              ->whereIn('type', ['purchase_zhisheng', 'purchase_supplier', 'opening_stock', 'sale_internal']))
+                        ->where('ingredient_id', $item->ingredient_id)
+                        ->where('packaging_id', $item->packaging_id)
+                        ->where('price_per_base', '>', 0)
+                        ->latest('id')->value('price_per_base') ?? 0;
+                    if ((float) $item->price_per_base > 0) {
+                        $lastPrice = (float) $item->price_per_base;
+                    }
+
+                    $opening = $opening ?: \App\Models\Mutation::create([
+                        'type'                 => 'opening_stock',
+                        'destination_store_id' => $opname->store_id,
+                        'transaction_date'     => $opname->opname_date,
+                        'delivery_date'        => $opname->opname_date,
+                        'status'               => 'confirmed',
+                        'notes'                => 'Auto-generated dari Opname #' . $opname->id,
+                        'created_by'           => auth()->id(),
+                        'confirmed_by'         => auth()->id(),
+                    ]);
+
+                    \App\Models\MutationItem::create([
+                        'mutation_id'            => $opening->id,
+                        'ingredient_id'          => $item->ingredient_id,
+                        'packaging_id'           => $item->packaging_id,
+                        'qty_crate'              => $crateToBase > 0 ? (int) floor($delta / $crateToBase) : 0,
+                        'qty_pack'               => $ptb > 0 ? (int) floor(fmod($delta, max($crateToBase, $ptb)) / $ptb) : 0,
+                        'qty_base'               => 0,
+                        'total_in_base'          => $delta,
+                        'remaining_qty'          => $delta,
+                        'price_per_base'         => $lastPrice,
+                        'selling_price_per_base' => 0,
+                        'cost_subtotal'          => $delta * $lastPrice,
+                    ]);
+                }
             }
 
             // Sync FIFO & store_stocks sekali per bahan
             foreach ($opname->items->pluck('ingredient_id')->unique() as $iid) {
                 FifoService::recalculate($opname->store_id, (int) $iid);
             }
+
+            // ── Bekukan harga: simpan harga rata-rata sisa batch ke tiap opname item ──
+            // Setelah FIFO disesuaikan, sisa batch = inventaris akhir periode. Harganya
+            // dikunci ke price_per_base supaya nilai SO Akhir tidak bergeser saat ada
+            // transaksi/recalculate berikutnya.
+            $this->freezeItemPrices($opname);
         });
 
         return back()->with('success', 'Opname disetujui. Stok otomatis disesuaikan.');
     }
 
+    // Kunci harga rata-rata tertimbang sisa batch ke setiap opname item.
+    private function freezeItemPrices(Opname $opname): void
+    {
+        $priceMap = $this->buildPriceMap($opname); // weighted-avg sisa batch terkini
+        foreach ($opname->items as $item) {
+            $frozen = $priceMap[$item->ingredient_id] ?? null;
+            if ($frozen !== null && $frozen > 0) {
+                $item->update(['price_per_base' => $frozen]);
+            }
+        }
+    }
+
     // Export detail item satu opname
     public function export(Opname $opname)
     {
-        $opname->load(['store', 'items.ingredient.packagings', 'performedBy']);
+        $opname->load(['store', 'items.ingredient', 'items.packaging', 'performedBy']);
 
         $periodLabel = $opname->period_type === 'mid_month' ? 'Tengah Bulan' : 'Akhir Bulan';
         $monthLabel  = \Carbon\Carbon::create($opname->period_year, $opname->period_month)
                             ->isoFormat('MMMM Y');
 
-        $data = [];
-        $data[] = ["STOK OPNAME — {$opname->store->name} — {$monthLabel} ({$periodLabel})"];
-        $data[] = ["Tgl Opname: {$opname->opname_date->format('d/m/Y')}",
-                   "Status: {$opname->status}", "Dilakukan oleh: " . ($opname->performedBy?->name ?? '-')];
-        $data[] = [];
-        $data[] = ['No', 'Bahan', 'Satuan Base', 'Stok Sistem (base)',
-                   'Stok Fisik (base)', 'Selisih (base)', 'Ket'];
+        $ss = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $ws = $ss->getActiveSheet();
+        $ws->setTitle('Opname');
 
-        foreach ($opname->items as $i => $item) {
-            $data[] = [
-                $i + 1,
-                $item->ingredient?->name ?? '-',
-                $item->ingredient?->unit_base ?? '-',
-                number_format($item->system_qty, 3, ',', '.'),
-                number_format($item->physical_qty, 3, ',', '.'),
-                number_format($item->variance, 3, ',', '.'),
-                $item->variance > 0 ? 'Lebih' : ($item->variance < 0 ? 'Kurang' : 'Sesuai'),
-            ];
+        // ── Row 1: METADATA (sama persis dengan template import) ──
+        $ws->setCellValue('A1', 'METADATA');
+        $ws->setCellValue('B1', $opname->store_id);
+        $ws->setCellValue('C1', $opname->opname_date->toDateString());
+        $ws->setCellValue('D1', $opname->period_type);
+        $ws->setCellValue('E1', $opname->opname_mode ?? 'bulanan');
+        $ws->getStyle('A1:K1')->applyFromArray([
+            'font' => ['size' => 8, 'color' => ['rgb' => 'AAAAAA']],
+        ]);
+
+        // ── Row 2: Judul ──
+        $modeLabel = ($opname->opname_mode === 'stok_awal') ? ' [STOK AWAL]' : '';
+        $ws->setCellValue('A2', "STOK OPNAME — {$opname->store->name} — {$opname->opname_date->format('d/m/Y')} — {$periodLabel}{$modeLabel}  |  Status: {$opname->status}  |  Oleh: " . ($opname->performedBy?->name ?? '-'));
+        $ws->mergeCells('A2:H2');
+        $ws->getStyle('A2')->getFont()->setBold(true)->setSize(12);
+        $ws->getStyle('A2')->getAlignment()
+            ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+
+        // ── Row 3: Header — A=RowKey(hidden), B=Nama, C=Kemasan, D-F=FISIK, G=Harga/Dus, H=Catatan
+        $ws->setCellValue('A3', 'ID');
+        $ws->setCellValue('B3', 'Nama Bahan');
+        $ws->setCellValue('C3', 'Kemasan');
+        $ws->setCellValue('D3', 'FISIK Dus');
+        $ws->setCellValue('E3', 'FISIK Pack');
+        $ws->setCellValue('F3', 'FISIK Gr/Pcs');
+        $ws->setCellValue('G3', 'Harga/Dus');
+        $ws->setCellValue('H3', 'Catatan');
+        $ws->getStyle('A3:H3')->applyFromArray([
+            'font'      => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            'fill'      => ['fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID, 'color' => ['rgb' => '1e3a5f']],
+            'alignment' => ['horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER],
+        ]);
+
+        // Lebar kolom — A kecil (Row Key tersembunyi)
+        $ws->getColumnDimension('A')->setWidth(4);
+        $ws->getColumnDimension('B')->setWidth(34);
+        $ws->getColumnDimension('C')->setWidth(16);
+        foreach (['D','E','F'] as $c) $ws->getColumnDimension($c)->setWidth(12);
+        $ws->getColumnDimension('G')->setWidth(14);
+        $ws->getColumnDimension('H')->setWidth(28);
+        $ws->freezePane('D4');
+
+        // ── Row 4+: Data ──
+        $row = 4;
+        foreach ($opname->items as $item) {
+            $pkg      = $item->packaging;
+            $ctb      = $pkg ? (float)$pkg->crate_to_pack : 0;
+            $ptb      = $pkg ? (float)$pkg->pack_to_base  : 0;
+            $pkgLabel = $pkg ? $pkg->packaging_name : ($item->ingredient?->unit_base ?? '-');
+
+            // Stok Sistem breakdown
+            $sysTotal = (float)$item->system_qty;
+            if ($pkg && $ctb > 0 && $ptb > 0) {
+                $sysDus  = (int)floor($sysTotal / ($ctb * $ptb));
+                $sysRem  = fmod($sysTotal, $ctb * $ptb);
+                $sysPack = (int)floor($sysRem / $ptb);
+            } elseif ($pkg && $ptb > 0) {
+                $sysDus  = 0;
+                $sysPack = (int)floor($sysTotal / $ptb);
+            } else {
+                $sysDus = 0; $sysPack = 0;
+            }
+
+            // Stok Fisik dari data yang sudah diisi
+            $physCrate = (int)($item->physical_crate ?? 0);
+            $physPack  = (int)($item->physical_pack  ?? 0);
+            $physTotal = (float)($item->physical_qty ?? 0);
+            $physBase  = round($physTotal
+                - ($ctb > 0 && $ptb > 0 ? $physCrate * $ctb * $ptb : 0)
+                - ($ptb > 0             ? $physPack  * $ptb         : 0), 3);
+            if ($physBase < 0) $physBase = 0;
+
+            $dusSize     = ($ctb > 0 && $ptb > 0) ? $ctb * $ptb : ($ptb > 0 ? $ptb : 1);
+            $pricePerDus = ($item->price_per_base ?? 0) > 0 ? (int)round((float)$item->price_per_base * $dusSize) : '';
+
+            // Kolom: A=RowKey(hidden), B=Nama, C=Kemasan, D=FisikDus, E=FisikPack, F=FisikGr/Pcs, G=Harga/Dus, H=Catatan
+            $ws->setCellValueByColumnAndRow(1, $row, $item->row_key ?? ($item->ingredient_id . '_' . ($item->packaging_id ?? '')));
+            $ws->setCellValueByColumnAndRow(2, $row, $item->ingredient?->name ?? '-');
+            $ws->setCellValueByColumnAndRow(3, $row, $pkgLabel);
+            $ws->setCellValueByColumnAndRow(4, $row, $physCrate ?: ($pkg && $ctb > 0 ? 0 : ''));
+            $ws->setCellValueByColumnAndRow(5, $row, $physPack  ?: ($pkg ? 0 : ''));
+            $ws->setCellValueByColumnAndRow(6, $row, $physBase);
+            $ws->setCellValueByColumnAndRow(7, $row, $pricePerDus);
+            $ws->setCellValueByColumnAndRow(8, $row, $item->notes ?? '');
+
+            $ws->getStyle("A{$row}")->applyFromArray([
+                'font' => ['size' => 7, 'color' => ['rgb' => 'CCCCCC']],
+                'fill' => ['fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID, 'color' => ['rgb' => 'FAFAFA']],
+            ]);
+            $ws->getStyle("B{$row}:C{$row}")->applyFromArray([
+                'fill' => ['fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID, 'color' => ['rgb' => 'F2F2F2']],
+                'font' => ['color' => ['rgb' => '444444']],
+            ]);
+            $ws->getStyle("D{$row}:G{$row}")->applyFromArray([
+                'fill' => ['fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID, 'color' => ['rgb' => 'FFFDE7']],
+                'font' => ['bold' => true],
+            ]);
+
+            if ($row % 2 === 0) {
+                $ws->getStyle("A{$row}:H{$row}")->getFill()
+                    ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+                    ->getStartColor()->setRGB('F9FAFB');
+            }
+
+            $row++;
         }
 
-        $data[] = [];
-        $data[] = ['', 'TOTAL ITEM', '', '', '', '', $opname->items->count() . ' bahan'];
-
+        $writer   = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($ss);
         $filename = "opname_{$opname->store->name}_{$opname->period_year}-{$opname->period_month}.xlsx";
-        return Excel::download(new ArrayExport($data), $filename);
+
+        return response()->streamDownload(function () use ($writer) {
+            $writer->save('php://output');
+        }, $filename, ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -674,20 +978,21 @@ class OpnameController extends Controller
         // Baris 2: judul
         $modeLabel = $opnameMode === 'stok_awal' ? ' [STOK AWAL]' : '';
         $ws->setCellValue('A2', "TEMPLATE STOK OPNAME — {$store->name} — {$carbon->format('d/m/Y')} — {$periodLabel}{$modeLabel}");
-        $ws->mergeCells('A2:I2');
+        $ws->mergeCells('A2:H2');
         $ws->getStyle('A2')->getFont()->setBold(true)->setSize(12);
         $ws->getStyle('A2')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
-        // Baris 3: header — hanya kuantitas stok, tanpa kolom harga
-        $headers = ['Row Key (jgn ubah)', 'Nama Bahan', 'Kemasan',
-                    'Sistem (Dus)', 'Sistem (Pack)',
-                    'FISIK Dus ✏', 'FISIK Pack ✏', 'FISIK Pcs/Gr ✏', 'Catatan'];
-        foreach ($headers as $col => $h) {
-            $ws->setCellValueByColumnAndRow($col + 1, 3, $h);
-        }
+        // Baris 3: header — A=RowKey(hidden), B=Nama Bahan, C=Kemasan, D-F=FISIK, G=Harga/Dus, H=Catatan
+        $ws->setCellValue('A3', 'ID');
+        $ws->setCellValue('B3', 'Nama Bahan');
+        $ws->setCellValue('C3', 'Kemasan');
+        $ws->setCellValue('D3', 'FISIK Dus ✏');
+        $ws->setCellValue('E3', 'FISIK Pack ✏');
+        $ws->setCellValue('F3', 'FISIK Gr/Pcs ✏');
+        $ws->setCellValue('G3', 'Harga/Dus ✏');
+        $ws->setCellValue('H3', 'Catatan');
 
-        // Style header baris 3
-        $ws->getStyle('A3:I3')->applyFromArray([
+        $ws->getStyle('A3:H3')->applyFromArray([
             'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
             'fill' => ['fillType' => Fill::FILL_SOLID, 'color' => ['rgb' => '1e3a5f']],
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
@@ -696,29 +1001,24 @@ class OpnameController extends Controller
         // Baris data mulai baris 4
         $rowNum = 4;
         foreach ($rows as $r) {
-            $crateToBase = $r['crate_to_pack'] * $r['pack_to_base'];
-            $sysDus  = $crateToBase > 0 ? floor($r['system_qty'] / $crateToBase) : 0;
-            $sysPack = $crateToBase > 0
-                ? floor(($r['system_qty'] - $sysDus * $crateToBase) / $r['pack_to_base'])
-                : floor($r['system_qty'] / max($r['pack_to_base'], 1));
-
             $ws->setCellValueByColumnAndRow(1, $rowNum, $r['row_key']);
-            $ws->setCellValueByColumnAndRow(2, $rowNum, $r['name'] . ($r['pkg_label'] ? '  ' . $r['pkg_label'] : ''));
+            $ws->setCellValueByColumnAndRow(2, $rowNum, $r['name']);
             $ws->setCellValueByColumnAndRow(3, $rowNum, $r['pkg_label'] ?? ($r['unit_base'] ?? '-'));
-            $ws->setCellValueByColumnAndRow(4, $rowNum, $sysDus);
-            $ws->setCellValueByColumnAndRow(5, $rowNum, $sysPack);
-            $ws->setCellValueByColumnAndRow(6, $rowNum, '');  // Fisik Dus
-            $ws->setCellValueByColumnAndRow(7, $rowNum, '');  // Fisik Pack
-            $ws->setCellValueByColumnAndRow(8, $rowNum, '');  // Fisik Pcs/Gr
-            $ws->setCellValueByColumnAndRow(9, $rowNum, '');  // Catatan
+            $ws->setCellValueByColumnAndRow(4, $rowNum, ''); // FISIK Dus
+            $ws->setCellValueByColumnAndRow(5, $rowNum, ''); // FISIK Pack
+            $ws->setCellValueByColumnAndRow(6, $rowNum, ''); // FISIK Gr/Pcs
+            $ws->setCellValueByColumnAndRow(7, $rowNum, ''); // Harga/Dus
+            $ws->setCellValueByColumnAndRow(8, $rowNum, ''); // Catatan
 
-            // Style baris data
-            $ws->getStyle("A{$rowNum}:E{$rowNum}")->applyFromArray([
-                'fill' => ['fillType' => Fill::FILL_SOLID, 'color' => ['rgb' => 'F2F2F2']],
-                'font' => ['color' => ['rgb' => '888888']],
+            $ws->getStyle("A{$rowNum}")->applyFromArray([
+                'font' => ['size' => 7, 'color' => ['rgb' => 'CCCCCC']],
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'color' => ['rgb' => 'FAFAFA']],
             ]);
-            // Editable: Fisik Dus/Pack/Pcs (F-H)
-            $ws->getStyle("F{$rowNum}:H{$rowNum}")->applyFromArray([
+            $ws->getStyle("B{$rowNum}:C{$rowNum}")->applyFromArray([
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'color' => ['rgb' => 'F2F2F2']],
+                'font' => ['color' => ['rgb' => '444444']],
+            ]);
+            $ws->getStyle("D{$rowNum}:G{$rowNum}")->applyFromArray([
                 'fill' => ['fillType' => Fill::FILL_SOLID, 'color' => ['rgb' => 'FFFDE7']],
                 'font' => ['bold' => true],
             ]);
@@ -726,23 +1026,22 @@ class OpnameController extends Controller
         }
 
         // Column widths
-        $ws->getColumnDimension('A')->setWidth(18);
-        $ws->getColumnDimension('B')->setWidth(32);
+        $ws->getColumnDimension('A')->setWidth(4);
+        $ws->getColumnDimension('B')->setWidth(34);
         $ws->getColumnDimension('C')->setWidth(16);
-        $ws->getColumnDimension('D')->setWidth(14);
-        $ws->getColumnDimension('E')->setWidth(14);
-        $ws->getColumnDimension('F')->setWidth(14);
+        $ws->getColumnDimension('D')->setWidth(12);
+        $ws->getColumnDimension('E')->setWidth(12);
+        $ws->getColumnDimension('F')->setWidth(12);
         $ws->getColumnDimension('G')->setWidth(14);
-        $ws->getColumnDimension('H')->setWidth(14);
-        $ws->getColumnDimension('I')->setWidth(24);
+        $ws->getColumnDimension('H')->setWidth(28);
 
         // Style metadata row 1 (kecil & abu)
         $ws->getStyle('A1:E1')->applyFromArray([
-            'font' => ['size' => 8, 'color' => ['rgb' => 'AAAAAA']],
+            'font' => ['size' => 7, 'color' => ['rgb' => 'CCCCCC']],
         ]);
 
-        // Freeze pane
-        $ws->freezePane('F4');
+        // Freeze pane — mulai dari kolom D (setelah Nama Bahan & Kemasan)
+        $ws->freezePane('D4');
 
         $filename = 'template_opname_' . $store->name . '_' . $carbon->format('Ymd') . '.xlsx';
         $writer   = new XlsxWriter($ss);
@@ -818,15 +1117,18 @@ class OpnameController extends Controller
             $rowKey  = trim((string)$ws->getCellByColumnAndRow(1, $rowNum)->getValue());
             if ($rowKey === '') { $rowNum++; continue; }
 
-            $fisikDus  = $ws->getCellByColumnAndRow(6, $rowNum)->getValue();
-            $fisikPack = $ws->getCellByColumnAndRow(7, $rowNum)->getValue();
-            $fisikBase = $ws->getCellByColumnAndRow(8, $rowNum)->getValue();
+            // Kolom: A=RowKey, B=Nama, C=Kemasan, D=FisikDus, E=FisikPack, F=FisikGr/Pcs, G=HargaDus, H=Catatan
+            $fisikDus  = $ws->getCellByColumnAndRow(4, $rowNum)->getValue();
+            $fisikPack = $ws->getCellByColumnAndRow(5, $rowNum)->getValue();
+            $fisikBase = $ws->getCellByColumnAndRow(6, $rowNum)->getValue();
+            $hargaDus  = $ws->getCellByColumnAndRow(7, $rowNum)->getValue();
 
             // Validasi nilai
             foreach ([
                 "Baris {$rowNum} Fisik Dus"    => $fisikDus,
                 "Baris {$rowNum} Fisik Pack"   => $fisikPack,
                 "Baris {$rowNum} Fisik Pcs/Gr" => $fisikBase,
+                "Baris {$rowNum} Harga/Dus"    => $hargaDus,
             ] as $label => $val) {
                 if ($val !== '' && $val !== null && (!is_numeric($val) || (float)$val < 0)) {
                     $errors[] = "{$label}: nilai harus angka ≥ 0 (dapat dikosongkan).";
@@ -834,10 +1136,11 @@ class OpnameController extends Controller
             }
 
             $items[] = [
-                'row_key'       => $rowKey,
-                'physical_crate' => $fisikDus  !== '' && $fisikDus  !== null ? (int)$fisikDus  : null,
+                'row_key'        => $rowKey,
+                'physical_crate' => $fisikDus !== '' && $fisikDus !== null ? (int)$fisikDus   : null,
                 'physical_pack'  => $fisikPack !== '' && $fisikPack !== null ? (int)$fisikPack : null,
                 'physical_base'  => $fisikBase !== '' && $fisikBase !== null ? (float)$fisikBase : null,
+                'price_per_dus'  => $hargaDus !== '' && $hargaDus !== null && (float)$hargaDus > 0 ? (float)$hargaDus : null,
             ];
             $rowNum++;
         }
@@ -857,7 +1160,7 @@ class OpnameController extends Controller
         // ── Simpan opname ────────────────────────────────────────────────────
         $opname = null;
         DB::transaction(function () use (
-            $storeId, $date, $month, $year, $periodType, $items, $sysMap, &$opname
+            $storeId, $date, $month, $year, $periodType, $opnameMode, $items, $sysMap, &$opname
         ) {
             $opname = Opname::create([
                 'store_id'     => $storeId,
@@ -866,6 +1169,7 @@ class OpnameController extends Controller
                 'period_year'  => $year,
                 'period_type'  => $periodType,
                 'status'       => 'draft',
+                'opname_mode'  => $opnameMode,
                 'performed_by' => auth()->id(),
                 'notes'        => 'Import dari Excel',
             ]);
@@ -891,6 +1195,15 @@ class OpnameController extends Controller
                     $physQty = 0;
                 }
 
+                // Konversi harga/dus → price_per_base
+                $pricePerBase = null;
+                if (!empty($item['price_per_dus'])) {
+                    $crateToBase = $pkg ? (float)$pkg->crate_to_pack * (float)$pkg->pack_to_base : 0;
+                    $pricePerBase = $crateToBase > 0
+                        ? $item['price_per_dus'] / $crateToBase
+                        : $item['price_per_dus'];
+                }
+
                 OpnameItem::create([
                     'opname_id'      => $opname->id,
                     'ingredient_id'  => $ingId,
@@ -901,6 +1214,7 @@ class OpnameController extends Controller
                     'physical_pack'  => $p,
                     'physical_base'  => $b,
                     'variance'       => round($physQty - $sysQty, 4),
+                    'price_per_base' => $pricePerBase,
                 ]);
             }
         });

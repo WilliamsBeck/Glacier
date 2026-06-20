@@ -80,7 +80,7 @@
     <div class="wrap-price-crate d-none">
         <div class="input-group input-group-sm">
             <span class="input-group-text">Rp</span>
-            <input type="text" class="form-control form-control-sm price-crate-input num-fmt" placeholder="0" oninput="onPriceCrateChange({{ $idx }})">
+            <input type="text" class="form-control form-control-sm price-crate-input num-fmt bg-light" placeholder="0" readonly>
         </div>
         <div class="form-text price-info d-none text-primary"></div>
     </div>

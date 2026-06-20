@@ -67,7 +67,7 @@
 
                 <div class="col-md-3" id="wrapDest">
                     <label class="form-label fw-semibold" id="labelDest">Toko Penerima <span class="text-danger">*</span></label>
-                    <select name="destination_store_id" id="destStoreSelect" class="form-select" required>
+                    <select name="destination_store_id" id="destStoreSelect" class="form-select" required onchange="syncStoreDropdowns()">
                         <option value="">— Pilih Toko —</option>
                         @foreach($stores as $store)
                             <option value="{{ $store->id }}"
@@ -329,6 +329,19 @@ function onSupplierChange() {
     }
 }
 
+// Sinkronisasi: disable opsi yang sama di dropdown lain
+function syncStoreDropdowns() {
+    var srcVal  = document.getElementById('sourceStoreSelect').value;
+    var dstVal  = document.getElementById('destStoreSelect').value;
+
+    document.querySelectorAll('#sourceStoreSelect option').forEach(function(opt) {
+        opt.disabled = (opt.value !== '' && opt.value === dstVal);
+    });
+    document.querySelectorAll('#destStoreSelect option').forEach(function(opt) {
+        opt.disabled = (opt.value !== '' && opt.value === srcVal);
+    });
+}
+
 // Dipanggil saat toko pengirim berubah
 function onSourceStoreChange() {
     var type    = document.getElementById('typeSelect').value;
@@ -339,6 +352,8 @@ function onSourceStoreChange() {
         rebuildAllIngredientSelects();
         return;
     }
+
+    syncStoreDropdowns();
 
     // Fetch stock summary dulu, lalu rebuild ingredient options
     fetchStoreStock(storeId, function() {
@@ -834,6 +849,14 @@ function onPackagingChange(idx) {
 
     var ingInput = document.querySelector('#row-' + idx + ' select[name$="[ingredient_id]"]');
     var type     = document.getElementById('typeSelect').value;
+
+    // Pembelian (pusat/supplier) → harga/dus BISA diedit. Transfer/penjualan → readonly (otomatis dari stok).
+    var priceCrate = document.querySelector('#row-' + idx + ' .price-crate-input');
+    if (priceCrate) {
+        var editable = ['purchase_zhisheng','purchase_supplier'].includes(type);
+        priceCrate.readOnly = !editable;
+        priceCrate.classList.toggle('bg-light', !editable);
+    }
     // Fetch batch price untuk tipe yang mengurangi stok dari toko sumber
     if (['sale_internal','sale_external'].includes(type)
         && ingInput && ingInput.value) {
@@ -944,7 +967,12 @@ function recalcTotals() {
 
 // Auto-recalc setiap kali qty input berubah (delegasi event)
 document.addEventListener('input', function(e) {
-    if (e.target.matches('.qty-input, .price-crate-input, .price-direct-input')) {
+    if (e.target.matches('.price-crate-input')) {
+        var row = e.target.closest('[id^="row-"]');
+        if (row) onPriceCrateChange(row.id.replace('row-', '')); // update hidden price_per_base + recalc
+        return;
+    }
+    if (e.target.matches('.qty-input, .price-direct-input')) {
         recalcTotals();
     }
 });
@@ -1017,7 +1045,7 @@ function buildRowHTML(idx, ingOptions) {
         <div class="wrap-price-crate d-none">
             <div class="input-group input-group-sm">
                 <span class="input-group-text">Rp</span>
-                <input type="text" class="form-control form-control-sm price-crate-input num-fmt" placeholder="0" oninput="onPriceCrateChange(${idx})">
+                <input type="text" class="form-control form-control-sm price-crate-input num-fmt bg-light" placeholder="0" readonly>
             </div>
             <div class="form-text price-info d-none text-primary"></div>
         </div>
@@ -1124,6 +1152,8 @@ function updateRemoveButtons() {
 
 // Kondisi awal
 document.addEventListener('DOMContentLoaded', function() {
+    syncStoreDropdowns();
+
     // Jika ada old type (setelah validasi error), restore state form
     var typeSelect = document.getElementById('typeSelect');
     if (typeSelect && typeSelect.value) {

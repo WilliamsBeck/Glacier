@@ -17,29 +17,55 @@ class MonthlySaleController extends Controller
         $storeIds = auth()->user()->accessibleStoreIds();
         $stores   = auth()->user()->accessibleStores();
 
-        $query = MonthlySale::selectRaw('store_id, month, year, period_type, COUNT(*) as menu_count, SUM(total_sold) as total_sold')
-            ->whereIn('store_id', $storeIds)
-            ->groupBy('store_id', 'month', 'year', 'period_type');
+        // Kumpulkan semua periode unik dari KEDUA tabel (revenue & sales)
+        $revQuery  = MonthlyRevenue::selectRaw('store_id, month, year, period_type')
+            ->whereIn('store_id', $storeIds);
+        $saleQuery = MonthlySale::selectRaw('store_id, month, year, period_type')
+            ->whereIn('store_id', $storeIds);
 
         if ($request->store_id) {
-            $query->where('store_id', $request->store_id);
+            $revQuery->where('store_id', $request->store_id);
+            $saleQuery->where('store_id', $request->store_id);
         }
-
-        // Filter by date range — konversi ke year*100+month untuk perbandingan
         if ($request->date_from) {
             $from = \Carbon\Carbon::parse($request->date_from);
-            $query->whereRaw('(year * 100 + month) >= ?', [$from->year * 100 + $from->month]);
+            $revQuery->whereRaw('(year * 100 + month) >= ?', [$from->year * 100 + $from->month]);
+            $saleQuery->whereRaw('(year * 100 + month) >= ?', [$from->year * 100 + $from->month]);
         }
         if ($request->date_to) {
             $to = \Carbon\Carbon::parse($request->date_to);
-            $query->whereRaw('(year * 100 + month) <= ?', [$to->year * 100 + $to->month]);
+            $revQuery->whereRaw('(year * 100 + month) <= ?', [$to->year * 100 + $to->month]);
+            $saleQuery->whereRaw('(year * 100 + month) <= ?', [$to->year * 100 + $to->month]);
         }
 
-        $groups = $query->orderByDesc('year')->orderByDesc('month')->orderByDesc('period_type')->get();
+        // UNION kedua sumber → periode unik
+        $periods = $revQuery->union($saleQuery)->get()
+            ->unique(fn($r) => "{$r->store_id}_{$r->month}_{$r->year}_{$r->period_type}")
+            ->sortByDesc(fn($r) => $r->year * 10000 + $r->month * 100 + ($r->period_type === 'end_month' ? 1 : 0))
+            ->values();
 
-        // Ambil omset per group
+        // Ambil aggregat sales & omset per periode
+        $salesMap = MonthlySale::selectRaw('store_id, month, year, period_type, COUNT(*) as menu_count, SUM(total_sold) as total_sold')
+            ->whereIn('store_id', $storeIds)
+            ->groupBy('store_id', 'month', 'year', 'period_type')
+            ->get()->keyBy(fn($r) => "{$r->store_id}_{$r->month}_{$r->year}_{$r->period_type}");
+
         $revenueMap = MonthlyRevenue::whereIn('store_id', $storeIds)->get()
             ->keyBy(fn($r) => "{$r->store_id}_{$r->month}_{$r->year}_{$r->period_type}");
+
+        // Bangun groups dengan struktur yang sama seperti sebelumnya
+        $groups = $periods->map(function ($p) use ($salesMap, $revenueMap) {
+            $key  = "{$p->store_id}_{$p->month}_{$p->year}_{$p->period_type}";
+            $sale = $salesMap[$key] ?? null;
+            return (object) [
+                'store_id'    => $p->store_id,
+                'month'       => $p->month,
+                'year'        => $p->year,
+                'period_type' => $p->period_type,
+                'menu_count'  => $sale?->menu_count ?? 0,
+                'total_sold'  => $sale?->total_sold ?? 0,
+            ];
+        });
 
         return view('sales.index', compact('groups', 'stores', 'revenueMap'));
     }
@@ -47,7 +73,7 @@ class MonthlySaleController extends Controller
     public function create()
     {
         $stores = auth()->user()->accessibleStores();
-        $menus  = Menu::where('is_active',true)->orderBy('name')->get();
+        $menus  = Menu::where('menus.is_active',true)->with('menuCategory')->orderedByCategory()->get();
         return view('sales.create', compact('stores','menus'));
     }
 
@@ -59,9 +85,9 @@ class MonthlySaleController extends Controller
             'year'          => 'required|integer|min:2020',
             'period_type'   => 'required|in:end_month,mid_month',
             'total_revenue' => 'nullable|numeric|min:0',
-            'items'         => 'required|array|min:1',
-            'items.*.menu_id'    => 'required|exists:menus,id',
-            'items.*.total_sold' => 'required|integer|min:0',
+            'items'         => 'nullable|array',
+            'items.*.menu_id'    => 'required_with:items|exists:menus,id',
+            'items.*.total_sold' => 'required_with:items|integer|min:0',
         ]);
 
         $periodType = $request->period_type;
@@ -102,7 +128,7 @@ class MonthlySaleController extends Controller
         }
 
         // Simpan qty terjual per menu
-        foreach ($request->items as $item) {
+        foreach ($request->items ?? [] as $item) {
             $qty = (int)($item['total_sold'] ?? 0);
             if ($qty === 0) continue;
 
@@ -145,23 +171,23 @@ class MonthlySaleController extends Controller
     // ── Show detail group ─────────────────────────────────────────────────────
     public function periodShow(Request $request)
     {
-        $p      = $this->groupParams($request);
-        $sales  = $this->groupSales($p);
-        if ($sales->isEmpty()) abort(404);
-        $store   = Store::findOrFail($p['store_id']);
+        $p       = $this->groupParams($request);
+        $sales   = $this->groupSales($p);
         $revenue = MonthlyRevenue::where($p)->first();
+        if ($sales->isEmpty() && !$revenue) abort(404);
+        $store   = Store::findOrFail($p['store_id']);
         return view('sales.show', compact('sales', 'store', 'revenue', 'p'));
     }
 
     // ── Edit group ────────────────────────────────────────────────────────────
     public function periodEdit(Request $request)
     {
-        $p      = $this->groupParams($request);
-        $sales  = $this->groupSales($p);
-        if ($sales->isEmpty()) abort(404);
-        $store   = Store::findOrFail($p['store_id']);
+        $p       = $this->groupParams($request);
+        $sales   = $this->groupSales($p);
         $revenue = MonthlyRevenue::where($p)->first();
-        $menus   = Menu::where('is_active', true)->orderBy('name')->get();
+        if ($sales->isEmpty() && !$revenue) abort(404);
+        $store   = Store::findOrFail($p['store_id']);
+        $menus   = Menu::where('menus.is_active', true)->with('menuCategory')->orderedByCategory()->get();
         return view('sales.edit', compact('sales', 'store', 'revenue', 'menus', 'p'));
     }
 
@@ -289,7 +315,7 @@ class MonthlySaleController extends Controller
                 'year' => $year, 'period_type' => $periodType,
             ])->value('total_revenue') ?? 0;
 
-        $menus = Menu::where('is_active', true)->with('menuCategory')->orderBy('name')->get();
+        $menus = Menu::where('menus.is_active', true)->with('menuCategory')->orderedByCategory()->get();
 
         // ── Build spreadsheet ───────────────────────────────────────────────
         $ss = new Spreadsheet();
@@ -379,7 +405,7 @@ class MonthlySaleController extends Controller
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    //  IMPORT PROCESS
+    //  IMPORT PREVIEW — parse file, tampilkan untuk konfirmasi
     // ═══════════════════════════════════════════════════════════════════════
     public function import(Request $request)
     {
@@ -399,7 +425,6 @@ class MonthlySaleController extends Controller
         $periodType = $ws->getCell('E1')->getValue();
         $revenue    = (float)($ws->getCell('F1')->getValue() ?? 0);
 
-        // Baca omset dari baris 3 kolom B (user mungkin update)
         $revenueFromCell = $ws->getCell('B3')->getValue();
         if (is_numeric($revenueFromCell) && (float)$revenueFromCell > 0) {
             $revenue = (float)$revenueFromCell;
@@ -417,17 +442,16 @@ class MonthlySaleController extends Controller
             return back()->withErrors(['file' => 'Bulan/tahun tidak valid dalam file.']);
         }
 
-        // Cek lock
         if (!auth()->user()->isSuperAdmin() && MonthLockService::isPastLock($month, $year)) {
             return back()->withErrors(['file' => MonthLockService::lockMessage($month, $year)]);
         }
 
         // ── Baca baris menu (mulai baris 5) ─────────────────────────────────
-        $errors   = [];
-        $items    = [];
-        $menuIds  = Menu::where('is_active', true)->pluck('id')->all();
-        $rowNum   = 5;
-        $maxRow   = $ws->getHighestDataRow();
+        $errors  = [];
+        $items   = [];
+        $menuMap = Menu::where('is_active', true)->with('menuCategory')->get()->keyBy('id');
+        $rowNum  = 5;
+        $maxRow  = $ws->getHighestDataRow();
 
         while ($rowNum <= $maxRow) {
             $menuId = $ws->getCellByColumnAndRow(1, $rowNum)->getValue();
@@ -437,7 +461,7 @@ class MonthlySaleController extends Controller
             if ($menuId === '' || $menuId === null) continue;
             $menuId = (int)$menuId;
 
-            if (!in_array($menuId, $menuIds)) {
+            if (!isset($menuMap[$menuId])) {
                 $errors[] = "Baris {$rowNum}: menu ID {$menuId} tidak ditemukan atau tidak aktif.";
                 continue;
             }
@@ -447,17 +471,70 @@ class MonthlySaleController extends Controller
             }
 
             $qty = ($qty !== '' && $qty !== null) ? (int)$qty : 0;
-            if ($qty > 0) $items[] = ['menu_id' => $menuId, 'total_sold' => $qty];
+            if ($qty > 0) {
+                $menu    = $menuMap[$menuId];
+                $items[] = [
+                    'menu_id'   => $menuId,
+                    'menu_name' => $menu->name,
+                    'category'  => $menu->menuCategory?->name ?? '-',
+                    'total_sold'=> $qty,
+                ];
+            }
         }
 
         if (!empty($errors)) {
             return back()->withErrors(['file' => implode(' | ', $errors)]);
         }
 
-        // ── Simpan data ──────────────────────────────────────────────────────
+        $store      = Store::findOrFail($storeId);
+        $monthNames = ['','Januari','Februari','Maret','April','Mei','Juni',
+                       'Juli','Agustus','September','Oktober','November','Desember'];
+
+        $preview = [
+            'store_id'    => $storeId,
+            'store_name'  => $store->name,
+            'month'       => $month,
+            'month_name'  => $monthNames[$month],
+            'year'        => $year,
+            'period_type' => $periodType,
+            'revenue'     => $revenue,
+            'items'       => $items,
+        ];
+
+        return view('sales.import', compact('preview'));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  IMPORT COMMIT — simpan setelah user konfirmasi preview
+    // ═══════════════════════════════════════════════════════════════════════
+    public function importCommit(Request $request)
+    {
+        $request->validate([
+            'store_id'    => 'required|exists:stores,id',
+            'month'       => 'required|integer|between:1,12',
+            'year'        => 'required|integer|min:2020',
+            'period_type' => 'required|in:mid_month,end_month',
+            'revenue'     => 'nullable|numeric|min:0',
+            'items'       => 'nullable|array',
+            'items.*.menu_id'    => 'required|exists:menus,id',
+            'items.*.total_sold' => 'required|integer|min:1',
+        ]);
+
+        $storeId    = (int)$request->store_id;
+        $month      = (int)$request->month;
+        $year       = (int)$request->year;
+        $periodType = $request->period_type;
+        $revenue    = (float)($request->revenue ?? 0);
+
+        $storeIds = auth()->user()->accessibleStoreIds();
+        if (!in_array($storeId, $storeIds)) abort(403);
+
+        if (!auth()->user()->isSuperAdmin() && MonthLockService::isPastLock($month, $year)) {
+            return back()->with('error', MonthLockService::lockMessage($month, $year));
+        }
+
         $p = ['store_id' => $storeId, 'month' => $month, 'year' => $year, 'period_type' => $periodType];
 
-        // Omset
         if ($revenue > 0) {
             MonthlyRevenue::updateOrCreate($p, [
                 'total_revenue' => $revenue,
@@ -465,12 +542,11 @@ class MonthlySaleController extends Controller
             ]);
         }
 
-        // Hapus data lama lalu simpan ulang
         MonthlySale::where($p)->delete();
-        foreach ($items as $item) {
+        foreach ($request->items ?? [] as $item) {
             MonthlySale::create(array_merge($p, [
                 'menu_id'     => $item['menu_id'],
-                'total_sold'  => $item['total_sold'],
+                'total_sold'  => (int)$item['total_sold'],
                 'recorded_by' => auth()->id(),
             ]));
         }

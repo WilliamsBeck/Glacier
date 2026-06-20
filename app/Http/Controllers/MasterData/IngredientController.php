@@ -33,7 +33,7 @@ class IngredientController extends Controller
     public function create()
     {
         $suppliers = Supplier::where('is_active', true)->orderBy('name')->get();
-        $rawIngredients = Ingredient::where('is_active', true)->where('type', 'raw')->orderBy('name')->get(['id', 'name', 'unit_base']);
+        $rawIngredients = Ingredient::where('ingredients.is_active', true)->where('type', 'raw')->orderedByCategory()->get();
         $categories = IngredientCategory::ordered()->get();
         return view('master.ingredients.form', compact('suppliers', 'rawIngredients', 'categories'));
     }
@@ -66,7 +66,7 @@ class IngredientController extends Controller
                     'supplier_id' => $pack['supplier_id'] ?: null,
                     'packaging_name' => $pack['packaging_name'],
                     'crate_to_pack' => $pack['crate_to_pack'],
-                    'pack_to_base' => $pack['pack_to_base'],
+                    'pack_to_base' => (float) str_replace(',', '.', $pack['pack_to_base'] ?? 0),
                     'is_active' => true,
                 ]);
             }
@@ -104,7 +104,7 @@ class IngredientController extends Controller
     {
         $ingredient->load(['packagings.supplier', 'compositions.child']);
         $suppliers = Supplier::where('is_active', true)->orderBy('name')->get();
-        $rawIngredients = Ingredient::where('is_active', true)->where('type', 'raw')->orderBy('name')->get(['id', 'name', 'unit_base']);
+        $rawIngredients = Ingredient::where('ingredients.is_active', true)->where('type', 'raw')->orderedByCategory()->get();
         $categories = IngredientCategory::ordered()->get();
         return view('master.ingredients.form', compact('ingredient', 'suppliers', 'rawIngredients', 'categories'));
     }
@@ -130,7 +130,7 @@ class IngredientController extends Controller
                     'supplier_id' => $pack['supplier_id'] ?: null,
                     'packaging_name' => $pack['packaging_name'],
                     'crate_to_pack' => $pack['crate_to_pack'],
-                    'pack_to_base' => $pack['pack_to_base'],
+                    'pack_to_base' => (float) str_replace(',', '.', $pack['pack_to_base'] ?? 0),
                 ]);
             }
             // Tambah kemasan baru
@@ -141,7 +141,7 @@ class IngredientController extends Controller
                     'supplier_id' => $pack['supplier_id'] ?: null,
                     'packaging_name' => $pack['packaging_name'],
                     'crate_to_pack' => $pack['crate_to_pack'],
-                    'pack_to_base' => $pack['pack_to_base'],
+                    'pack_to_base' => (float) str_replace(',', '.', $pack['pack_to_base'] ?? 0),
                     'is_active' => true,
                 ]);
             }

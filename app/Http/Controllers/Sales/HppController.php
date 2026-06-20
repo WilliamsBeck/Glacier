@@ -53,6 +53,34 @@ class HppController extends Controller
             ->map(fn($g) => (float) $g->first()->price_per_base);
     }
 
+    // ── Harga rata-rata tertimbang dari SISA batch FIFO per bahan ─────────────
+    // Σ(remaining_qty × price_per_base) / Σ(remaining_qty) — sama persis dengan
+    // cara halaman detail Stok Opname menghitung "Nilai Fisik". Dipakai untuk
+    // menilai SO Akhir agar HPP Aktual konsisten dengan tampilan opname.
+    private function buildRemainingPriceMap(int $storeId, array $ingIds): array
+    {
+        if (empty($ingIds)) return [];
+
+        $batches = MutationItem::whereHas('mutation', fn($q) =>
+                $q->where('destination_store_id', $storeId)
+                  ->where('status', 'confirmed')
+                  ->whereIn('type', ['purchase_zhisheng', 'purchase_supplier', 'opening_stock', 'sale_internal', 'sale_external'])
+            )
+            ->whereIn('ingredient_id', $ingIds)
+            ->where('remaining_qty', '>', 0)
+            ->get(['ingredient_id', 'remaining_qty', 'price_per_base'])
+            ->groupBy('ingredient_id');
+
+        $map = [];
+        foreach ($ingIds as $id) {
+            $group    = $batches[$id] ?? collect();
+            $totalQty = $group->sum('remaining_qty');
+            $totalVal = $group->sum(fn($b) => $b->remaining_qty * $b->price_per_base);
+            $map[$id] = $totalQty > 0 ? $totalVal / $totalQty : 0;
+        }
+        return $map;
+    }
+
     // ── Core kalkulasi HPP untuk satu toko ────────────────────────────────────
     // Mengembalikan ['summary' => ..., 'menuRows' => ..., 'ingredientRows' => ...]
     // atau null jika tidak ada data penjualan.
@@ -74,7 +102,19 @@ class HppController extends Controller
             ->where('month', $month)->where('year', $year)
             ->where('period_type', $periodType)->get();
 
-        if ($sales->isEmpty()) return null;
+        // SO Akhir & Awal — diambil lebih awal
+        $prevMonth  = $monthStart->copy()->subMonth();
+        $soAkhir    = Opname::where('store_id', $storeId)
+            ->where('period_month', $month)->where('period_year', $year)
+            ->where('period_type', $periodType)->where('status', 'approved')
+            ->with('items.ingredient')->first();
+        $soAwal     = Opname::where('store_id', $storeId)
+            ->where('period_month', $prevMonth->month)->where('period_year', $prevMonth->year)
+            ->where('period_type', 'end_month')->where('status', 'approved')
+            ->with('items')->first();
+
+        // Tampilkan jika ada data penjualan, omset, ATAU ada SO Akhir (untuk HPP aktual)
+        if ($sales->isEmpty() && $omset <= 0 && !$soAkhir) return null;
 
         $menuIds    = $sales->pluck('menu_id')->unique()->all();
         // Resep PER TOKO: prioritas resep khusus toko ini; kalau tidak ada → resep default (store_id NULL)
@@ -101,8 +141,23 @@ class HppController extends Controller
                 }
             }
         }
+        // Kalau tidak ada menu terjual, pakai semua bahan dari SO Akhir sebagai sumber
+        if (empty($rawIngIds) && $soAkhir) {
+            $rawIngIds = $soAkhir->items->pluck('ingredient_id')->unique()->all();
+        }
+        // Kalau masih kosong (tidak ada SO juga), tidak ada yang bisa dihitung
+        if (empty($rawIngIds)) return null;
         $rawIngIds  = array_unique($rawIngIds);
         $batchPrice = $this->buildBatchPrice($storeId, $rawIngIds, $dateEnd);
+
+        // Nilai SO Akhir: qty × harga beku (price_per_base yg dikunci saat opname approved).
+        // Fallback ke harga rata-rata sisa batch terkini bila item belum punya harga beku.
+        $remainingPriceMap = $this->buildRemainingPriceMap($storeId, $rawIngIds);
+        $closingValMap = $soAkhir ? $soAkhir->items->groupBy('ingredient_id')
+            ->map(fn($g) => $g->sum(fn($i) => (float)$i->physical_qty
+                * (float)(($i->price_per_base ?? 0) > 0
+                    ? $i->price_per_base
+                    : ($remainingPriceMap[$i->ingredient_id] ?? 0))))->all() : [];
 
         // ── menuRows ──────────────────────────────────────────────────────────
         $menuRows = $sales->map(function ($sale) use ($allRecipes, $compositionMap, $batchPrice) {
@@ -161,21 +216,41 @@ class HppController extends Controller
             }
         }
 
-        $prevMonth   = $monthStart->copy()->subMonth();
-        $soAkhir     = Opname::where('store_id', $storeId)
-            ->where('period_month', $month)->where('period_year', $year)
-            ->where('period_type', $periodType)->where('status', 'approved')
-            ->with('items')->first();
-        $soAwal      = Opname::where('store_id', $storeId)
-            ->where('period_month', $prevMonth->month)->where('period_year', $prevMonth->year)
-            ->where('period_type', 'end_month')->where('status', 'approved')
-            ->with('items')->first();
+        // soAkhir & soAwal sudah diambil di atas
 
-        $closingMap  = $soAkhir ? $soAkhir->items->pluck('physical_qty', 'ingredient_id')->map(fn($v) => (float)$v)->all() : [];
-        $openingMap  = $soAwal  ? $soAwal->items->pluck('physical_qty', 'ingredient_id')->map(fn($v) => (float)$v)->all()  : [];
+        // Qty SO Akhir & Awal per ingredient
+        $closingMap     = $soAkhir ? $soAkhir->items->groupBy('ingredient_id')->map(fn($g) => (float)$g->sum('physical_qty'))->all() : [];
+        $openingMap     = $soAwal  ? $soAwal->items->groupBy('ingredient_id')->map(fn($g) => (float)$g->sum('physical_qty'))->all()  : [];
+        // Nilai SO Awal: gunakan price_per_base yg tersimpan di opname (harga periode lalu)
+        $openingValMap  = $soAwal  ? $soAwal->items->groupBy('ingredient_id')
+            ->map(fn($g) => $g->sum(fn($i) => (float)$i->physical_qty * (float)$i->price_per_base))->all()  : [];
+        // closingValMap dihitung setelah batchPrice tersedia (pakai harga FIFO terkini)
 
-        // Pembelian MASUK ke toko ini — diakui pada tanggal terima (delivery_date),
-        // fallback ke transaction_date jika belum diisi.
+        // Nilai pembelian MASUK (cost_subtotal dari mutation items)
+        $purchaseValMap = MutationItem::whereHas('mutation', fn($q) =>
+                $q->where('destination_store_id', $storeId)
+                  ->where('status', 'confirmed')
+                  ->whereBetween(\DB::raw('COALESCE(delivery_date, transaction_date)'), [$monthStart, $dateTo])
+                  ->whereIn('type', ['purchase_zhisheng', 'purchase_supplier', 'sale_internal', 'sale_external'])
+            )
+            ->whereIn('ingredient_id', $rawIngIds)
+            ->get(['ingredient_id', 'cost_subtotal'])
+            ->groupBy('ingredient_id')
+            ->map(fn($g) => (float)$g->sum('cost_subtotal'));
+
+        // Nilai penjualan KELUAR dari toko ini ke toko lain (cost_subtotal)
+        $salesOutValMap = MutationItem::whereHas('mutation', fn($q) =>
+                $q->where('source_store_id', $storeId)
+                  ->where('status', 'confirmed')
+                  ->whereBetween(\DB::raw('COALESCE(delivery_date, transaction_date)'), [$monthStart, $dateTo])
+                  ->where('type', 'sale_internal')
+            )
+            ->whereIn('ingredient_id', $rawIngIds)
+            ->get(['ingredient_id', 'cost_subtotal'])
+            ->groupBy('ingredient_id')
+            ->map(fn($g) => (float)$g->sum('cost_subtotal'));
+
+        // Tetap simpan purchaseMap & salesOutMap qty untuk actualBase (qty pemakaian)
         $purchaseMap = MutationItem::whereHas('mutation', fn($q) =>
                 $q->where('destination_store_id', $storeId)
                   ->where('status', 'confirmed')
@@ -187,8 +262,6 @@ class HppController extends Controller
             ->groupBy('ingredient_id')
             ->map(fn($g) => $g->sum('total_in_base'));
 
-        // Pembelian Internal KELUAR dari toko ini (dijual ke toko lain) — BUKAN pemakaian,
-        // harus dikeluarkan dari hitungan pemakaian aktual toko pengirim.
         $salesOutMap = MutationItem::whereHas('mutation', fn($q) =>
                 $q->where('source_store_id', $storeId)
                   ->where('status', 'confirmed')
@@ -200,18 +273,30 @@ class HppController extends Controller
             ->groupBy('ingredient_id')
             ->map(fn($g) => $g->sum('total_in_base'));
 
+        // Kalau tidak ada menu terjual, bangun idealAgg dari semua bahan SO Akhir
+        if (empty($idealAgg) && $soAkhir) {
+            foreach ($soAkhir->items as $item) {
+                $ingId = $item->ingredient_id;
+                if (!isset($idealAgg[$ingId])) {
+                    $idealAgg[$ingId] = ['ingredient' => $item->ingredient, 'usage_base' => 0.0, 'hpp' => 0.0, 'price' => 0];
+                }
+            }
+        }
+
         $packagingMap = IngredientPackaging::where('is_active', true)
             ->whereIn('ingredient_id', array_keys($idealAgg) ?: [0])
             ->orderBy('id')->get()
             ->groupBy('ingredient_id')->map(fn($g) => $g->first());
 
         $ingredientRows = collect($idealAgg)->map(function ($agg, $ingId) use (
-            $batchPrice, $closingMap, $openingMap, $purchaseMap, $salesOutMap, $packagingMap, $soAkhir
+            $batchPrice, $closingMap, $openingMap, $purchaseMap, $salesOutMap,
+            $closingValMap, $openingValMap, $purchaseValMap, $salesOutValMap,
+            $packagingMap, $soAkhir
         ) {
             $pkg      = $packagingMap[$ingId] ?? null;
             $dusSize  = ($pkg && $pkg->crate_to_pack && $pkg->pack_to_base)
                         ? (int)$pkg->crate_to_pack * (int)$pkg->pack_to_base : null;
-            $avgPrice = (float)($batchPrice[$ingId] ?? 0); // harga beli terakhir dari Zhisheng
+            $avgPrice  = (float)($batchPrice[$ingId] ?? 0);
             $idealBase = (float)$agg['usage_base'];
             $hppIdeal  = (float)$agg['hpp'];
             $hasActual  = $soAkhir && array_key_exists($ingId, $closingMap);
@@ -222,10 +307,14 @@ class HppController extends Controller
                 $purchaseQty = (float)($purchaseMap[$ingId] ?? 0);
                 $salesOutQty = (float)($salesOutMap[$ingId] ?? 0);
                 $closingQty  = $closingMap[$ingId];
-                // Pemakaian aktual = (stok awal + beli masuk) − dijual ke toko lain − stok akhir.
-                // Waste TIDAK dikurangi di sini (sengaja dihitung sebagai biaya).
                 $actualBase  = max(0, $openingQty + $purchaseQty - $salesOutQty - $closingQty);
-                $hppAktual   = $actualBase * $avgPrice;
+
+                // HPP Aktual = Nilai SO Awal + Nilai Pembelian Masuk − Nilai Jual Keluar − Nilai SO Akhir
+                $openingVal  = $openingValMap[$ingId]  ?? 0;
+                $purchaseVal = $purchaseValMap[$ingId] ?? 0;
+                $salesOutVal = $salesOutValMap[$ingId] ?? 0;
+                $closingVal  = $closingValMap[$ingId]  ?? 0;
+                $hppAktual   = max(0, $openingVal + $purchaseVal - $salesOutVal - $closingVal);
             }
 
             return (object)[
@@ -239,9 +328,9 @@ class HppController extends Controller
                 'actual_base'  => $actualBase,
                 'actual_dus'   => ($dusSize && $hasActual) ? $actualBase / $dusSize : null,
                 'hpp_aktual'   => $hppAktual,
-                'selisih_base' => $hasActual ? $actualBase - $idealBase : null,
-                'selisih_dus'  => ($dusSize && $hasActual) ? ($actualBase - $idealBase) / $dusSize : null,
-                'selisih_hpp'  => $hasActual ? $hppAktual - $hppIdeal : null,
+                'selisih_base' => $hasActual ? $idealBase - $actualBase : null,
+                'selisih_dus'  => ($dusSize && $hasActual) ? ($idealBase - $actualBase) / $dusSize : null,
+                'selisih_hpp'  => $hasActual ? $hppIdeal - $hppAktual : null,
             ];
         })->sortByDesc('hpp_ideal')->values();
 
@@ -258,7 +347,7 @@ class HppController extends Controller
             'pct_hpp_aktual'=> ($hasAktualAny && $omset > 0) ? ($totalHppAktual / $omset * 100) : null,
             'margin_ideal'  => $omset > 0 ? (1 - $totalHppIdeal / $omset) * 100 : null,
             'margin_aktual' => ($hasAktualAny && $omset > 0) ? (1 - $totalHppAktual / $omset) * 100 : null,
-            'selisih_hpp'   => $hasAktualAny ? $totalHppAktual - $totalHppIdeal : null,
+            'selisih_hpp'   => $hasAktualAny ? $totalHppIdeal - $totalHppAktual : null,
             'has_opname'    => $soAkhir !== null,
         ];
 

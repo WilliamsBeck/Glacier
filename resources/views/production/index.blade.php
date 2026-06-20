@@ -59,7 +59,7 @@
                 </td>
             </tr>
             @empty
-            <tr><td colspan="7" class="py-4 text-soft"><i class="bi bi-gear fs-2 d-block mb-2 opacity-25"></i>Belum ada data produksi</td></tr>
+            <tr><td colspan="7" class="py-5 text-center text-soft"><i class="bi bi-gear fs-2 d-block mb-2 opacity-25"></i>Belum ada data produksi</td></tr>
             @endforelse
         </tbody>
     </table>

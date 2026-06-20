@@ -117,6 +117,8 @@ Route::middleware(['auth'])->group(function () {
         Route::post('opnames/{opname}/approve', [OpnameController::class, 'approve'])->name('opnames.approve');
         Route::post('opnames/{opname}/recalculate', [OpnameController::class, 'recalculate'])->name('opnames.recalculate');
         Route::get('opnames/{opname}/export', [OpnameController::class, 'export'])->name('opnames.export');
+        Route::post('opnames/{opname}/add-batch', [OpnameController::class, 'addBatch'])->name('opnames.add-batch');
+        Route::delete('opnames/{opname}/items/{item}', [OpnameController::class, 'destroyItem'])->name('opnames.items.destroy');
     });
 
     // PENJUALAN & HPP
@@ -125,7 +127,8 @@ Route::middleware(['auth'])->group(function () {
         Route::get('monthly-export',           [MonthlySaleController::class, 'export'])->name('monthly.export');
         Route::get('monthly-template/download',[MonthlySaleController::class, 'downloadTemplate'])->name('monthly.template');
         Route::get('monthly-import',           [MonthlySaleController::class, 'importForm'])->name('monthly.import.form');
-        Route::post('monthly-import',          [MonthlySaleController::class, 'import'])->name('monthly.import');
+        Route::post('monthly-import/preview',  [MonthlySaleController::class, 'import'])->name('monthly.import');
+        Route::post('monthly-import/commit',   [MonthlySaleController::class, 'importCommit'])->name('monthly.import.commit');
         // Group-level (per store+periode)
         Route::get('period/show',    [MonthlySaleController::class, 'periodShow'])->name('period.show');
         Route::get('period/edit',    [MonthlySaleController::class, 'periodEdit'])->name('period.edit');

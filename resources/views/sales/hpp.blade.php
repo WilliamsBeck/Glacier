@@ -77,7 +77,7 @@
 @else
 
 {{-- Summary Cards --}}
-@if($summary && ($summary->omset > 0 || $summary->hpp_ideal > 0))
+@if($summary && ($summary->omset > 0 || $summary->hpp_ideal > 0 || $summary->hpp_aktual > 0))
 <div class="row g-3 mb-3">
     <div class="col-md-3">
         <div class="card border-0 h-100" style="background:#2563eb;">
@@ -120,12 +120,12 @@
     </div>
     <div class="col-md-3">
         @if($summary->selisih_hpp !== null)
-            @php $bg = $summary->selisih_hpp > 0 ? '#dc2626' : '#16a34a'; @endphp
+            @php $bg = $summary->selisih_hpp < 0 ? '#dc2626' : '#16a34a'; @endphp
             <div class="card border-0 h-100" style="background:{{ $bg }};">
                 <div class="card-body">
-                    <div class="mb-1" style="color:rgba(255,255,255,.7);font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">Selisih HPP (Aktual − Ideal)</div>
+                    <div class="mb-1" style="color:rgba(255,255,255,.7);font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">Selisih HPP (Ideal − Aktual)</div>
                     <div class="fs-5 fw-bold" style="color:#fff;">{{ $summary->selisih_hpp >= 0 ? '+' : '' }}{{ $rp($summary->selisih_hpp) }}</div>
-                    <div class="mt-1" style="color:rgba(255,255,255,.85);font-size:.8rem;">{{ $summary->selisih_hpp > 0 ? 'Boros' : ($summary->selisih_hpp < 0 ? 'Efisien' : 'Sesuai') }}</div>
+                    <div class="mt-1" style="color:rgba(255,255,255,.85);font-size:.8rem;">{{ $summary->selisih_hpp < 0 ? 'Boros' : ($summary->selisih_hpp > 0 ? 'Efisien' : 'Sesuai') }}</div>
                 </div>
             </div>
         @else
@@ -154,12 +154,12 @@
 {{-- Tabs --}}
 <ul class="nav nav-tabs mb-0" id="hppTab">
     <li class="nav-item">
-        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-menu">
+        <button class="nav-link {{ $menuRows->isEmpty() ? '' : 'active' }}" data-bs-toggle="tab" data-bs-target="#tab-menu">
             <i class="bi bi-cart3 me-1"></i>Per Menu
         </button>
     </li>
     <li class="nav-item">
-        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-ingredient">
+        <button class="nav-link {{ $menuRows->isEmpty() ? 'active' : '' }}" data-bs-toggle="tab" data-bs-target="#tab-ingredient">
             <i class="bi bi-boxes me-1"></i>Per Bahan
         </button>
     </li>
@@ -167,7 +167,7 @@
 
 <div class="tab-content">
     {{-- Tab: Per Menu --}}
-    <div class="tab-pane fade show active" id="tab-menu">
+    <div class="tab-pane fade {{ $menuRows->isEmpty() ? '' : 'show active' }}" id="tab-menu">
         <div class="card rounded-top-0">
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -288,7 +288,7 @@
     </div>
 
     {{-- Tab: Per Bahan — 1 tabel: bahan raw, ideal & aktual dalam Dus + Rp --}}
-    <div class="tab-pane fade" id="tab-ingredient">
+    <div class="tab-pane fade {{ $menuRows->isEmpty() ? 'show active' : '' }}" id="tab-ingredient">
         <div class="card rounded-top-0">
             @if($ingredientRows->isEmpty())
                 <div class="card-body text-center py-5 text-muted">
@@ -314,7 +314,7 @@
                             @foreach($ingredientRows as $r)
                             @php
                                 $selClass = $r->selisih_hpp === null ? ''
-                                    : ($r->selisih_hpp > 0 ? 'text-danger' : ($r->selisih_hpp < 0 ? 'text-success' : 'text-muted'));
+                                    : ($r->selisih_hpp < 0 ? 'text-danger' : ($r->selisih_hpp > 0 ? 'text-success' : 'text-muted'));
                                 $fmtDus = fn($v) => $v !== null ? number_format($v, 2, ',', '.') : '—';
                             @endphp
                             <tr>
@@ -398,7 +398,7 @@
                                 <td class="text-end">
                                     @php $totSelisih = $ingredientRows->whereNotNull('selisih_hpp')->sum('selisih_hpp'); @endphp
                                     @if($ingredientRows->whereNotNull('selisih_hpp')->isNotEmpty())
-                                        <span class="{{ $totSelisih > 0 ? 'text-danger' : ($totSelisih < 0 ? 'text-success' : '') }}">
+                                        <span class="{{ $totSelisih < 0 ? 'text-danger' : ($totSelisih > 0 ? 'text-success' : '') }}">
                                             {{ $totSelisih >= 0 ? '+' : '' }}{{ $rp($totSelisih) }}
                                         </span>
                                     @else —

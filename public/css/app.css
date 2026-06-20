@@ -107,10 +107,17 @@ code, .font-monospace { font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospa
     z-index: 1000;
     transition: width .2s ease;
 }
-.sidebar.collapsed { width: var(--sidebar-collapsed); }
+.sidebar.collapsed { width: var(--sidebar-collapsed); overflow: hidden; }
 .sidebar.collapsed .brand-text,
 .sidebar.collapsed .sidebar-link span,
 .sidebar.collapsed .sidebar-section { display: none; }
+.sidebar.collapsed .sidebar-link .bi-chevron-down { display: none; }
+.sidebar.collapsed .sidebar-link {
+    justify-content: center;
+    padding: 9px 0;
+}
+.sidebar.collapsed .sidebar-brand { justify-content: center; padding: 20px 0; }
+.sidebar.collapsed .sidebar-menu { padding: 10px 6px 24px; }
 
 /* Scrollbar in sidebar */
 .sidebar::-webkit-scrollbar { width: 6px; }

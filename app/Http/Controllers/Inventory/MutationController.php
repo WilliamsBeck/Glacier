@@ -126,6 +126,12 @@ class MutationController extends Controller
             'delivery_date.after_or_equal'  => 'Tanggal penerimaan tidak boleh lebih awal dari tanggal pengiriman.',
         ]);
 
+        // Validasi: toko pengirim dan penerima tidak boleh sama
+        if ($request->source_store_id && $request->destination_store_id
+            && $request->source_store_id == $request->destination_store_id) {
+            return back()->withInput()->withErrors(['destination_store_id' => 'Toko pengirim dan toko penerima tidak boleh sama.']);
+        }
+
         // Validasi: qty tidak boleh melebihi stok toko pengirim
         $needsStockCheck = in_array($request->type, ['sale_internal']);
         if ($needsStockCheck && $request->source_store_id) {
@@ -219,9 +225,23 @@ class MutationController extends Controller
             ->with('success', 'Mutasi disimpan sebagai draft. Konfirmasi setelah barang diterima untuk update stok.');
     }
 
+    private function blockIfOpnameExistsAfter(Mutation $mutation): void
+    {
+        // Periode mutasi tertutup oleh opname approved? Pakai mekanisme lock yang sama
+        // dengan store()/confirm() (berbasis periode, mode-agnostic) agar konsisten.
+        $date = ($mutation->delivery_date ?? $mutation->transaction_date)->toDateString();
+        foreach (array_filter([$mutation->destination_store_id, $mutation->source_store_id]) as $sid) {
+            if (\App\Models\Opname::isDateLocked((int)$sid, $date)) {
+                abort(403, \App\Models\Opname::lockMessageFor((int)$sid));
+            }
+        }
+    }
+
     public function edit(Mutation $mutation)
     {
         abort_if($mutation->status !== 'draft', 403, 'Hanya mutasi draft yang bisa diedit.');
+        abort_if($mutation->type === 'opening_stock', 403, 'Input stok awal tidak bisa diedit.');
+        $this->blockIfOpnameExistsAfter($mutation);
 
         $mutation->load(['items.ingredient', 'items.packaging']);
         $stores    = auth()->user()->accessibleStores();
@@ -233,6 +253,8 @@ class MutationController extends Controller
     public function update(Request $request, Mutation $mutation)
     {
         abort_if($mutation->status !== 'draft', 403, 'Hanya mutasi draft yang bisa diedit.');
+        abort_if($mutation->type === 'opening_stock', 403, 'Input stok awal tidak bisa diedit.');
+        $this->blockIfOpnameExistsAfter($mutation);
 
         $isConfirm      = $request->action === 'confirm';
         $needsDelivery  = $isConfirm && $mutation->type !== 'opening_stock';
@@ -454,27 +476,24 @@ class MutationController extends Controller
         $packagingId = $request->packaging_id;
         $type        = $request->type; // mis. 'purchase_zhisheng'
 
-        $q = MutationItem::query()
+        $base = fn() => MutationItem::query()
             ->join('mutations', 'mutations.id', '=', 'mutation_items.mutation_id')
             ->where('mutations.status', 'confirmed')
             ->where('mutation_items.ingredient_id', $ingredient->id)
-            ->where('mutation_items.price_per_base', '>', 0);
+            ->where('mutation_items.price_per_base', '>', 0)
+            ->when($packagingId, fn($q) => $q->where('mutation_items.packaging_id', $packagingId))
+            ->orderByRaw('COALESCE(mutations.delivery_date, mutations.transaction_date) DESC')
+            ->orderByDesc('mutation_items.id');
 
-        if ($type) {
-            $q->where('mutations.type', $type);
-        } else {
-            $q->whereIn('mutations.type', ['purchase_zhisheng', 'purchase_supplier']);
+        // 1) Prioritas: pembelian dengan tipe yang sama
+        $types = $type ? [$type] : ['purchase_zhisheng', 'purchase_supplier'];
+        $priceBase = (float) ($base()->whereIn('mutations.type', $types)->value('mutation_items.price_per_base') ?? 0);
+
+        // 2) Fallback: harga terakhir dari sumber manapun (mis. opening_stock dari opname)
+        //    agar tetap ada referensi walau belum pernah ada pembelian tipe ini.
+        if ($priceBase <= 0) {
+            $priceBase = (float) ($base()->value('mutation_items.price_per_base') ?? 0);
         }
-        if ($packagingId) {
-            $q->where('mutation_items.packaging_id', $packagingId);
-        }
-
-        $last = $q->orderByRaw('COALESCE(mutations.delivery_date, mutations.transaction_date) DESC')
-            ->orderByDesc('mutation_items.id')
-            ->select('mutation_items.price_per_base')
-            ->first();
-
-        $priceBase = (float) ($last->price_per_base ?? 0);
         // price_per_dus jika packaging diberikan
         $priceDus = 0;
         if ($packagingId && $priceBase > 0) {

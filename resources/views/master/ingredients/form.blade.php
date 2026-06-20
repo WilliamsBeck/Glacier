@@ -160,16 +160,16 @@
                                                 <div class="col-md-4">
                                                     <label class="form-label" style="font-size: 0.8rem;">Isi per Pack (<span
                                                             class="unit-label">{{ ucfirst($ingredient->unit_base) }}</span>)</label>
-                                                    <input type="number" name="existing_packagings[{{ $pack->id }}][pack_to_base]"
+                                                    <input type="text" name="existing_packagings[{{ $pack->id }}][pack_to_base]"
                                                         class="form-control form-control-sm pack-input"
-                                                        value="{{ (int) $pack->pack_to_base }}" step="1" min="1" required>
+                                                        value="{{ $pack->pack_to_base + 0 }}" required>
                                                 </div>
                                                 <div class="col-md-4">
                                                     <label class="form-label" style="font-size: 0.8rem;">Total Isi per
                                                         Dus</label>
                                                     <input type="text"
                                                         class="form-control form-control-sm bg-light text-muted fw-bold total-display"
-                                                        value="{{ number_format((int) ($pack->crate_to_pack * $pack->pack_to_base), 0, ',', '.') }} {{ ucfirst($ingredient->unit_base) }}"
+                                                        value="{{ number_format($pack->crate_to_pack * $pack->pack_to_base, 2, ',', '.') }} {{ ucfirst($ingredient->unit_base) }}"
                                                         readonly>
                                                 </div>
                                             </div>
@@ -214,8 +214,8 @@
                                             <div class="col-md-4">
                                                 <label class="form-label" style="font-size: 0.8rem;">Isi per Pack (<span
                                                         class="unit-label">satuan</span>)</label>
-                                                <input type="number" name="packagings[0][pack_to_base]"
-                                                    class="form-control form-control-sm pack-input" step="1" min="1"
+                                                <input type="text" name="packagings[0][pack_to_base]"
+                                                    class="form-control form-control-sm pack-input"
                                                     placeholder="Contoh: 500">
                                             </div>
                                             <div class="col-md-4">
@@ -262,7 +262,7 @@
                                                 </div>
                                             </div>
                                             <button type="button" class="btn btn-sm btn-light text-danger border fw-medium px-3"
-                                                onclick="if(confirm('Hapus komposisi ini?')) { document.getElementById('delComp{{ $comp->id }}').click() }">
+                                                onclick="uiConfirm('Hapus komposisi ini?', {type:'error', danger:true, confirmText:'Ya, hapus'}).then(ok => { if(ok) document.getElementById('delComp{{ $comp->id }}').click() })">
                                                 <i class="bi bi-trash"></i> Hapus
                                             </button>
                                             <input type="checkbox" name="delete_compositions[]" value="{{ $comp->id }}"
@@ -384,7 +384,7 @@
                 <div class="col-md-4">
                     <label class="form-label" style="font-size: 0.8rem;">Isi per Pack (<span
                             class="unit-label">satuan</span>)</label>
-                    <input type="number" name="" class="form-control form-control-sm pack-input" step="1" min="1"
+                    <input type="text" name="" class="form-control form-control-sm pack-input"
                         placeholder="Contoh: 500">
                 </div>
                 <div class="col-md-4">
@@ -397,153 +397,153 @@
     </template>
 
     <script>
-        // ── Hapus kemasan via AJAX (hindari nested form) ─────────── [cite: 230]
-        function deletePackaging(packId, btn) {
-            if (!confirm('Hapus kemasan ini?')) return;[cite: 230]
-            const row = btn.closest('.border rounded p-3 mb-3');
-            row.style.opacity = '0.5';[cite: 230]
-            btn.disabled = true;[cite: 230]
+        // ── Hapus kemasan via AJAX (hindari nested form) ─────────── 
+        async function deletePackaging(packId, btn) {
+            if (!(await uiConfirm('Hapus kemasan ini?', { type: 'error', danger: true, confirmText: 'Ya, hapus' }))) return;
+            const row = document.getElementById('pkgRow-' + packId);
+            row.style.opacity = '0.5';
+            btn.disabled = true;
             fetch('{{ url("master/packagings") }}/' + packId, {
-                [cite: 231]
+                
                 method: 'POST',
                 headers: {
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}', [cite: 231]
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}', 
                     'Content-Type': 'application/x-www-form-urlencoded',
                 },
                 body: '_method=DELETE'
             })
                 .then(function (r) {
                     if (r.ok || r.redirected) {
-                        [cite: 231]
-                        row.remove();[cite: 232]
+                        
+                        row.remove();
                     } else {
                         row.style.opacity = '';
                         btn.disabled = false;
-                        alert('Gagal menghapus kemasan.');[cite: 232]
+                        alert('Gagal menghapus kemasan.');
                     }
                 })
                 .catch(function () {
-                    row.style.opacity = '';[cite: 232]
+                    row.style.opacity = '';
                     btn.disabled = false;
-                    alert('Gagal menghapus kemasan.');[cite: 232, 233]
+                    alert('Gagal menghapus kemasan.');
                 });
         }
 
-        // ── Toggle aktif/nonaktif kemasan via AJAX ─────────────────── [cite: 233]
+        // ── Toggle aktif/nonaktif kemasan via AJAX ─────────────────── 
         document.addEventListener('change', function (e) {
-            const toggle = e.target.closest('.pkg-toggle-active');[cite: 233]
+            const toggle = e.target.closest('.pkg-toggle-active');
             if (!toggle) return;
 
-            const packId = toggle.dataset.packagingId;[cite: 233]
+            const packId = toggle.dataset.packagingId;
             const row = document.getElementById('pkgRow-' + packId);
-            const badge = document.getElementById('pkgStatusBadge-' + packId);[cite: 233]
-            toggle.disabled = true;[cite: 233]
+            const badge = document.getElementById('pkgStatusBadge-' + packId);
+            toggle.disabled = true;
 
             fetch('{{ url("master/packagings") }}/' + packId + '/toggle-active', {
-                method: 'POST', [cite: 233]
+                method: 'POST', 
                 headers: {
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}', [cite: 234]
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}', 
                     'Accept': 'application/json',
                 },
             })
-                .then(function (r) { return r.ok ? r.json() : Promise.reject(r); })[cite: 234]
+                .then(function (r) { return r.ok ? r.json() : Promise.reject(r); })
             .then(function (res) {
                     toggle.disabled = false;
-                    toggle.checked = res.is_active;[cite: 234]
+                    toggle.checked = res.is_active;
                     if (badge) {
-                        badge.textContent = res.is_active ? 'Aktif' : 'Nonaktif';[cite: 234, 235]
+                        badge.textContent = res.is_active ? 'Aktif' : 'Nonaktif';
                         badge.className = 'badge pkg-status-badge ' +
-                            (res.is_active ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary');[cite: 235, 236]
+                            (res.is_active ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary');
                         badge.style.fontSize = '0.7rem';
                     }
                     if (row) {
-                        row.style.background = res.is_active ? '#ffffff' : '#f8fafc';[cite: 236, 237]
-                        row.classList.toggle('opacity-75', !res.is_active);[cite: 237]
+                        row.style.background = res.is_active ? '#ffffff' : '#f8fafc';
+                        row.classList.toggle('opacity-75', !res.is_active);
                     }
                 })
                 .catch(function () {
-                    toggle.disabled = false;[cite: 237]
+                    toggle.disabled = false;
                     toggle.checked = !toggle.checked; // revert
                     alert('Gagal mengubah status kemasan.');
-                });[cite: 237]
-        });[cite: 238]
+                });
+        });
 
-        // ── Komposisi ────────────────────────────────────────────── [cite: 238]
-        let compIdx = 1;[cite: 238]
+        // ── Komposisi ────────────────────────────────────────────── 
+        let compIdx = 1;
 
         function updateCompUnitLabel(row) {
-            const sel = row.querySelector('.child-select');[cite: 238]
-            const lbl = row.querySelector('.unit-label-comp');[cite: 239]
-            if (!sel || !lbl) return;[cite: 239]
-            const opt = sel.options[sel.selectedIndex];[cite: 239]
-            const unit = opt?.dataset?.unit || 'satuan';[cite: 239, 240]
-            lbl.textContent = unit;[cite: 240]
-            recalcPerUnit(row);[cite: 240]
+            const sel = row.querySelector('.child-select');
+            const lbl = row.querySelector('.unit-label-comp');
+            if (!sel || !lbl) return;
+            const opt = sel.options[sel.selectedIndex];
+            const unit = opt?.dataset?.unit || 'satuan';
+            lbl.textContent = unit;
+            recalcPerUnit(row);
         }
 
         function recalcPerUnit(row) {
-            const disp = row.querySelector('.per-unit-display');[cite: 240]
-            if (!disp) return;[cite: 241]
-            const totalOutput = NumberFmt.parse(document.getElementById('totalOutput')?.value || '0');[cite: 241]
-            const qtyUsed = NumberFmt.parse(row.querySelector('.qty-used-input')?.value || '0');[cite: 241]
-            const sel = row.querySelector('.child-select');[cite: 242]
-            const opt = sel?.options[sel.selectedIndex];[cite: 243]
-            const unit = opt?.dataset?.unit || '';[cite: 244]
+            const disp = row.querySelector('.per-unit-display');
+            if (!disp) return;
+            const totalOutput = NumberFmt.parse(document.getElementById('totalOutput')?.value || '0');
+            const qtyUsed = NumberFmt.parse(row.querySelector('.qty-used-input')?.value || '0');
+            const sel = row.querySelector('.child-select');
+            const opt = sel?.options[sel.selectedIndex];
+            const unit = opt?.dataset?.unit || '';
             if (totalOutput > 0 && qtyUsed > 0) {
-                [cite: 245]
-                const perUnit = qtyUsed / totalOutput;[cite: 245]
-                disp.value = parseFloat(perUnit.toFixed(6)) + (unit ? ' ' + unit : '');[cite: 246]
+                
+                const perUnit = qtyUsed / totalOutput;
+                disp.value = parseFloat(perUnit.toFixed(6)) + (unit ? ' ' + unit : '');
             } else {
-                [cite: 247]
-                disp.value = '';[cite: 247]
-            } [cite: 248]
+                
+                disp.value = '';
+            } 
         }
 
         function recalcAllComps() {
             document.querySelectorAll('.composition-row').forEach(row => {
                 updateCompUnitLabel(row);
                 recalcPerUnit(row);
-            });[cite: 248]
-        } [cite: 249]
+            });
+        } 
 
         function updateCompRemoveButtons() {
-            const rows = document.querySelectorAll('#compositionRows .composition-row');[cite: 249]
+            const rows = document.querySelectorAll('#compositionRows .composition-row');
             rows.forEach(function (r) {
-                [cite: 250]
-                const btn = r.querySelector('.remove-comp-row');[cite: 250]
-                if (btn) btn.style.display = rows.length > 1 ? '' : 'none';[cite: 250]
-            });[cite: 250]
-        } [cite: 251]
+                
+                const btn = r.querySelector('.remove-comp-row');
+                if (btn) btn.style.display = rows.length > 1 ? '' : 'none';
+            });
+        } 
 
         function attachCompRowEvents(row, idx) {
-            const sel = row.querySelector('.child-select');[cite: 251]
-            const qty = row.querySelector('.qty-used-input');[cite: 251]
+            const sel = row.querySelector('.child-select');
+            const qty = row.querySelector('.qty-used-input');
             if (sel) {
-                [cite: 252]
-                sel.name = `compositions[${idx}][child_id]`;[cite: 252]
-                sel.addEventListener('change', () => updateCompUnitLabel(row));[cite: 252]
-            } [cite: 253]
+                
+                sel.name = `compositions[${idx}][child_id]`;
+                sel.addEventListener('change', () => updateCompUnitLabel(row));
+            } 
             if (qty) {
-                [cite: 253]
-                qty.name = `compositions[${idx}][qty_used]`;[cite: 253]
-                qty.addEventListener('input', () => recalcPerUnit(row));[cite: 254]
+                
+                qty.name = `compositions[${idx}][qty_used]`;
+                qty.addEventListener('input', () => recalcPerUnit(row));
             }
-            const removeBtn = row.querySelector('.remove-comp-row');[cite: 254]
+            const removeBtn = row.querySelector('.remove-comp-row');
             if (removeBtn) {
-                [cite: 255]
+                
                 removeBtn.addEventListener('click', () => {
-                    [cite: 255]
-                    row.remove();[cite: 255]
-                    updateCompRemoveButtons();[cite: 255]
-                });[cite: 255]
-            } [cite: 256]
+                    
+                    row.remove();
+                    updateCompRemoveButtons();
+                });
+            } 
         }
 
-        const rawIngredients = @json($rawIngredients);[cite: 256]
+        const rawIngredients = @json($rawIngredients);
 
         function buildCompRowHTML(idx) {
-            let opts = '<option value="">— Pilih Bahan —</option>';[cite: 256]
-            rawIngredients.forEach(r => { opts += `<option value="${r.id}" data-unit="${r.unit_base}">${r.name}</option>`; });[cite: 257]
+            let opts = '<option value="">— Pilih Bahan —</option>';
+            rawIngredients.forEach(r => { opts += `<option value="${r.id}" data-unit="${r.unit_base}">${r.name}</option>`; });
             return `<div class="composition-row row g-2 mb-3 align-items-center">
                 <div class="col-5">
                     <select name="compositions[${idx}][child_id]" class="form-select form-select-sm child-select">${opts}</select>
@@ -563,80 +563,79 @@
             </div>`;
         }
 
-        // ── Packaging ────────────────────────────────────────────── [cite: 259]
-        let packIdx = 1;[cite: 259]
+        // ── Packaging ────────────────────────────────────────────── 
+        let packIdx = 1;
         function getUnit() {
-            [cite: 260]
-            return document.getElementById('unitBase').value || 'satuan';[cite: 260]
+            
+            return document.getElementById('unitBase').value || 'satuan';
         }
 
         function getUnitLabel() {
-            const v = document.getElementById('unitBase').value;[cite: 260]
-            if (v === 'gram') return 'Gram';[cite: 261]
-            if (v === 'pcs') return 'Pcs';[cite: 261]
-            return 'Satuan';[cite: 261]
-        } [cite: 262]
+            const v = document.getElementById('unitBase').value;
+            if (v === 'gram') return 'Gram';
+            if (v === 'pcs') return 'Pcs';
+            return 'Satuan';
+        } 
 
         function updateUnitLabels() {
-            const unit = getUnit();[cite: 262]
-            const label = getUnitLabel();[cite: 262]
-            document.querySelectorAll('.unit-label').forEach(el => el.textContent = label);[cite: 262]
-            const header = document.getElementById('headerUnitLabel');[cite: 263]
-            if (header) header.textContent = label;[cite: 263]
-            recalcAll();[cite: 263]
-        } [cite: 264]
+            const unit = getUnit();
+            const label = getUnitLabel();
+            document.querySelectorAll('.unit-label').forEach(el => el.textContent = label);
+            const header = document.getElementById('headerUnitLabel');
+            if (header) header.textContent = label;
+            recalcAll();
+        } 
 
         function recalcRow(row) {
-            const crate = parseFloat(row.querySelector('.crate-input').value) || 0;[cite: 264]
-            const pack = parseFloat(row.querySelector('.pack-input').value) || 0;[cite: 264]
-            const total = crate * pack;[cite: 265]
-            const label = getUnitLabel();[cite: 265]
-            const disp = row.querySelector('.total-display');[cite: 265]
+            const crate = parseFloat(row.querySelector('.crate-input').value) || 0;
+            const pack = parseFloat((row.querySelector('.pack-input').value || '').replace(',', '.')) || 0;
+            const total = crate * pack;
+            const label = getUnitLabel();
+            const disp = row.querySelector('.total-display');
             if (total > 0) {
-                [cite: 266]
-                disp.value = NumberFmt.format(total) + ' ' + label;[cite: 266]
+                disp.value = total.toLocaleString('id-ID', { maximumFractionDigits: 4 }) + ' ' + label;
             } else {
-                [cite: 267]
-                disp.value = '';[cite: 267]
-            } [cite: 268]
+                
+                disp.value = '';
+            } 
         }
 
         function recalcAll() {
-            document.querySelectorAll('.packaging-row, .border rounded p-3 mb-3').forEach(recalcRow);
+            document.querySelectorAll('.packaging-row').forEach(recalcRow);
         }
 
         function attachRowEvents(row, idx) {
-            row.querySelector('.packaging-name-input').name = `packagings[${idx}][packaging_name]`;[cite: 268]
-            row.querySelector('.packaging-supplier-input').name = `packagings[${idx}][supplier_id]`;[cite: 269]
-            row.querySelector('.crate-input').name = `packagings[${idx}][crate_to_pack]`;[cite: 269]
-            row.querySelector('.pack-input').name = `packagings[${idx}][pack_to_base]`;[cite: 270]
-            row.querySelector('.crate-input').addEventListener('input', () => recalcRow(row));[cite: 271]
-            row.querySelector('.pack-input').addEventListener('input', () => recalcRow(row));[cite: 271]
+            row.querySelector('.packaging-name-input').name = `packagings[${idx}][packaging_name]`;
+            row.querySelector('.packaging-supplier-input').name = `packagings[${idx}][supplier_id]`;
+            row.querySelector('.crate-input').name = `packagings[${idx}][crate_to_pack]`;
+            row.querySelector('.pack-input').name = `packagings[${idx}][pack_to_base]`;
+            row.querySelector('.crate-input').addEventListener('input', () => recalcRow(row));
+            row.querySelector('.pack-input').addEventListener('input', () => recalcRow(row));
 
-            const removeBtn = row.querySelector('.remove-row');[cite: 271]
+            const removeBtn = row.querySelector('.remove-row');
             if (removeBtn) {
-                [cite: 272]
-                removeBtn.style.display = '';[cite: 272]
+                
+                removeBtn.style.display = '';
                 removeBtn.addEventListener('click', function () {
-                    [cite: 273]
-                    row.remove();[cite: 273]
-                    updateRemoveButtons();[cite: 273]
-                });[cite: 273]
-            } [cite: 274]
+                    
+                    row.remove();
+                    updateRemoveButtons();
+                });
+            } 
         }
 
         function updateRemoveButtons() {
-            const rows = document.querySelectorAll('#packagingRows .packaging-row');[cite: 274]
+            const rows = document.querySelectorAll('#packagingRows .packaging-row');
             rows.forEach(function (r, i) {
-                [cite: 275]
-                const btn = r.querySelector('.remove-row');[cite: 275]
-                if (btn) btn.style.display = rows.length > 1 ? '' : 'none';[cite: 275]
-            });[cite: 275]
-        } [cite: 276]
+                
+                const btn = r.querySelector('.remove-row');
+                if (btn) btn.style.display = rows.length > 1 ? '' : 'none';
+            });
+        } 
 
         document.addEventListener('DOMContentLoaded', function () {
             // Existing packagings: attach recalc events
-            document.querySelectorAll('.border rounded p-3 mb-3').forEach(function (row) {
+            document.querySelectorAll('.packaging-row').forEach(function (row) {
                 row.querySelector('.crate-input')?.addEventListener('input', () => recalcRow(row));
                 row.querySelector('.pack-input')?.addEventListener('input', () => recalcRow(row));
             });
@@ -648,66 +647,66 @@
 
             // Toggle kemasan vs komposisi vs kategori berdasarkan tipe
             function toggleSections() {
-                const tipe = document.querySelector('[name="type"]').value;[cite: 277]
-                const isSemi = tipe === 'semi_finished';[cite: 277]
-                document.getElementById('sectionPackaging').style.display = isSemi ? 'none' : '';[cite: 277]
-                document.getElementById('sectionComposition').style.display = isSemi ? '' : 'none';[cite: 277, 278]
-                document.getElementById('wrapCategory').style.display = isSemi ? 'none' : '';[cite: 278]
-            } [cite: 279]
-            function onTypeChange() { toggleSections(); } [cite: 279]
-            document.querySelector('[name="type"]').addEventListener('change', toggleSections);[cite: 279]
-            toggleSections();[cite: 279]
+                const tipe = document.querySelector('[name="type"]').value;
+                const isSemi = tipe === 'semi_finished';
+                document.getElementById('sectionPackaging').style.display = isSemi ? 'none' : '';
+                document.getElementById('sectionComposition').style.display = isSemi ? '' : 'none';
+                document.getElementById('wrapCategory').style.display = isSemi ? 'none' : '';
+            } 
+            function onTypeChange() { toggleSections(); } 
+            document.querySelector('[name="type"]').addEventListener('change', toggleSections);
+            toggleSections();
             document.getElementById('unitBase').addEventListener('change', function () {
-                [cite: 280]
-                updateUnitLabels();[cite: 280]
-                const v = this.value;[cite: 280]
-                const lbl = v === 'gram' ? 'gram' : (v === 'pcs' ? 'pcs' : 'satuan');[cite: 280]
-                const hdr = document.getElementById('perUnitHeaderLabel');[cite: 280]
-                if (hdr) hdr.textContent = lbl;[cite: 280]
-            });[cite: 280]
+                
+                updateUnitLabels();
+                const v = this.value;
+                const lbl = v === 'gram' ? 'gram' : (v === 'pcs' ? 'pcs' : 'satuan');
+                const hdr = document.getElementById('perUnitHeaderLabel');
+                if (hdr) hdr.textContent = lbl;
+            });
 
             // total_output berubah → recalc semua per-unit
             document.getElementById('totalOutput')?.addEventListener('input', () => {
-                [cite: 281]
-                document.querySelectorAll('#compositionRows .composition-row').forEach(recalcPerUnit);[cite: 281]
-            });[cite: 281]
+                
+                document.querySelectorAll('#compositionRows .composition-row').forEach(recalcPerUnit);
+            });
 
             document.getElementById('addPackaging').addEventListener('click', function () {
-                [cite: 282]
-                const tmpl = document.getElementById('packagingTemplate');[cite: 282]
-                const container = document.getElementById('packagingRows');[cite: 282]
-                container.appendChild(tmpl.content.cloneNode(true));[cite: 282]
-                const allRows = container.querySelectorAll('.packaging-row');[cite: 282]
-                const row = allRows[allRows.length - 1];[cite: 282]
-                attachRowEvents(row, packIdx++);[cite: 282]
-                updateUnitLabels();[cite: 283]
-                updateRemoveButtons();[cite: 283]
-            });[cite: 283]
-            updateUnitLabels();[cite: 284]
+                
+                const tmpl = document.getElementById('packagingTemplate');
+                const container = document.getElementById('packagingRows');
+                container.appendChild(tmpl.content.cloneNode(true));
+                const allRows = container.querySelectorAll('.packaging-row');
+                const row = allRows[allRows.length - 1];
+                attachRowEvents(row, packIdx++);
+                updateUnitLabels();
+                updateRemoveButtons();
+            });
+            updateUnitLabels();
 
             // Komposisi: attach events ke row pertama
-            const firstCompRow = document.querySelector('.composition-row');[cite: 284]
+            const firstCompRow = document.querySelector('.composition-row');
             if (firstCompRow) {
-                [cite: 285]
-                attachCompRowEvents(firstCompRow, 0);[cite: 285]
-                updateCompUnitLabel(firstCompRow);[cite: 285]
-                updateCompRemoveButtons();[cite: 285]
-            } [cite: 286]
+                
+                attachCompRowEvents(firstCompRow, 0);
+                updateCompUnitLabel(firstCompRow);
+                updateCompRemoveButtons();
+            } 
 
-            const addCompBtn = document.getElementById('addComposition');[cite: 286]
+            const addCompBtn = document.getElementById('addComposition');
             if (addCompBtn) {
-                [cite: 286]
+                
                 addCompBtn.addEventListener('click', function () {
-                    [cite: 286]
-                    const container = document.getElementById('compositionRows');[cite: 286]
-                    const div = document.createElement('div');[cite: 286]
-                    div.innerHTML = buildCompRowHTML(compIdx);[cite: 286]
-                    const row = div.firstElementChild;[cite: 286]
-                    container.appendChild(row);[cite: 286]
-                    attachCompRowEvents(row, compIdx++);[cite: 287]
-                    updateCompRemoveButtons();[cite: 287]
-                });[cite: 287]
-            } [cite: 288]
+                    
+                    const container = document.getElementById('compositionRows');
+                    const div = document.createElement('div');
+                    div.innerHTML = buildCompRowHTML(compIdx);
+                    const row = div.firstElementChild;
+                    container.appendChild(row);
+                    attachCompRowEvents(row, compIdx++);
+                    updateCompRemoveButtons();
+                });
+            } 
         });
     </script>
 

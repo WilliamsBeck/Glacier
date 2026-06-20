@@ -17,7 +17,8 @@
     </div>
 </div>
 
-<form method="POST" action="{{ route('opname.opnames.store') }}" id="opname-form">
+<form method="POST" action="{{ route('opname.opnames.store') }}" id="opname-form"
+      onsubmit="document.querySelectorAll('.price-input').forEach(function(el){ el.value = el.value.replace(/\./g,''); })">
     @csrf
 
     {{-- Card: Informasi Opname --}}
@@ -101,8 +102,9 @@
                                 <th rowspan="2" class="text-end border-start" style="min-width:80px">Total Dus</th>
                                 <th colspan="2" class="text-center border-start">STOK SISTEM</th>
                                 <th rowspan="2" class="text-end border-start" style="min-width:90px">Selisih</th>
-                                <th rowspan="2" class="text-end border-start" style="min-width:110px">Harga / Dus</th>
-                                <th rowspan="2" class="text-end border-start" style="min-width:120px">Subtotal</th>
+                                <th rowspan="2" class="text-end border-start" style="width:140px">Harga / Dus</th>
+                                <th rowspan="2" class="text-end border-start" style="width:140px">Subtotal</th>
+                                <th rowspan="2" class="border-start batch-col" style="width:36px;display:none"></th>
                             </tr>
                             <tr>
                                 <th class="text-center border-start small fw-normal py-1" style="width:70px">Dus</th>
@@ -117,6 +119,7 @@
                             <tr class="table-light fw-bold">
                                 <td colspan="9" class="text-end border-top">TOTAL NILAI SO</td>
                                 <td class="text-end border-top border-start fs-6" id="grand-total">Rp 0</td>
+                                <td class="border-top batch-col" style="display:none"></td>
                             </tr>
                         </tfoot>
                     </table>
@@ -201,6 +204,14 @@ input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin
 input[type=number] { -moz-appearance: textfield; }
 </style>
 <script>
+function formatPriceInput(el) {
+    var raw = el.value.replace(/\./g, '').replace(/[^0-9]/g, '');
+    var num = parseInt(raw, 10);
+    el.value = isNaN(num) ? '' : num.toLocaleString('id-ID');
+}
+function parsePriceInput(el) {
+    return parseFloat(el.value.replace(/\./g, '')) || 0;
+}
 function splitDusPack(baseQty, crate, pack) {
     if (!crate || !pack) return { dus: 0, pack: 0 };
     var dus = Math.floor(baseQty / (crate * pack));
@@ -247,7 +258,7 @@ function updateRow(rowKey) {
     var priceInput = row.querySelector('[name$="[price_per_dus]"]');
     if (priceInput) {
         var ctbP = crate > 0 ? crate * pack : 0;
-        var pd   = parseFloat(priceInput.value) || 0;
+        var pd   = parsePriceInput(priceInput);
         price = ctbP > 0 ? pd / ctbP : pd;
         row.dataset.price = price; // supaya grand total ikut pakai harga manual
     }
@@ -262,16 +273,16 @@ function updateRow(rowKey) {
     var physBaseVar = crate > 0 ? (c * crate * pack) + (p * pack) : (p * pack);
     var crateToBase = crate > 0 ? crate * pack : 0;
 
-    var safeKey = rowKey.replace('_', '-');
+    var safeKey = rowKey.replace(/_/g, '-');
+
+    var DASH = '<span class="text-muted opacity-50 small">-</span>';
 
     // Total Dus (fisik termasuk Pcs/Gr, desimal)
     var totalDusCell = document.getElementById('totaldus-' + safeKey);
     if (totalDusCell) {
-        if (crateToBase > 0) {
-            totalDusCell.textContent = (physBase / crateToBase).toLocaleString('id-ID', { maximumFractionDigits: 2 });
-        } else {
-            totalDusCell.textContent = physBase.toLocaleString('id-ID', { maximumFractionDigits: 2 });
-        }
+        var totalDusVal = crateToBase > 0 ? physBase / crateToBase : physBase;
+        totalDusCell.innerHTML = totalDusVal === 0 ? DASH
+            : totalDusVal.toLocaleString('id-ID', { maximumFractionDigits: 2 });
     }
 
     // Selisih: hanya Dus & Pack bulat (abaikan Pcs/Gr)
@@ -281,17 +292,22 @@ function updateRow(rowKey) {
     var varCell = document.getElementById('var-' + safeKey);
     if (varCell) {
         var txt = fmtVariance(varBase, crate, pack);
-        varCell.textContent = txt;
-        varCell.className = 'text-end border-start fw-bold '
-            + (txt === '0' ? 'text-muted' : (varBase < 0 ? 'text-danger' : 'text-success'));
+        if (txt === '0') {
+            varCell.innerHTML = DASH;
+            varCell.className = 'text-end border-start fw-bold text-muted';
+        } else {
+            varCell.textContent = txt;
+            varCell.className = 'text-end border-start fw-bold ' + (varBase < 0 ? 'text-danger' : 'text-success');
+        }
     }
 
     // Nilai: tetap pakai physBase lengkap (termasuk Pcs/Gr)
     var nilaiCell = document.getElementById('nilai-' + safeKey);
     if (nilaiCell) {
-        nilaiCell.textContent = price > 0
-            ? 'Rp ' + Math.round(physBase * price).toLocaleString('id-ID')
-            : '—';
+        var nilaiVal = price > 0 ? Math.round(physBase * price) : 0;
+        nilaiCell.innerHTML = (price > 0 && nilaiVal !== 0)
+            ? 'Rp ' + nilaiVal.toLocaleString('id-ID')
+            : DASH;
     }
 
     updateGrandTotal();
@@ -313,13 +329,93 @@ function updateGrandTotal() {
     if (gt) gt.textContent = 'Rp ' + Math.round(total).toLocaleString('id-ID');
 }
 
-// Mode "Stok Awal" → harga bisa diisi; "Bulanan" → harga readonly (tampil otomatis)
+// Mode "Stok Awal" → harga bisa diisi + kolom batch tampil; "Bulanan" → harga readonly
 function applyOpnameMode() {
     var stokAwal = document.getElementById('opname_mode').value === 'stok_awal';
     document.querySelectorAll('.price-input').forEach(function (i) {
         i.readOnly = !stokAwal;
         i.classList.toggle('bg-light', !stokAwal);
     });
+    document.querySelectorAll('.batch-col').forEach(function (el) {
+        el.style.display = stokAwal ? '' : 'none';
+    });
+}
+
+var batchCounters = {}; // rowKey → jumlah batch yang sudah ditambah
+
+function addBatchRow(parentRowKey, ingredientId, packagingId) {
+    batchCounters[parentRowKey] = (batchCounters[parentRowKey] || 1) + 1;
+    var batchNum = batchCounters[parentRowKey];
+    var batchKey = parentRowKey + '_b' + batchNum;
+    var safeKey  = batchKey.replace(/_/g, '-');
+
+    var parentRow = document.querySelector('tr[data-rowkey="' + parentRowKey + '"]');
+    var crate = parseFloat(parentRow.dataset.crate) || 0;
+    var pack  = parseFloat(parentRow.dataset.pack)  || 1;
+
+    var tr = document.createElement('tr');
+    tr.dataset.rowkey = batchKey;
+    tr.dataset.system = 0;
+    tr.dataset.crate  = crate;
+    tr.dataset.pack   = pack;
+    tr.dataset.price  = 0;
+    tr.style.background = 'rgba(255,193,7,.07)';
+
+    tr.innerHTML =
+        '<td>' +
+            '<input type="hidden" name="items[' + batchKey + '][ingredient_id]" value="' + ingredientId + '">' +
+            '<input type="hidden" name="items[' + batchKey + '][packaging_id]"  value="' + (packagingId || '') + '">' +
+            '<span class="fw-semibold" style="opacity:.5;font-size:.85em">└ Batch ' + batchNum + '</span>' +
+        '</td>' +
+        '<td class="border-start">' +
+            '<input type="number" name="items[' + batchKey + '][physical_crate]"' +
+                   ' class="form-control form-control-sm text-center no-spin" min="0" placeholder="0"' +
+                   ' oninput="updateRow(\'' + batchKey + '\')">' +
+        '</td>' +
+        '<td>' +
+            '<input type="number" name="items[' + batchKey + '][physical_pack]"' +
+                   ' class="form-control form-control-sm text-center no-spin" min="0" placeholder="0"' +
+                   ' oninput="updateRow(\'' + batchKey + '\')">' +
+        '</td>' +
+        '<td>' +
+            '<input type="number" name="items[' + batchKey + '][physical_base]"' +
+                   ' class="form-control form-control-sm text-center no-spin" min="0" step="0.01" placeholder="0"' +
+                   ' oninput="updateRow(\'' + batchKey + '\')">' +
+        '</td>' +
+        '<td class="text-end border-start text-muted" id="totaldus-' + safeKey + '">0</td>' +
+        '<td class="text-end border-start text-muted">—</td>' +
+        '<td class="text-end text-muted">—</td>' +
+        '<td class="text-end border-start fw-bold text-muted" id="var-' + safeKey + '">—</td>' +
+        '<td class="text-end border-start">' +
+            '<input type="text" inputmode="numeric" name="items[' + batchKey + '][price_per_dus]"' +
+            ' class="form-control form-control-sm text-end price-input" placeholder="Harga/Dus"' +
+            ' oninput="formatPriceInput(this);updateRow(\'' + batchKey + '\')">' +
+        '</td>' +
+        '<td class="text-end border-start fw-semibold" id="nilai-' + safeKey + '"><span class="text-muted opacity-50 small">-</span></td>' +
+        '<td class="border-start text-center batch-col" style="width:36px;padding:2px 4px">' +
+            '<button type="button" class="btn btn-outline-danger btn-sm px-1 py-0"' +
+                ' title="Hapus batch ini" style="font-size:.75rem;line-height:1.4"' +
+                ' onclick="removeBatchRow(\'' + batchKey + '\')">×</button>' +
+        '</td>';
+
+    // Sisipkan setelah baris terakhir grup ini
+    var allRows = Array.from(document.querySelectorAll('tr[data-rowkey]'));
+    var lastInGroup = null;
+    allRows.forEach(function(r) {
+        if (r.dataset.rowkey === parentRowKey || r.dataset.rowkey.startsWith(parentRowKey + '_b')) {
+            lastInGroup = r;
+        }
+    });
+    if (lastInGroup && lastInGroup.nextSibling) {
+        lastInGroup.parentNode.insertBefore(tr, lastInGroup.nextSibling);
+    } else if (lastInGroup) {
+        lastInGroup.parentNode.appendChild(tr);
+    }
+}
+
+function removeBatchRow(batchKey) {
+    var tr = document.querySelector('tr[data-rowkey="' + batchKey + '"]');
+    if (tr) { tr.remove(); updateGrandTotal(); }
 }
 
 function loadIngredients() {
@@ -356,7 +452,7 @@ function loadIngredients() {
 
             data.forEach(function (ing) {
                 var rowKey   = ing.row_key;            // 'pkg_X' atau 'ing_X'
-                var safeKey  = rowKey.replace('_', '-'); // untuk id HTML (pkg-X / ing-X)
+                var safeKey  = rowKey.replace(/_/g, '-'); // untuk id HTML (pkg-X / ing-X)
                 var crate    = ing.crate_to_pack || 0;
                 var pack     = ing.pack_to_base  || 1;
                 var sysQty   = ing.system_qty    || 0;
@@ -400,21 +496,27 @@ function loadIngredients() {
                                ' oninput="updateRow(\'' + rowKey + '\')">' +
                     '</td>' +
                     // Total Dus
-                    '<td class="text-end border-start text-muted" id="totaldus-' + safeKey + '">0</td>' +
+                    '<td class="text-end border-start text-muted" id="totaldus-' + safeKey + '"><span class="text-muted opacity-50 small">-</span></td>' +
                     // Stok Sistem: Dus | Pack
-                    '<td class="text-end border-start">' + (sysSplit.dus  || 0) + '</td>' +
-                    '<td class="text-end">'               + (sysSplit.pack || 0) + '</td>' +
+                    '<td class="text-end border-start">' + (sysSplit.dus  ? sysSplit.dus  : '<span class="text-muted opacity-50 small">-</span>') + '</td>' +
+                    '<td class="text-end">'               + (sysSplit.pack ? sysSplit.pack : '<span class="text-muted opacity-50 small">-</span>') + '</td>' +
                     // Selisih
                     '<td class="text-end border-start fw-bold text-muted" id="var-' + safeKey + '">0</td>' +
                     // Harga/Dus — readonly saat "Bulanan" (tampil otomatis), bisa diisi saat "Stok Awal"
                     '<td class="text-end border-start">' +
-                        '<input type="number" name="items[' + rowKey + '][price_per_dus]"' +
-                        ' class="form-control form-control-sm text-end no-spin price-input" min="0" placeholder="Harga/Dus"' +
-                        ' value="' + (priceDus > 0 ? priceDus : '') + '"' +
-                        ' oninput="updateRow(\'' + rowKey + '\')">' +
+                        '<input type="text" inputmode="numeric" name="items[' + rowKey + '][price_per_dus]"' +
+                        ' class="form-control form-control-sm text-end price-input" placeholder="Harga/Dus"' +
+                        ' value="' + (priceDus > 0 ? priceDus.toLocaleString('id-ID') : '') + '"' +
+                        ' oninput="formatPriceInput(this);updateRow(\'' + rowKey + '\')">' +
                     '</td>' +
                     // Subtotal
-                    '<td class="text-end border-start fw-semibold" id="nilai-' + safeKey + '">—</td>';
+                    '<td class="text-end border-start fw-semibold" id="nilai-' + safeKey + '"><span class="text-muted opacity-50 small">-</span></td>' +
+                    // Kolom aksi batch (show/hide via applyOpnameMode)
+                    '<td class="border-start text-center batch-col" style="display:none;width:36px;padding:2px 4px">' +
+                        '<button type="button" class="btn btn-outline-warning btn-sm px-1 py-0"' +
+                            ' title="Tambah batch harga berbeda" style="font-size:.75rem;line-height:1.4"' +
+                            ' onclick="addBatchRow(\'' + rowKey + '\',' + ing.ingredient_id + ',' + (ing.packaging_id || 0) + ')">+</button>' +
+                    '</td>';
 
                 tbody.appendChild(tr);
             });

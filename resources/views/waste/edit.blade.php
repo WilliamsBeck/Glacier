@@ -22,7 +22,7 @@
     <div class="alert alert-danger">{{ session('error') }}</div>
 @endif
 
-<form method="POST" action="{{ route('waste.logs.update', $log) }}" id="wasteForm">
+<form method="POST" action="{{ route('waste.logs.update', $log) }}" id="wasteForm" data-confirm="Simpan perubahan waste ini?" data-confirm-type="info" data-confirm-ok="Ya, simpan">
     @csrf
     @method('PUT')
     <div class="row g-3">
@@ -124,8 +124,7 @@
             </div>
 
             <div class="mt-3">
-                <button type="submit" class="btn btn-primary px-4"
-                        onclick="return confirm('Simpan perubahan waste ini?')">
+                <button type="submit" class="btn btn-primary px-4">
                     <i class="bi bi-check-circle me-1"></i> Simpan Perubahan
                 </button>
                 <a href="{{ route('waste.logs.show', $log) }}" class="btn btn-outline-secondary ms-2">Batal</a>

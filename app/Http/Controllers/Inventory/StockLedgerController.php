@@ -18,7 +18,7 @@ class StockLedgerController extends Controller
         if ($request->movement_type) $query->where('movement_type',$request->movement_type);
         $ledgers     = $query->latest('created_at')->paginate(30);
         $stores      = auth()->user()->accessibleStores();
-        $ingredients = Ingredient::where('is_active',true)->orderBy('name')->get();
+        $ingredients = Ingredient::where('ingredients.is_active',true)->orderedByCategory()->get();
         return view('inventory.ledger.index', compact('ledgers','stores','ingredients'));
     }
 }

@@ -105,14 +105,14 @@
                         <i class="bi bi-pencil me-1"></i> Edit Draft
                     </a>
                     <form method="POST" action="{{ route('inventory.mutations.confirm', $mutation) }}"
-                          onsubmit="return confirm('Konfirmasi mutasi ini? Stok akan langsung diupdate dan tidak bisa diubah lagi.')">
+                          data-confirm="Konfirmasi mutasi ini? Stok akan langsung diupdate dan tidak bisa diubah lagi." data-confirm-type="info" data-confirm-ok="Ya, konfirmasi">
                         @csrf
                         <button class="btn btn-success btn-sm">
                             <i class="bi bi-check-circle me-1"></i> Konfirmasi
                         </button>
                     </form>
                     <form method="POST" action="{{ route('inventory.mutations.cancel', $mutation) }}"
-                          onsubmit="return confirm('Batalkan mutasi ini?')">
+                          data-confirm="Batalkan mutasi ini?" data-confirm-type="warning" data-confirm-ok="Ya, batalkan">
                         @csrf
                         <button class="btn btn-warning btn-sm text-dark">
                             <i class="bi bi-x-circle me-1"></i> Batalkan
@@ -127,7 +127,7 @@
                     </button>
                 @elseif($mutation->status !== 'draft')
                     <form method="POST" action="{{ route('inventory.mutations.destroy', $mutation) }}"
-                          onsubmit="return confirm('Hapus mutasi ini secara permanen? Stok akan dikoreksi otomatis.')">
+                          data-confirm="Hapus mutasi ini secara permanen? Stok akan dikoreksi otomatis." data-confirm-type="error" data-confirm-danger="1" data-confirm-ok="Ya, hapus">
                         @csrf @method('DELETE')
                         <button class="btn btn-danger btn-sm">
                             <i class="bi bi-trash me-1"></i> Hapus
@@ -153,32 +153,32 @@
                                 <th class="text-center">Dus</th>
                                 <th class="text-center">Pack</th>
                                 <th class="text-center">Pcs/Gr</th>
-                                <th class="text-end">Total (Base)</th>
-                                <th class="text-end">Harga/Satuan</th>
+                                <th class="text-end">Harga/Dus</th>
                                 <th class="text-end">Subtotal</th>
                             </tr>
                         </thead>
                         <tbody>
                             @php $grandTotal = 0; @endphp
                             @foreach($mutation->items as $item)
-                            @php $grandTotal += $item->cost_subtotal; @endphp
+                            @php
+                                $grandTotal += $item->cost_subtotal;
+                                $pkg = $item->packaging ?? $item->ingredient->packagings->first();
+                                $dusSize = $pkg ? (float)$pkg->crate_to_pack * (float)$pkg->pack_to_base : 0;
+                                $hargaDus = $dusSize > 0 ? (int)round($item->price_per_base * $dusSize) : null;
+                            @endphp
                             <tr>
                                 <td class="fw-semibold">{{ $item->ingredient->name }}</td>
                                 <td class="text-center">{{ $item->qty_crate ?: '-' }}</td>
                                 <td class="text-center">{{ $item->qty_pack ?: '-' }}</td>
                                 <td class="text-center">{{ $item->qty_base ? number_format($item->qty_base, 0, ',', '.') : '-' }}</td>
-                                <td class="text-end">
-                                    {{ number_format($item->total_in_base, 0, ',', '.') }}
-                                    <span class="text-muted small">{{ $item->ingredient->unit_base }}</span>
-                                </td>
-                                <td class="text-end">Rp {{ number_format($item->price_per_base, 0, ',', '.') }}</td>
+                                <td class="text-end">{{ $hargaDus ? 'Rp '.number_format($hargaDus, 0, ',', '.') : '-' }}</td>
                                 <td class="text-end fw-semibold">Rp {{ number_format($item->cost_subtotal, 0, ',', '.') }}</td>
                             </tr>
                             @endforeach
                         </tbody>
                         <tfoot>
                             <tr class="table-light fw-bold">
-                                <td colspan="6" class="text-end">Total Nilai</td>
+                                <td colspan="5" class="text-end">Total Nilai</td>
                                 <td class="text-end text-primary">Rp {{ number_format($grandTotal, 0, ',', '.') }}</td>
                             </tr>
                         </tfoot>

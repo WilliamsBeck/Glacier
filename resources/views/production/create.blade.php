@@ -181,16 +181,17 @@ tbody.addEventListener('click', e => {
 
 document.getElementById('addRowBtn').addEventListener('click', addRow);
 
-document.getElementById('prodForm').addEventListener('submit', e => {
+document.getElementById('prodForm').addEventListener('submit', async e => {
+    const form = e.target;
+    if (form.dataset.confirmed === '1') { form.dataset.confirmed = ''; return; }
+    e.preventDefault();
     const rows = tbody.querySelectorAll('tr');
     if (rows.length === 0) {
-        e.preventDefault();
-        alert('Tambah minimal 1 bahan untuk diproduksi.');
+        uiAlert('Tambah minimal 1 bahan untuk diproduksi.', { type: 'warning' });
         return;
     }
-    if (!confirm(`Konfirmasi catat produksi ${rows.length} bahan?`)) {
-        e.preventDefault();
-    }
+    const ok = await uiConfirm(`Konfirmasi catat produksi ${rows.length} bahan?`, { type: 'info', confirmText: 'Ya, catat' });
+    if (ok) { form.dataset.confirmed = '1'; form.requestSubmit ? form.requestSubmit() : form.submit(); }
 });
 
 // Init: 1 baris default

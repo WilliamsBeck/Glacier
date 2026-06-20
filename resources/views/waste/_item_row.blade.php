@@ -26,26 +26,23 @@
             <option value="">— Pilih Kemasan —</option>
         </select>
     </div>
-    <span class="text-muted small no-pkg-label">—</span>
 </td>
 <td>
     <div class="wrap-crate d-none">
         <input type="number" name="items[{{ $idx }}][qty_crate]"
                class="form-control form-control-sm" min="0" placeholder="0">
     </div>
-    <span class="text-muted">—</span>
 </td>
 <td>
     <div class="wrap-pack d-none">
         <input type="number" name="items[{{ $idx }}][qty_pack]"
                class="form-control form-control-sm" min="0" placeholder="0">
     </div>
-    <span class="text-muted">—</span>
 </td>
 <td>
     <input type="number" name="items[{{ $idx }}][qty_base]"
            class="form-control form-control-sm" step="0.01" min="0" placeholder="0">
-    <span class="label-unit text-muted small d-block" style="font-size:.7rem">pcs</span>
+    <span class="label-unit text-muted small d-block" style="font-size:.7rem"></span>
 </td>
 <td>
     {{-- Manual input (hidden, tidak dipakai) --}}

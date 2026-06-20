@@ -252,22 +252,6 @@ $periodLabels = ['mid_month' => 'Tengah Bulan', 'end_month' => 'Akhir Bulan'];
                         Tambahan di atas kebutuhan pokok
                     </div>
                 </div>
-                <div class="col-md-3 d-flex align-items-end pb-1">
-                    <div>
-                        <input type="hidden" name="split_order" value="0">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="split_order"
-                                   value="1" id="chkSplit"
-                                   {{ request('split_order') ? 'checked' : '' }}>
-                            <label class="form-check-label fw-semibold" for="chkSplit">
-                                Pecah 2 order (50:50)
-                            </label>
-                        </div>
-                        <div class="text-muted" style="font-size:.65rem">
-                            Kuantitas dibagi 2 order dengan jumlah sama
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
 
@@ -312,9 +296,13 @@ $periodLabels = ['mid_month' => 'Tengah Bulan', 'end_month' => 'Akhir Bulan'];
         <div class="col-auto text-muted">·</div>
         <div class="col-auto"><strong>Buffer {{ $bufferPct }}%</strong></div>
         @endif
-        @if($splitOrder)
+        @if(isset($usageSource) && $usageSource === 'hpp')
         <div class="col-auto text-muted">·</div>
-        <div class="col-auto"><span class="badge bg-primary">Split 2 order 50:50</span></div>
+        <div class="col-auto">
+            <span class="badge bg-warning text-dark">
+                <i class="bi bi-calculator me-1"></i>Konsumsi dari HPP Aktual (opname)
+            </span>
+        </div>
         @endif
         <div class="col-auto text-muted">·</div>
         <div class="col-auto">
@@ -362,114 +350,73 @@ $periodLabels = ['mid_month' => 'Tengah Bulan', 'end_month' => 'Akhir Bulan'];
 <div class="card">
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-sm table-bordered mb-0 order-table" id="orderTable">
-                <thead class="table-dark">
-                    <tr>
-                        <th rowspan="2" class="align-middle" style="min-width:180px">Bahan</th>
-                        <th colspan="2" class="text-center border-start border-secondary">
-                            Konsumsi Ref ({{ $monthNames[$refMonth] }})
+            <table class="table table-sm mb-0 order-table align-middle" id="orderTable"
+                   style="border-collapse:collapse">
+                <thead>
+                    <tr style="background:#006275;color:#fff;font-size:.78rem">
+                        <th class="align-middle px-3 py-2" style="min-width:190px">
+                            Bahan Baku
                         </th>
-                        <th colspan="2" class="text-center border-start border-secondary">
-                            Stok Saat Ini
-                            @if($stockSource === 'opname' && $selectedOpname)
-                                <div style="font-size:.65rem;font-weight:normal">
+                        <th class="text-center align-middle py-2" style="min-width:90px">
+                            Konsumsi Ref<br><span style="font-weight:400;opacity:.8">({{ $monthNames[$refMonth] }})</span>
+                        </th>
+                        <th class="text-center align-middle py-2" style="min-width:90px">
+                            Stok Saat Ini<br>
+                            <span style="font-size:.65rem;font-weight:400;opacity:.8">
+                                @if($stockSource === 'opname' && $selectedOpname)
                                     opname {{ $selectedOpname->opname_date->isoFormat('D MMM') }}
-                                </div>
-                            @endif
+                                @else
+                                    saldo FIFO
+                                @endif
+                            </span>
                         </th>
-                        <th rowspan="2" class="text-center align-middle border-start border-secondary" style="min-width:60px">
-                            Hari<br>Cover
-                        </th>
-                        <th rowspan="2" class="text-center align-middle" style="min-width:80px">
-                            Kebutuhan<br>(Pack)
+                        <th class="text-center align-middle py-2" style="min-width:90px">
+                            Kebutuhan<br><span style="font-size:.65rem;font-weight:400;opacity:.8">({{ $daysToCover }} hari)</span>
                         </th>
                         @if($bufferPct > 0)
-                        <th rowspan="2" class="text-center align-middle" style="min-width:70px">
-                            Buffer<br>(Pack)
+                        <th class="text-center align-middle py-2" style="min-width:80px">
+                            Buffer<br><span style="font-size:.65rem;font-weight:400;opacity:.8">+{{ $bufferPct }}%</span>
                         </th>
                         @endif
-                        @if($splitOrder)
-                        <th colspan="2" class="text-center bg-primary text-white border-start border-secondary">
+                        <th class="text-center align-middle py-2" style="min-width:100px">
                             Beli (Dus) ▲
                         </th>
-                        @else
-                        <th rowspan="2" class="text-center align-middle bg-success text-white border-start border-secondary" style="min-width:90px">
-                            Beli<br>(Dus) ▲
-                        </th>
-                        @endif
-                    </tr>
-                    <tr class="small">
-                        <th class="text-center border-start border-secondary">Total Pack</th>
-                        <th class="text-center">Rata²/Hari</th>
-                        <th class="text-center border-start border-secondary">Pack</th>
-                        <th class="text-center">Dus</th>
-                        @if($splitOrder)
-                        <th class="text-center bg-primary text-white border-start border-secondary" style="min-width:80px">
-                            Order 1<br>
-                            <span style="font-size:.68rem;font-weight:normal;opacity:.85">
-                                tiba {{ $deliveryDate->isoFormat('D MMM') }}
-                            </span>
-                        </th>
-                        <th class="text-center bg-info text-dark" style="min-width:80px">
-                            Order 2<br>
-                            <span style="font-size:.68rem;font-weight:normal;opacity:.75">
-                                tiba {{ isset($splitDate) ? $splitDate->isoFormat('D MMM') : '—' }}
-                            </span>
-                        </th>
-                        @endif
                     </tr>
                 </thead>
-                <tbody>
-                @php $totalDus = 0; $totalO1 = 0; $totalO2 = 0; @endphp
+                <tbody style="font-size:.78rem">
+                @php $totalDus = 0; @endphp
                 @foreach($tableData as $row)
                 @php
                     $totalDus += $row->net_dus;
-                    $totalO1  += $row->order1_dus;
-                    $totalO2  += $row->order2_dus;
                     $needsBuy  = $row->net_dus > 0;
+                    $fmt = fn($v) => number_format($v, 2, ',', '.');
                 @endphp
-                <tr class="{{ !$needsBuy ? 'text-muted' : '' }}">
-                    <td class="fw-semibold">
+                <tr style="border-bottom:1px solid #eef2f5;{{ !$needsBuy ? 'color:#94a3b8' : '' }}">
+                    <td class="px-3 py-2" style="font-size:.82rem">
                         {{ $row->ingredient->name }}
-                        <div class="small fw-normal text-muted">{{ $row->packaging->packaging_name }}</div>
-                        @if($row->active_days < 7)
-                            <span class="badge bg-warning text-dark" style="font-size:.62rem">⚠ data {{ $row->active_days }} hari</span>
+                        @if($row->active_days < $daysInRef * 0.5)
+                            <span class="badge bg-warning text-dark d-block mt-1" style="font-size:.6rem;width:fit-content">⚠ data terbatas</span>
                         @endif
                     </td>
-                    <td class="text-center border-start">{{ $row->ref_total_pack }}</td>
-                    <td class="text-center">{{ $row->avg_daily_pack }}</td>
-                    <td class="text-center border-start">{{ $row->stock_pack }}</td>
-                    <td class="text-center text-muted">{{ number_format($row->stock_dus, 1, ',', '.') }}</td>
-                    <td class="text-center border-start">{{ $row->days_cover }}</td>
-                    <td class="text-center">{{ $row->gross_pack }}</td>
+                    <td class="text-center py-2">{{ $fmt($row->ref_total_dus) }}</td>
+                    <td class="text-center py-2 {{ $row->stock_dus > 0 ? 'text-success fw-semibold' : 'text-danger' }}">
+                        {{ $fmt($row->stock_dus) }}
+                    </td>
+                    <td class="text-center py-2">{{ $fmt($row->gross_dus) }}</td>
                     @if($bufferPct > 0)
-                    <td class="text-center text-muted small">+{{ $row->buffer_pack }}</td>
+                    <td class="text-center py-2">+{{ $fmt($row->buffer_dus) }}</td>
                     @endif
-                    @if($splitOrder)
-                    <td class="text-center fw-bold border-start {{ $row->order1_dus > 0 ? 'bg-primary bg-opacity-10' : '' }}">
-                        {{ $row->order1_dus > 0 ? $row->order1_dus . ' Dus' : '—' }}
+                    <td class="text-center py-2 fw-bold {{ $needsBuy ? 'text-success' : 'text-muted' }}">
+                        {{ $needsBuy ? $row->net_dus.' Dus' : '—' }}
                     </td>
-                    <td class="text-center fw-bold {{ $row->order2_dus > 0 ? 'bg-info bg-opacity-10' : '' }}">
-                        {{ $row->order2_dus > 0 ? $row->order2_dus . ' Dus' : '—' }}
-                    </td>
-                    @else
-                    <td class="text-center fw-bold border-start {{ $needsBuy ? 'bg-success bg-opacity-10 text-success' : '' }}">
-                        {{ $needsBuy ? $row->net_dus . ' Dus' : '—' }}
-                    </td>
-                    @endif
                 </tr>
                 @endforeach
                 </tbody>
                 <tfoot>
-                    <tr class="table-dark fw-bold">
-                        <td colspan="{{ 6 + ($bufferPct > 0 ? 1 : 0) }}">TOTAL</td>
-                        <td class="text-center">—</td>
-                        @if($splitOrder)
-                        <td class="text-center bg-primary">{{ $totalO1 }} Dus</td>
-                        <td class="text-center bg-info text-dark">{{ $totalO2 }} Dus</td>
-                        @else
-                        <td class="text-center bg-success">{{ $totalDus }} Dus</td>
-                        @endif
+                    <tr style="background:#f1f5f9;font-size:.78rem;font-weight:700;border-top:2px solid #006275">
+                        <td class="px-3 py-2">TOTAL</td>
+                        <td colspan="{{ 3 + ($bufferPct > 0 ? 1 : 0) }}"></td>
+                        <td class="text-center py-2 text-success">{{ $totalDus }} Dus</td>
                     </tr>
                 </tfoot>
             </table>
@@ -479,7 +426,7 @@ $periodLabels = ['mid_month' => 'Tengah Bulan', 'end_month' => 'Akhir Bulan'];
 
 <div class="text-muted small mt-2 no-print">
     <i class="bi bi-info-circle me-1"></i>
-    <strong>▲ Jumlah Dus dibulatkan ke atas (ceiling)</strong> — agar stok tidak pernah kurang dari kebutuhan.
+    <strong>▲ Jumlah Dus dibulatkan ke atas</strong> — agar stok tidak pernah kurang dari kebutuhan.
     Stok saat ini sudah dikurangi dari perhitungan.
 </div>
 
@@ -748,7 +695,7 @@ document.getElementById('btnSetStorePar')?.addEventListener('click', () => {
 document.getElementById('orderCycleInput')?.addEventListener('input', updateParPreview);
 document.getElementById('leadTimeInput')?.addEventListener('input', updateParPreview);
 
-document.getElementById('saveStoreParBtn')?.addEventListener('click', () => {
+document.getElementById('saveStoreParBtn')?.addEventListener('click', async () => {
     const storeId    = document.getElementById('storeSelect').value;
     const orderCycle = parseInt(document.getElementById('orderCycleInput').value);
     const leadTime   = parseInt(document.getElementById('leadTimeInput').value);
@@ -759,7 +706,7 @@ document.getElementById('saveStoreParBtn')?.addEventListener('click', () => {
     if (!leadTime   || leadTime   < 1) { alert('Masukkan lead time (min 1 hari).'); return; }
     if (!dosWindow)                   { alert('Pilih window rata-rata pemakaian.'); return; }
     if (leadTime > orderCycle) {
-        if (!confirm('Lead time lebih besar dari siklus order — apakah ini benar?')) return;
+        if (!(await uiConfirm('Lead time lebih besar dari siklus order — apakah ini benar?', { type: 'warning', confirmText: 'Ya, benar' }))) return;
     }
 
     const btn = document.getElementById('saveStoreParBtn');

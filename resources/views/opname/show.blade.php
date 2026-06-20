@@ -3,8 +3,8 @@
 
 @php
 /**
- * Format selisih (dalam base unit) ke CTN + Pack.
- * Contoh: +2 CTN +3 Pack  |  -1 Pack  |  0
+ * Format selisih (dalam base unit) ke Dus + Pack.
+ * Contoh: +2 Dus +3 Pack  |  -1 Pack  |  0
  */
 function fmtVariance(float $var, ?int $ctrPack, ?int $packBase): string {
     if (!$ctrPack || !$packBase) {
@@ -18,7 +18,7 @@ function fmtVariance(float $var, ?int $ctrPack, ?int $packBase): string {
     $rem  = $abs - ($ctn * $ctrPack * $packBase);
     $pk   = (int) floor($rem / $packBase);
     $parts = [];
-    if ($ctn > 0) $parts[] = $sign . $ctn . ' CTN';
+    if ($ctn > 0) $parts[] = $sign . $ctn . ' Dus';
     if ($pk  > 0) $parts[] = $sign . $pk  . ' Pack';
     if (empty($parts)) $parts[] = $sign . '< 1 Pack';
     return implode(' ', $parts);
@@ -55,12 +55,12 @@ function fmtVariance(float $var, ?int $ctrPack, ?int $packBase): string {
             {{-- Tombol Hapus: tampil untuk semua status, Super Admin bisa hapus approved --}}
             @if($opname->status !== 'approved')
                 <form method="POST" action="{{ route('opname.opnames.destroy', $opname) }}" class="d-inline"
-                      onsubmit="return confirm('Hapus opname ini?')">
+                      data-confirm="Hapus opname ini?" data-confirm-type="error" data-confirm-danger="1" data-confirm-ok="Ya, hapus">
                     @csrf @method('DELETE')
                     <button class="btn btn-danger btn-sm"><i class="bi bi-trash me-1"></i>Hapus</button>
                 </form>
                 <form method="POST" action="{{ route('opname.opnames.approve', $opname) }}" class="d-inline"
-                      onsubmit="return confirm('Approve opname? Selisih akan otomatis masuk ke ledger.')">
+                      data-confirm="Approve opname? Selisih akan otomatis masuk ke ledger." data-confirm-type="info" data-confirm-ok="Ya, approve">
                     @csrf
                     <button class="btn btn-success btn-sm"><i class="bi bi-check-circle me-1"></i>Approve</button>
                 </form>
@@ -137,16 +137,22 @@ function fmtVariance(float $var, ?int $ctrPack, ?int $packBase): string {
             @php
                 // Tandai bahan yang punya > 1 kemasan supaya bisa tampilkan sub-label
                 $pkgCountByIng = $opname->items->groupBy('ingredient_id')->map->count();
+                // Multi-batch tracking: grup per ingredient_id + packaging_id
+                $batchTotalMap = $opname->items->groupBy(fn($i) => $i->ingredient_id.'_'.($i->packaging_id??'null'))->map->count();
+                $batchCounter  = [];
             @endphp
             <table class="table table-sm table-hover mb-0 align-middle">
                 <thead>
                     <tr class="table-dark">
-                        <th rowspan="2" class="align-middle" style="min-width:180px">Bahan</th>
+                        <th rowspan="2" class="align-middle" style="width:260px;max-width:260px">Bahan</th>
                         <th colspan="3" class="text-center border-start py-1" style="border-bottom:1px solid #4a6080">Stok Fisik</th>
                         <th colspan="2" class="text-center border-start py-1" style="border-bottom:1px solid #4a6080">Stok Sistem</th>
-                        <th rowspan="2" class="text-end border-start align-middle" style="min-width:110px">Selisih<br><small class="fw-normal opacity-75">(Dus/Pack)</small></th>
-                        <th rowspan="2" class="text-end border-start align-middle" style="min-width:95px">Harga<br><small class="fw-normal opacity-75">(/Dus)</small></th>
-                        <th rowspan="2" class="text-end border-start align-middle" style="min-width:110px">Nilai Fisik<br><small class="fw-normal opacity-75">(Rp)</small></th>
+                        <th rowspan="2" class="text-end border-start align-middle" style="width:150px">Selisih<br><small class="fw-normal opacity-75">(Dus/Pack)</small></th>
+                        <th rowspan="2" class="text-end border-start align-middle" style="width:140px">Harga<br><small class="fw-normal opacity-75">(/Dus)</small></th>
+                        <th rowspan="2" class="text-end border-start align-middle" style="width:150px">Nilai Fisik<br><small class="fw-normal opacity-75">(Rp)</small></th>
+                        @if($opname->opname_mode === 'stok_awal' && $opname->status !== 'approved')
+                        <th rowspan="2" class="align-middle border-start" style="width:36px"></th>
+                        @endif
                     </tr>
                     <tr class="table-dark" style="border-top:1px solid #4a6080">
                         <th class="text-center border-start fw-normal small py-1" style="width:75px">Dus</th>
@@ -164,11 +170,19 @@ function fmtVariance(float $var, ?int $ctrPack, ?int $packBase): string {
                         $packBase = $pkg ? (int)$pkg->pack_to_base  : null;
                         $sysNeg   = $item->system_qty < 0;
 
+                        // Batch tracking
+                        $batchKey   = $item->ingredient_id . '_' . ($item->packaging_id ?? 'null');
+                        $batchCounter[$batchKey] = ($batchCounter[$batchKey] ?? 0) + 1;
+                        $batchNum   = $batchCounter[$batchKey];
+                        $batchTotal = $batchTotalMap[$batchKey] ?? 1;
+                        $isExtraBatch = $batchNum > 1;
+
                         // Label kemasan — "@ X pack" jika multi-kemasan + nama supplier jika LOKAL (bukan Zhisheng)
                         $isMultiPkg = ($pkgCountByIng[$item->ingredient_id] ?? 1) > 1;
                         $supLabel   = ($pkg && $pkg->supplier && $pkg->supplier->type !== 'zhisheng') ? $pkg->supplier->name : null;
                         $pkgLabel   = collect([($isMultiPkg && $ctrPack) ? '@ ' . $ctrPack . ' pack' : null, $supLabel])
                                         ->filter()->implode(' · ') ?: null;
+                        if ($isExtraBatch) $pkgLabel = ($pkgLabel ? $pkgLabel . ' · ' : '') . 'Batch ' . $batchNum;
 
                         // Stok sistem dalam Dus + Pack
                         if ($ctrPack && $packBase) {
@@ -193,8 +207,11 @@ function fmtVariance(float $var, ?int $ctrPack, ?int $packBase): string {
                         $isZero   = abs($displayVar) < 0.01;
                         $varClass = $isZero ? 'text-muted' : ($displayVar < 0 ? 'text-danger' : 'text-success');
 
-                        // Harga & nilai
-                        $harga      = $priceMap[$item->ingredient_id] ?? 0;
+                        // Harga: stok_awal → pakai price_per_base per item (batch individual)
+                        //        bulanan   → weighted-avg priceMap dari FIFO
+                        $harga = ($opname->opname_mode === 'stok_awal' && $item->price_per_base > 0)
+                            ? (float) $item->price_per_base
+                            : ($priceMap[$item->ingredient_id] ?? 0);
                         $hargaDus   = ($ctrPack && $packBase) ? $harga * $ctrPack * $packBase : $harga;
                         $nilaiFisik = $item->physical_qty * $harga;
                     @endphp
@@ -203,11 +220,12 @@ function fmtVariance(float $var, ?int $ctrPack, ?int $packBase): string {
                         data-system="{{ $item->system_qty }}"
                         data-crate="{{ $ctrPack ?? 0 }}"
                         data-pack="{{ $packBase ?? 1 }}"
+                        @if($isExtraBatch) style="background:rgba(255,193,7,.07)" @endif
                     >
-                        <td>
+                        <td style="width:260px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
                             <span class="fw-semibold">{{ $item->ingredient->name }}</span>
                             @if($pkgLabel)
-                                <small class="text-muted d-block">{{ $pkgLabel }}</small>
+                                <small class="text-muted ms-1">{{ $pkgLabel }}</small>
                             @endif
                         </td>
 
@@ -231,19 +249,19 @@ function fmtVariance(float $var, ?int $ctrPack, ?int $packBase): string {
                                 <input type="number"
                                        name="items[{{ $item->id }}][physical_base]"
                                        class="form-control form-control-sm opname-input"
-                                       value="{{ old("items.{$item->id}.physical_base", $item->physical_base) }}"
-                                       min="0" step="0.01" placeholder="" style="width:72px">
+                                       value="{{ old("items.{$item->id}.physical_base", $item->physical_base !== null ? (int)$item->physical_base : '') }}"
+                                       min="0" step="1" placeholder="" style="width:72px">
                             </td>
                         @else
-                            <td class="text-center border-start small">{{ $item->physical_crate ?? '—' }}</td>
-                            <td class="text-center small">{{ $item->physical_pack ?? '—' }}</td>
-                            <td class="text-center small">{{ $item->physical_base ?? '—' }}</td>
+                            <td class="text-center border-start small">{{ $item->physical_crate ?? '' }}{!! $item->physical_crate === null ? '<span class="text-muted opacity-50 small">-</span>' : '' !!}</td>
+                            <td class="text-center small">{{ $item->physical_pack ?? '' }}{!! $item->physical_pack === null ? '<span class="text-muted opacity-50 small">-</span>' : '' !!}</td>
+                            <td class="text-center small">{{ $item->physical_base !== null ? number_format($item->physical_base, 0, ',', '.') : '' }}{!! $item->physical_base === null ? '<span class="text-muted opacity-50 small">-</span>' : '' !!}</td>
                         @endif
 
                         {{-- Stok Sistem: kolom Dus --}}
                         <td class="text-center border-start {{ $sysNeg ? 'text-danger fw-bold' : '' }}">
                             @if($sysDus !== null)
-                                {{ $sysDus > 0 ? $sysDus : ($sysNeg ? $sysDus : '—') }}
+                                {!! ($sysDus > 0 ? $sysDus : ($sysNeg ? $sysDus : '<span class="text-muted opacity-50 small">-</span>')) !!}
                             @else
                                 {{ number_format($item->system_qty, 0, ',', '.') }}
                             @endif
@@ -251,39 +269,86 @@ function fmtVariance(float $var, ?int $ctrPack, ?int $packBase): string {
                         {{-- Stok Sistem: kolom Pack --}}
                         <td class="text-center {{ $sysNeg ? 'text-danger fw-bold' : '' }}">
                             @if($sysDus !== null)
-                                {{ $sysPack > 0 ? $sysPack : '—' }}
+                                {!! ($sysPack > 0 ? $sysPack : '<span class="text-muted opacity-50 small">-</span>') !!}
                             @else
-                                —
+                                <span class="text-muted opacity-50 small">-</span>
                             @endif
                             @if($sysNeg)<small class="d-block text-danger">⚠</small>@endif
                         </td>
 
                         {{-- Selisih (Dus/Pack) --}}
                         <td class="text-end border-start fw-bold {{ $varClass }}" id="var-{{ $item->id }}">
-                            {{ $varText }}
+                            @if($isZero)
+                                <span class="text-muted opacity-50 small">-</span>
+                            @else
+                                {{ $varText }}
+                            @endif
                         </td>
 
                         {{-- Harga & Nilai --}}
                         <td class="text-end border-start small text-muted">
-                            @if($hargaDus > 0)
+                            @if($opname->opname_mode === 'stok_awal' && $opname->status !== 'approved')
+                                @php $hargaDusInput = $item->price_per_base > 0 && $ctrPack && $packBase
+                                    ? round($item->price_per_base * $ctrPack * $packBase)
+                                    : ($hargaDus > 0 ? round($hargaDus) : ''); @endphp
+                                <input type="number"
+                                       name="items[{{ $item->id }}][price_per_dus]"
+                                       class="form-control form-control-sm text-end price-input"
+                                       value="{{ $hargaDusInput }}"
+                                       min="0" step="1" placeholder="—"
+                                       style="width:90px;margin-left:auto"
+                                       data-crate="{{ $ctrPack ?? 0 }}"
+                                       data-pack="{{ $packBase ?? 1 }}"
+                                       data-item="{{ $item->id }}">
+                            @elseif($hargaDus > 0)
                                 {{ number_format($hargaDus, 0, ',', '.') }}
                             @else
-                                <span class="text-muted">—</span>
+                                <span class="text-muted opacity-50 small">-</span>
                             @endif
                         </td>
                         <td class="text-end border-start fw-semibold" id="nilai-{{ $item->id }}"
                             data-price="{{ $harga }}"{{-- data-price tetap per-base untuk kalkulasi JS --}}>
-                            @if($harga > 0)
+                            @if($harga > 0 && $nilaiFisik != 0)
                                 {{ number_format($nilaiFisik, 0, ',', '.') }}
                             @else
-                                <span class="text-muted">—</span>
+                                <span class="text-muted opacity-50 small">-</span>
                             @endif
                         </td>
+                        {{-- Kolom aksi: tombol + / × untuk stok_awal --}}
+                        @if($opname->opname_mode === 'stok_awal' && $opname->status !== 'approved')
+                        <td class="border-start text-center" style="width:36px;padding:2px 4px">
+                            @if(!$isExtraBatch)
+                                {{-- Tombol tambah batch --}}
+                                <form method="POST" action="{{ route('opname.opnames.add-batch', $opname) }}" class="d-inline">
+                                    @csrf
+                                    <input type="hidden" name="ingredient_id" value="{{ $item->ingredient_id }}">
+                                    <input type="hidden" name="packaging_id" value="{{ $item->packaging_id }}">
+                                    <button type="submit" class="btn btn-outline-warning btn-sm px-1 py-0"
+                                            title="Tambah batch harga berbeda"
+                                            style="font-size:.75rem;line-height:1.4">+</button>
+                                </form>
+                            @else
+                                {{-- Tombol hapus batch --}}
+                                <form method="POST" action="{{ route('opname.opnames.items.destroy', [$opname, $item]) }}"
+                                      class="d-inline" data-confirm="Hapus batch ini?" data-confirm-type="error" data-confirm-danger="1" data-confirm-ok="Ya, hapus">
+                                    @csrf @method('DELETE')
+                                    <button type="submit" class="btn btn-outline-danger btn-sm px-1 py-0"
+                                            title="Hapus batch ini"
+                                            style="font-size:.75rem;line-height:1.4">×</button>
+                                </form>
+                            @endif
+                        </td>
+                        @endif
                     </tr>
                     @endforeach
                 </tbody>
                 @php
-                    $grandTotal = $opname->items->sum(fn($i) => $i->physical_qty * ($priceMap[$i->ingredient_id] ?? 0));
+                    $grandTotal = $opname->items->sum(function($i) use ($priceMap, $opname) {
+                        $h = ($opname->opname_mode === 'stok_awal' && $i->price_per_base > 0)
+                            ? (float) $i->price_per_base
+                            : ($priceMap[$i->ingredient_id] ?? 0);
+                        return $i->physical_qty * $h;
+                    });
                 @endphp
                 <tfoot>
                     <tr class="table-light fw-bold">
@@ -292,6 +357,9 @@ function fmtVariance(float $var, ?int $ctrPack, ?int $packBase): string {
                         <td class="text-end border-top border-start fs-6" id="grand-total">
                             Rp {{ number_format($grandTotal, 0, ',', '.') }}
                         </td>
+                        @if($opname->opname_mode === 'stok_awal' && $opname->status !== 'approved')
+                        <td class="border-top"></td>
+                        @endif
                     </tr>
                 </tfoot>
             </table>
@@ -401,7 +469,7 @@ function fmtVariance(float $var, ?int $ctrPack, ?int $packBase): string {
 @push('scripts')
 <script>
 /**
- * Format variance base → "±X CTN ±Y Pack"
+ * Format variance base → "±X Dus ±Y Pack"
  */
 function fmtVar(varBase, crate, pack) {
     if (!crate || !pack) {
@@ -417,11 +485,51 @@ function fmtVar(varBase, crate, pack) {
     var packN = Math.floor(rem / pack);
 
     var parts = [];
-    if (ctnN  > 0) parts.push(sign + ctnN  + ' CTN');
+    if (ctnN  > 0) parts.push(sign + ctnN  + ' Dus');
     if (packN > 0) parts.push(sign + packN + ' Pack');
     if (parts.length === 0) parts.push(sign + '< 1 Pack');
     return parts.join(' ');
 }
+
+// Saat user mengetik harga/dus, update data-price dan nilai fisik secara live
+document.querySelectorAll('.price-input').forEach(function(el) {
+    el.addEventListener('input', function() {
+        var row      = this.closest('tr');
+        var id       = row.dataset.id;
+        var crate    = parseFloat(row.dataset.crate) || 0;
+        var pack     = parseFloat(row.dataset.pack)  || 1;
+        var priceDus = parseFloat(this.value) || 0;
+        var priceBase = (crate > 0 && pack > 0) ? priceDus / (crate * pack) : priceDus;
+
+        var nilaiCell = document.getElementById('nilai-' + id);
+        if (nilaiCell) {
+            nilaiCell.dataset.price = priceBase;
+            var c2 = parseFloat(row.querySelector('[name$="[physical_crate]"]')?.value) || 0;
+            var p2 = parseFloat(row.querySelector('[name$="[physical_pack]"]')?.value)  || 0;
+            var b2 = parseFloat(row.querySelector('[name$="[physical_base]"]')?.value)  || 0;
+            var physBase = crate > 0 ? (c2 * crate * pack) + (p2 * pack) + b2 : (p2 * pack) + b2;
+            var nilai = physBase * priceBase;
+            nilaiCell.textContent = priceBase > 0 ? 'Rp ' + Math.round(nilai).toLocaleString('id-ID') : '—';
+        }
+
+        // Grand total
+        var grandTotal = 0;
+        document.querySelectorAll('tr[data-id]').forEach(function(r) {
+            var nilaiEl = document.getElementById('nilai-' + r.dataset.id);
+            if (!nilaiEl) return;
+            var price = parseFloat(nilaiEl.dataset.price) || 0;
+            var cr    = parseFloat(r.dataset.crate) || 0;
+            var pk    = parseFloat(r.dataset.pack)  || 1;
+            var c2    = parseFloat(r.querySelector('[name$="[physical_crate]"]')?.value) || 0;
+            var p2    = parseFloat(r.querySelector('[name$="[physical_pack]"]')?.value)  || 0;
+            var b2    = parseFloat(r.querySelector('[name$="[physical_base]"]')?.value)  || 0;
+            var base  = cr > 0 ? (c2 * cr * pk) + (p2 * pk) + b2 : (p2 * pk) + b2;
+            grandTotal += base * price;
+        });
+        var gtCell = document.getElementById('grand-total');
+        if (gtCell) gtCell.textContent = 'Rp ' + Math.round(grandTotal).toLocaleString('id-ID');
+    });
+});
 
 document.querySelectorAll('.opname-input').forEach(function(el) {
     el.addEventListener('input', function() {
@@ -438,7 +546,7 @@ document.querySelectorAll('.opname-input').forEach(function(el) {
         // Hitung total fisik dalam base unit
         var physBase = crate > 0 ? (c * crate * pack) + (p * pack) + b : (p * pack) + b;
 
-        // Update total fisik (tampilkan dalam CTN)
+        // Update total fisik (tampilkan dalam Dus)
         var totalCell = document.getElementById('total-' + id);
         if (totalCell) {
             if (crate > 0) {

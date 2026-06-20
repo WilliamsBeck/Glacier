@@ -73,7 +73,7 @@
         <i class="bi bi-arrow-left me-1"></i>Batalkan & Perbaiki Excel
     </a>
     <form method="POST" action="{{ route('inventory.daily-ledger.import-usage') }}"
-          onsubmit="return confirm('Yakin tetap simpan? Stok beberapa bahan akan jadi MINUS dan perlu opname untuk perbaiki.')">
+          data-confirm="Yakin tetap simpan? Stok beberapa bahan akan jadi MINUS dan perlu opname untuk perbaiki." data-confirm-type="warning" data-confirm-ok="Ya, tetap simpan">
         @csrf
         <input type="hidden" name="store_id"  value="{{ $store_id }}">
         <input type="hidden" name="month"     value="{{ $month }}">

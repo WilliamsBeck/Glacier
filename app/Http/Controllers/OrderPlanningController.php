@@ -1,9 +1,10 @@
 <?php
 namespace App\Http\Controllers;
 
-use App\Models\{DailyUsage, Ingredient, IngredientCategory, Opname, OpnameItem, Store, StoreStock};
+use App\Models\{DailyUsage, Ingredient, IngredientCategory, IngredientPackaging, Opname, OpnameItem, Store, StoreStock};
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class OrderPlanningController extends Controller
 {
@@ -47,7 +48,6 @@ class OrderPlanningController extends Controller
             'ref_month'       => 'required|integer|between:1,12',
             'ref_year'        => 'required|integer|min:2020',
             'buffer_pct'      => 'nullable|numeric|min:0|max:100',
-            'split_order'     => 'nullable|boolean',
             'stock_source'    => 'nullable|in:fifo,opname',
             'opname_id'       => 'nullable|exists:opnames,id',
         ]);
@@ -120,7 +120,6 @@ class OrderPlanningController extends Controller
         $refMonth     = (int)$request->ref_month;
         $refYear      = (int)$request->ref_year;
         $bufferPct    = (float)($request->buffer_pct ?? 0);
-        $splitOrder   = $request->boolean('split_order');
         $stockSource  = $request->input('stock_source', 'fifo');
         $opnameId     = $request->filled('opname_id') ? (int)$request->opname_id : null;
         $daysToCover  = $deliveryDate->diffInDays($coverageEnd);
@@ -128,20 +127,16 @@ class OrderPlanningController extends Controller
         // Lead time (informasi saja, tidak mempengaruhi kalkulasi)
         $leadTimeDays = $orderDate ? $orderDate->diffInDays($deliveryDate) : null;
 
-        // Tanggal estimasi Order 2 — tengah coverage
-        $splitDate = $splitOrder
-            ? $deliveryDate->copy()->addDays((int)ceil($daysToCover / 2))
-            : null;
-
         // ── Sumber stok saat ini ──────────────────────────────────────────────
         $selectedOpname = null;
         if ($stockSource === 'opname' && $opnameId) {
             $selectedOpname = Opname::find($opnameId);
-            // physical_qty = base unit dari opname fisik
+            // physical_qty = base unit dari opname fisik.
+            // Jumlahkan per ingredient (1 bahan bisa punya >1 baris kemasan).
             $stockMap = OpnameItem::where('opname_id', $opnameId)
                 ->get(['ingredient_id', 'physical_qty'])
-                ->pluck('physical_qty', 'ingredient_id')
-                ->map(fn($v) => (float)$v);
+                ->groupBy('ingredient_id')
+                ->map(fn($g) => (float)$g->sum('physical_qty'));
         } else {
             // Default: FIFO (saldo berjalan dari store_stocks)
             $stockSource = 'fifo';
@@ -158,27 +153,126 @@ class OrderPlanningController extends Controller
         $usageSums = DailyUsage::where('store_id', $storeId)
             ->whereBetween('usage_date', [$refStart, $refEnd])
             ->where('qty_pack', '>', 0)
+            ->whereExists(fn($q) => $q
+                ->from('daily_confirmations')
+                ->whereColumn('daily_confirmations.store_id', 'daily_usages.store_id')
+                ->whereColumn('daily_confirmations.confirmation_date', 'daily_usages.usage_date')
+            )
             ->groupBy('ingredient_id')
             ->selectRaw('ingredient_id, SUM(qty_pack) as total_pack, COUNT(DISTINCT usage_date) as active_days')
             ->get()
             ->keyBy('ingredient_id');
 
+        // ── Fallback HPP Aktual ───────────────────────────────────────────────
+        // Jika tidak ada pencatatan harian yang dikonfirmasi, hitung konsumsi dari:
+        // konsumsi_base = stok_awal (opname bulan lalu) + pembelian_bulan_ini - stok_akhir (opname bulan ini)
+        $usageSource = 'daily'; // untuk info di view
         if ($usageSums->isEmpty()) {
-            return compact('store', 'orderDate', 'deliveryDate', 'coverageEnd', 'daysToCover',
-                'leadTimeDays', 'refMonth', 'refYear', 'daysInRef', 'bufferPct',
-                'splitOrder', 'splitDate', 'stockSource', 'selectedOpname')
-                + ['tableData' => [], 'message' => 'Tidak ada data konsumsi untuk bulan referensi yang dipilih.'];
+            $prevPeriod   = Carbon::create($refYear, $refMonth, 1)->subMonth();
+            $openingOpname = Opname::where('store_id', $storeId)
+                ->where('period_month', $prevPeriod->month)
+                ->where('period_year',  $prevPeriod->year)
+                ->where('period_type',  'end_month')
+                ->where('status',       'approved')
+                ->first();
+            $closingOpname = Opname::where('store_id', $storeId)
+                ->where('period_month', $refMonth)
+                ->where('period_year',  $refYear)
+                ->where('period_type',  'end_month')
+                ->where('status',       'approved')
+                ->first();
+
+            if ($openingOpname || $closingOpname) {
+                // Stok awal per ingredient (base) dari opname bulan sebelumnya.
+                // Jumlahkan per ingredient (1 bahan bisa punya >1 baris kemasan).
+                $openingMap = $openingOpname
+                    ? OpnameItem::where('opname_id', $openingOpname->id)
+                        ->get(['ingredient_id', 'physical_qty'])
+                        ->groupBy('ingredient_id')
+                        ->map(fn($g) => (float)$g->sum('physical_qty'))
+                    : collect();
+
+                // Stok akhir per ingredient (base) dari opname bulan ini
+                $closingMap = $closingOpname
+                    ? OpnameItem::where('opname_id', $closingOpname->id)
+                        ->get(['ingredient_id', 'physical_qty'])
+                        ->groupBy('ingredient_id')
+                        ->map(fn($g) => (float)$g->sum('physical_qty'))
+                    : collect();
+
+                // Pembelian / barang masuk bulan ini (base) per ingredient
+                $purchaseMap = DB::table('mutation_items as mi')
+                    ->join('mutations as m', 'm.id', '=', 'mi.mutation_id')
+                    ->where('m.destination_store_id', $storeId)
+                    ->where('m.status', 'confirmed')
+                    ->whereBetween(DB::raw('COALESCE(m.delivery_date, m.transaction_date)'), [$refStart, $refEnd])
+                    ->whereIn('m.type', ['purchase_zhisheng', 'purchase_supplier', 'sale_internal', 'sale_external'])
+                    ->selectRaw('mi.ingredient_id, SUM(mi.total_in_base) as total')
+                    ->groupBy('mi.ingredient_id')
+                    ->pluck('total', 'ingredient_id')
+                    ->map(fn($v) => (float)$v);
+
+                // Transfer keluar (base) per ingredient — toko ini sebagai sumber.
+                // Sama dengan HPP Aktual: konsumsi mengurangi transfer keluar.
+                $salesOutMap = DB::table('mutation_items as mi')
+                    ->join('mutations as m', 'm.id', '=', 'mi.mutation_id')
+                    ->where('m.source_store_id', $storeId)
+                    ->where('m.status', 'confirmed')
+                    ->whereBetween(DB::raw('COALESCE(m.delivery_date, m.transaction_date)'), [$refStart, $refEnd])
+                    ->where('m.type', 'sale_internal')
+                    ->selectRaw('mi.ingredient_id, SUM(mi.total_in_base) as total')
+                    ->groupBy('mi.ingredient_id')
+                    ->pluck('total', 'ingredient_id')
+                    ->map(fn($v) => (float)$v);
+
+                // Hitung konsumsi per ingredient.
+                // Gunakan kemasan pertama (id terkecil) agar konsisten dgn tabel.
+                $allIngIds = $openingMap->keys()->merge($closingMap->keys())->unique();
+                $pkgMap = IngredientPackaging::whereIn('ingredient_id', $allIngIds)
+                    ->where('is_active', true)
+                    ->orderBy('id')
+                    ->get()->groupBy('ingredient_id')->map(fn($g) => $g->first());
+
+                foreach ($allIngIds as $ingId) {
+                    $pkg = $pkgMap[$ingId] ?? null;
+                    if (!$pkg || $pkg->pack_to_base <= 0) continue;
+
+                    $opening    = $openingMap[$ingId]  ?? 0.0;
+                    $closing    = $closingMap[$ingId]  ?? 0.0;
+                    $purchases  = $purchaseMap[$ingId] ?? 0.0;
+                    $salesOut   = $salesOutMap[$ingId] ?? 0.0;
+                    // Identik dengan HPP Aktual: opening + masuk − transfer keluar − closing
+                    $consumBase = $opening + $purchases - $salesOut - $closing;
+                    if ($consumBase <= 0) continue;
+
+                    $consumPack = $consumBase / $pkg->pack_to_base;
+                    $usageSums->put($ingId, (object)[
+                        'ingredient_id' => $ingId,
+                        'total_pack'    => $consumPack,
+                        'active_days'   => $daysInRef, // asumsi full bulan
+                    ]);
+                }
+                $usageSource = 'hpp';
+            }
+
+            if ($usageSums->isEmpty()) {
+                return compact('store', 'orderDate', 'deliveryDate', 'coverageEnd', 'daysToCover',
+                    'leadTimeDays', 'refMonth', 'refYear', 'daysInRef', 'bufferPct',
+                    'stockSource', 'selectedOpname')
+                    + ['tableData' => [], 'message' => 'Tidak ada data konsumsi (pencatatan harian maupun opname) untuk bulan referensi yang dipilih.'];
+            }
         }
 
-        $categoryOrder = IngredientCategory::orderedNames();
-        $ingredients   = Ingredient::with(['packagings' => fn($q) => $q->where('is_active', true)->orderBy('id')])
+        // Urutan sama dengan SO / pencatatan harian: kategori sort_order → ingredient id
+        $catSort     = IngredientCategory::pluck('sort_order', 'name')->toArray();
+        $ingredients = Ingredient::with(['packagings' => fn($q) => $q->where('is_active', true)->orderBy('id')])
             ->whereIn('id', $usageSums->keys())
             ->where('type', '!=', 'semi_finished')
             ->get()
-            ->sort(function ($a, $b) use ($categoryOrder) {
-                $ai = array_search($a->type, $categoryOrder); $ai = $ai === false ? 99 : $ai;
-                $bi = array_search($b->type, $categoryOrder); $bi = $bi === false ? 99 : $bi;
-                return $ai !== $bi ? $ai - $bi : strcmp($a->name, $b->name);
+            ->sort(function ($a, $b) use ($catSort) {
+                $ai = $catSort[$a->category] ?? 9999;
+                $bi = $catSort[$b->category] ?? 9999;
+                return $ai !== $bi ? $ai <=> $bi : $a->id <=> $b->id;
             })
             ->values();
 
@@ -198,34 +292,28 @@ class OrderPlanningController extends Controller
             $grossPack    = $avgDailyPack * $daysToCover;
             $grossWithBuf = $grossPack * (1 + $bufferPct / 100);
             $netPack      = max(0, $grossWithBuf - $stockPack);
-            $netDus       = (int) ceil($netPack / $pkg->crate_to_pack);
+            $netDusRaw    = $netPack / $pkg->crate_to_pack;
+            // Kebutuhan < 0,1 dus dianggap nol (jangan dibulatkan ke atas)
+            $netDus       = $netDusRaw < 0.1 ? 0 : (int) ceil($netDusRaw);
 
-            $order1Dus = $splitOrder ? (int) ceil($netDus / 2) : $netDus;
-            $order2Dus = $splitOrder ? (int) ceil($netDus / 2) : 0;
-
+            $ctp = $pkg->crate_to_pack;
             $tableData[] = (object)[
-                'ingredient'     => $ing,
-                'packaging'      => $pkg,
-                'ref_total_pack' => round($usage->total_pack, 1),
-                'active_days'    => $usage->active_days,
-                'avg_daily_pack' => round($avgDailyPack, 2),
-                'stock_base'     => round($stockBase, 2),
-                'stock_pack'     => round($stockPack, 1),
-                'stock_dus'      => round($stockDus, 1),
-                'days_cover'     => $daysToCover,
-                'gross_pack'     => round($grossPack, 1),
-                'buffer_pack'    => round($grossWithBuf - $grossPack, 1),
-                'net_pack'       => round($netPack, 1),
-                'net_dus'        => $netDus,
-                'order1_dus'     => $order1Dus,
-                'order2_dus'     => $order2Dus,
+                'ingredient'      => $ing,
+                'packaging'       => $pkg,
+                'ref_total_dus'   => round($usage->total_pack / $ctp, 2),
+                'avg_daily_dus'   => round($avgDailyPack / $ctp, 3),
+                'active_days'     => $usage->active_days,
+                'stock_dus'       => round($stockDus, 2),
+                'gross_dus'       => round($grossPack / $ctp, 2),
+                'buffer_dus'      => round(($grossWithBuf - $grossPack) / $ctp, 2),
+                'net_dus'         => $netDus,
             ];
         }
 
         return compact(
             'store', 'tableData', 'orderDate', 'deliveryDate', 'coverageEnd', 'daysToCover',
             'leadTimeDays', 'refMonth', 'refYear', 'daysInRef', 'bufferPct',
-            'splitOrder', 'splitDate', 'stockSource', 'selectedOpname'
+            'stockSource', 'selectedOpname', 'usageSource'
         );
     }
 }

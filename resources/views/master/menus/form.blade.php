@@ -84,7 +84,7 @@
                                                         </button>
                                                         <form method="POST"
                                                             action="{{ route('master.menus.recipe-version.destroy', ['menu' => $menu->id, 'group' => $first->recipe_group_id ?? 'kosong']) }}"
-                                                            onsubmit="return confirm('Hapus versi resep {{ $formatID($date) }}?')">
+                                                            data-confirm="Hapus versi resep {{ $formatID($date) }}?" data-confirm-type="error" data-confirm-danger="1" data-confirm-ok="Ya, hapus">
                                                             @csrf @method('DELETE')
                                                             <button type="submit" class="btn btn-sm btn-light border text-danger"
                                                                 style="border-radius: 8px; background-color: #fff5f5; border-color: #fee2e2 !important;">

@@ -17,6 +17,20 @@ class Ingredient extends Model
         return $this->hasMany(IngredientPackaging::class);
     }
 
+    /**
+     * Urutkan: kategori (sort_order dari ingredient_categories) → urutan input (id).
+     * Bukan abjad. Dipakai untuk semua dropdown/list bahan baku.
+     */
+    public function scopeOrderedByCategory($query)
+    {
+        return $query
+            ->leftJoin('ingredient_categories as ic', 'ingredients.category', '=', 'ic.name')
+            ->orderByRaw('ic.sort_order IS NULL')
+            ->orderBy('ic.sort_order')
+            ->orderBy('ingredients.id')
+            ->select('ingredients.*');
+    }
+
     // Bahan pembentuk (parent = semi_finished, child = raw)
     public function compositions()
     {

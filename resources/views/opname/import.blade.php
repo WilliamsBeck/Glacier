@@ -22,9 +22,13 @@
 <div class="card" style="max-width:520px">
     <div class="card-body">
         <p class="text-muted small mb-3">
-            Upload file template yang sudah diisi. Template bisa didownload dari halaman
-            <a href="{{ route('opname.opnames.create') }}">Buat Opname</a>.
+            Upload file template yang sudah diisi. Belum punya template? Download dulu dari halaman
+            <a href="{{ route('opname.opnames.create') }}">Buat Opname</a> (pilih toko &amp; tanggal, lalu klik <strong>Download Template</strong>).
         </p>
+        <div class="alert alert-info d-flex align-items-center gap-2 py-2 px-3 mb-3" style="font-size:.85rem">
+            <i class="bi bi-info-circle-fill"></i>
+            <span>Template berisi data sistem qty terkini — harus didownload ulang tiap periode baru.</span>
+        </div>
         <form method="POST" action="{{ route('opname.opnames.import') }}" enctype="multipart/form-data">
             @csrf
             <div class="mb-3">

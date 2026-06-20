@@ -36,7 +36,7 @@ class DailyLedgerController extends Controller
 
         // ── Stok Awal: prioritas opname end_month bulan sebelumnya ──
         $prevMonth      = Carbon::create($year, $month, 1)->subMonth();
-        $prevOpname     = Opname::with('items')
+        $prevOpname     = Opname::with('items.packaging')
             ->where('store_id', $storeId)
             ->where('period_month', $prevMonth->month)
             ->where('period_year',  $prevMonth->year)
@@ -44,12 +44,27 @@ class DailyLedgerController extends Controller
             ->where('status',       'approved')
             ->first();
 
-        // physical_qty per ingredient dari opname bulan lalu (keyed by ingredient_id).
+        // Stok awal HANYA hitung dus+pack (abaikan sisa loose pcs/gram) — konsisten dgn
+        // opening_stock mutation & halaman Saldo Stok. Fallback ke physical_qty bila
+        // item tidak punya breakdown crate/pack (mis. bahan tanpa kemasan).
+        $opnamePackedBase = function ($item) {
+            $pkg         = $item->packaging;
+            $crateToBase = $pkg ? (float)$pkg->crate_to_pack * (float)$pkg->pack_to_base : 0;
+            $ptb         = $pkg ? (float)$pkg->pack_to_base : 0;
+            $physCrate   = (int)($item->physical_crate ?? 0);
+            $physPack    = (int)($item->physical_pack  ?? 0);
+            $qty = ($crateToBase > 0 ? $physCrate * $crateToBase : 0)
+                 + ($ptb > 0        ? $physPack  * $ptb         : 0);
+            if ($qty <= 0) $qty = round((float)$item->physical_qty, 4);
+            return (float)$qty;
+        };
+
+        // base packed per ingredient dari opname bulan lalu (keyed by ingredient_id).
         // SUM per ingredient_id agar bahan dengan >1 kemasan (2 baris opname) tetap benar.
         $opnameOpeningMap = $prevOpname
             ? $prevOpname->items
                 ->groupBy('ingredient_id')
-                ->map(fn($grp) => $grp->sum(fn($i) => (float)$i->physical_qty))
+                ->map(fn($grp) => $grp->sum(fn($i) => $opnamePackedBase($i)))
                 ->all()
             : [];
 
@@ -182,8 +197,8 @@ class DailyLedgerController extends Controller
             ]);
         }
 
-        // ── Load ingredients ordered by type ──────────────────────
-        $typeOrder   = IngredientCategory::orderedNames();
+        // ── Load ingredients: urut kategori → urutan input (id) ────
+        $catSort     = IngredientCategory::pluck('sort_order', 'name')->toArray();
         $userOrder   = DB::table('user_ingredient_orders')
             ->where('user_id', auth()->id())
             ->pluck('sort_order', 'ingredient_id')
@@ -193,19 +208,17 @@ class DailyLedgerController extends Controller
             ->whereIn('id', $ingIds)
             ->where('type', '!=', 'semi_finished')
             ->get()
-            ->sort(function ($a, $b) use ($typeOrder, $userOrder) {
+            ->sort(function ($a, $b) use ($catSort, $userOrder) {
                 // Prioritas 1: urutan custom user (kalau ada)
                 $ua = $userOrder[$a->id] ?? null;
                 $ub = $userOrder[$b->id] ?? null;
                 if ($ua !== null && $ub !== null) return $ua <=> $ub;
                 if ($ua !== null) return -1;
                 if ($ub !== null) return 1;
-                // Prioritas 2: kategori → nama (default)
-                $ai = array_search($a->type, $typeOrder);
-                $bi = array_search($b->type, $typeOrder);
-                $ai = $ai === false ? 99 : $ai;
-                $bi = $bi === false ? 99 : $bi;
-                return $ai !== $bi ? $ai - $bi : strcmp($a->name, $b->name);
+                // Prioritas 2 (default): kategori (sort_order) → urutan input (id)
+                $ai = $catSort[$a->category] ?? 9999;
+                $bi = $catSort[$b->category] ?? 9999;
+                return $ai !== $bi ? $ai <=> $bi : $a->id <=> $b->id;
             })
             ->values()
             ->keyBy('id');
@@ -231,7 +244,7 @@ class DailyLedgerController extends Controller
         if ($prevOpname) {
             foreach ($prevOpname->items as $it) {
                 $k = $it->ingredient_id . '-' . ($it->packaging_id ?: 0);
-                $opnameOpeningByPkg[$k] = ($opnameOpeningByPkg[$k] ?? 0) + (float) $it->physical_qty;
+                $opnameOpeningByPkg[$k] = ($opnameOpeningByPkg[$k] ?? 0) + $opnamePackedBase($it);
             }
         }
         $openingItemsByPkg = [];
@@ -400,7 +413,22 @@ class DailyLedgerController extends Controller
         $isCurrentMonth = ($year == now()->year && $month == now()->month);
         $closingBreakdown = [];
 
-        if ($isCurrentMonth) {
+        // Cek opname end_month BULAN INI (yang sedang dilihat) — bukan bulan lalu.
+        // Jika sudah ada opname approved, stok akhir = physical opname (frozen snapshot),
+        // bukan FIFO remaining yang bisa tergeser oleh pemakaian bulan berikutnya.
+        $currentMonthOpname = Opname::with('items.packaging')
+            ->where('store_id', $storeId)
+            ->where('period_month', $month)
+            ->where('period_year', $year)
+            ->where('period_type', 'end_month')
+            ->where('status', 'approved')
+            ->first();
+
+        if ($currentMonthOpname) {
+            foreach ($currentMonthOpname->items as $item) {
+                $closingBreakdown[$item->ingredient_id][$item->packaging_id ?? 0] = $opnamePackedBase($item);
+            }
+        } elseif ($isCurrentMonth) {
             $batchesGrouped = \App\Models\MutationItem::whereHas('mutation', fn($q) =>
                     $q->where('destination_store_id', $storeId)
                       ->where('status', 'confirmed')
@@ -510,18 +538,21 @@ class DailyLedgerController extends Controller
         // Catatan: pemakaian BOLEH melebihi stok (over-usage diizinkan).
         // Stok akhir akan tampil MINUS sebagai penanda — tidak diblokir.
 
-        DailyUsage::updateOrCreate(
-            [
-                'store_id'      => $request->store_id,
-                'ingredient_id' => $request->ingredient_id,
-                'packaging_id'  => $request->packaging_id ?: null,
-                'usage_date'    => $request->date,
-            ],
-            [
+        $key = [
+            'store_id'      => $request->store_id,
+            'ingredient_id' => $request->ingredient_id,
+            'packaging_id'  => $request->packaging_id ?: null,
+            'usage_date'    => $request->date,
+        ];
+
+        if ((float)$request->qty_pack === 0.0) {
+            DailyUsage::where($key)->delete();
+        } else {
+            DailyUsage::updateOrCreate($key, [
                 'qty_pack'   => $request->qty_pack,
                 'created_by' => auth()->id(),
-            ]
-        );
+            ]);
+        }
 
         // Cek apakah tanggal sudah dikonfirmasi.
         // - Belum dikonfirmasi (draft) → input disimpan TAPI saldo stok belum diupdate
@@ -685,12 +716,27 @@ class DailyLedgerController extends Controller
 
         $bulanID = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 
-        // Ambil semua bahan baku aktif (yang biasa dipakai harian)
-        $ingredients = Ingredient::where('is_active', true)
+        // Ambil semua bahan baku aktif — urutan sama dengan tampilan web: kategori → id input
+        $catSort = IngredientCategory::pluck('sort_order', 'name')->toArray();
+        $userOrder = DB::table('user_ingredient_orders')
+            ->where('user_id', auth()->id())
+            ->pluck('sort_order', 'ingredient_id')
+            ->toArray();
+
+        $ingredients = Ingredient::where('ingredients.is_active', true)
             ->where('type', '!=', 'semi_finished')
-            ->orderBy('type')
-            ->orderBy('name')
-            ->get();
+            ->get()
+            ->sort(function ($a, $b) use ($catSort, $userOrder) {
+                $ua = $userOrder[$a->id] ?? null;
+                $ub = $userOrder[$b->id] ?? null;
+                if ($ua !== null && $ub !== null) return $ua <=> $ub;
+                if ($ua !== null) return -1;
+                if ($ub !== null) return 1;
+                $ai = $catSort[$a->category] ?? 9999;
+                $bi = $catSort[$b->category] ?? 9999;
+                return $ai !== $bi ? $ai <=> $bi : $a->id <=> $b->id;
+            })
+            ->values();
 
         // Ambil pemakaian existing untuk pre-fill
         $existing = DailyUsage::where('store_id', $storeId)
@@ -831,7 +877,8 @@ class DailyLedgerController extends Controller
         if (empty($issues)) {
             // Bersih, langsung save
             $result = $this->saveImport($spreadsheet, $storeId, $month, $year, $daysInMonth);
-            return back()->with('success', $result);
+            $alertType = str_contains($result, 'dilewati') ? 'warning' : 'success';
+            return back()->with($alertType, $result);
         }
 
         // Ada issues — simpan file ke temp & redirect ke preview (PRG pattern)
@@ -1047,12 +1094,15 @@ class DailyLedgerController extends Controller
         $dataStartRow = 5;
         $highestRow = $sheet->getHighestRow();
 
-        // Map ingredient IDs yang bisa diakses
-        $validIngIds = Ingredient::where('is_active', true)
+        // Map ingredient IDs yang bisa diakses + default packaging_id per ingredient
+        $ingredientList = Ingredient::with(['packagings' => fn($q) => $q->where('is_active', true)->orderBy('id')])
+            ->where('is_active', true)
             ->where('type', '!=', 'semi_finished')
-            ->pluck('id')
-            ->flip()
-            ->all();
+            ->get()
+            ->keyBy('id');
+
+        $validIngIds   = $ingredientList->keys()->flip()->all();
+        $defaultPkgMap = $ingredientList->map(fn($i) => $i->packagings->first()?->id)->all();
 
         $inserted = 0;
         $updated  = 0;
@@ -1082,10 +1132,13 @@ class DailyLedgerController extends Controller
                         continue;
                     }
 
+                    $pkgId = $defaultPkgMap[$ingId] ?? null;
+
                     if ($val === null || $val === '') {
-                        // Cell kosong → hapus existing kalau ada (anggap user mau reset)
+                        // Cell kosong → hapus existing kalau ada
                         $deleted = DailyUsage::where('store_id', $storeId)
                             ->where('ingredient_id', $ingId)
+                            ->where('packaging_id', $pkgId)
                             ->where('usage_date', $dateStr)
                             ->delete();
                         if ($deleted) {
@@ -1101,6 +1154,7 @@ class DailyLedgerController extends Controller
 
                     $existing = DailyUsage::where('store_id', $storeId)
                         ->where('ingredient_id', $ingId)
+                        ->where('packaging_id', $pkgId)
                         ->where('usage_date', $dateStr)
                         ->first();
 
@@ -1117,6 +1171,7 @@ class DailyLedgerController extends Controller
                         DailyUsage::create([
                             'store_id'      => $storeId,
                             'ingredient_id' => $ingId,
+                            'packaging_id'  => $pkgId,
                             'usage_date'    => $dateStr,
                             'qty_pack'      => $val,
                             'created_by'    => auth()->id(),
@@ -1137,8 +1192,9 @@ class DailyLedgerController extends Controller
             FifoService::recalculate($storeId, $ingId);
         }
 
+        $lockMsg = Opname::lockMessageFor($storeId);
         $msg = "Import selesai: {$inserted} baru, {$updated} diperbarui";
-        if ($skipped > 0) $msg .= ", {$skipped} dilewati (terkunci)";
+        if ($skipped > 0) $msg .= ". ⚠️ {$skipped} data dilewati karena periode terkunci — {$lockMsg}";
         if (count($errors) > 0) {
             $msg .= ". Error: " . implode('; ', array_slice($errors, 0, 5));
             if (count($errors) > 5) $msg .= ' (dan ' . (count($errors) - 5) . ' lainnya)';

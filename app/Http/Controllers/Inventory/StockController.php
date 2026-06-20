@@ -156,8 +156,9 @@ class StockController extends Controller
 
         $buildRow = function ($ing, $pkg, $pkgBatches, $usageRow, $parLevelDays, $leadTimeDays, $orderCycleDays, $dosWindowDays) use ($receivedMap, $demandMap) {
             $remainingQty = $pkgBatches->sum('remaining_qty');
-            $pkgSubtotal  = $pkgBatches->sum(fn($b) => $b->remaining_qty * $b->price_per_base);
-            $pkgAvgPrice  = $remainingQty > 0 ? $pkgSubtotal / $remainingQty : 0;
+            $pkgAvgPrice  = $remainingQty > 0
+                ? $pkgBatches->sum(fn($b) => $b->remaining_qty * $b->price_per_base) / $remainingQty
+                : 0;
 
             // Saldo bertanda: kalau dipakai melebihi stok → MINUS; selain itu FIFO remaining.
             $k         = $ing->id . '-' . ($pkg?->id ?: 0);
@@ -179,6 +180,11 @@ class StockController extends Controller
                 $baseRem = $baseRem - ($pack * $ptb);
             }
             if ($neg) { $dus = -$dus; $pack = -$pack; $baseRem = -$baseRem; }
+
+            // Nilai Rp hanya dari porsi Dus + Pack (sisa gram/pcs diabaikan)
+            $dusPackBase = ($crateToBase > 0 ? abs($dus) * $crateToBase : 0)
+                         + ($ptb > 0 ? abs($pack) * $ptb : 0);
+            $pkgSubtotal = ($neg ? -1 : 1) * $dusPackBase * $pkgAvgPrice;
 
             // Price layers (untuk tooltip)
             $priceLayers = $pkgBatches

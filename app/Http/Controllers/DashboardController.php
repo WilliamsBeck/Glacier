@@ -101,19 +101,19 @@ class DashboardController extends Controller
         // ── 5. Toko belum update pencatatan harian s/d kemarin ────────────────
         $yesterday = Carbon::yesterday()->toDateString();
 
-        // store_ids yang sudah punya entry daily_usage untuk tanggal kemarin
-        $updatedStoreIds = DailyUsage::whereIn('store_id', $storeIds)
-            ->where('usage_date', $yesterday)
+        // store_ids yang sudah punya konfirmasi pencatatan untuk tanggal kemarin
+        $updatedStoreIds = \App\Models\DailyConfirmation::whereIn('store_id', $storeIds)
+            ->where('confirmation_date', $yesterday)
             ->distinct()->pluck('store_id')->toArray();
 
         $storesNotUpdated = $stores->filter(fn($s) => $s->is_active)
             ->whereNotIn('id', $updatedStoreIds)
             ->values();
 
-        // Ambil tanggal terakhir pencatatan per toko (untuk info di list)
-        $lastUsageDates = DailyUsage::whereIn('store_id', $storeIds)
+        // Ambil tanggal terakhir KONFIRMASI per toko (untuk info di list)
+        $lastUsageDates = \App\Models\DailyConfirmation::whereIn('store_id', $storeIds)
             ->groupBy('store_id')
-            ->selectRaw('store_id, MAX(usage_date) as last_date')
+            ->selectRaw('store_id, MAX(confirmation_date) as last_date')
             ->pluck('last_date', 'store_id');
 
         // ── 6. Nilai stok saat ini (Σ sisa FIFO × harga) ─────────────────────
@@ -124,10 +124,17 @@ class DashboardController extends Controller
             ->selectRaw('SUM(mi.remaining_qty * mi.price_per_base) as v')
             ->value('v');
 
-        // ── 7. Grafik pemakaian bahan baku (pencatatan harian) bulan ini ──────
-        $monthStart   = now()->startOfMonth()->toDateString();
-        $monthEnd     = now()->endOfMonth()->toDateString();
-        $daysInMonth  = now()->daysInMonth;
+        // ── 7. Grafik pemakaian bahan baku (pencatatan harian) ──────────────────
+        $chartMonth  = (int) request('chart_month', now()->month);
+        $chartYear   = (int) request('chart_year',  now()->year);
+        // Clamp ke rentang valid
+        $chartMonth  = max(1, min(12, $chartMonth));
+        $chartYear   = max(2020, min((int) now()->year, $chartYear));
+
+        $chartPeriod = Carbon::create($chartYear, $chartMonth, 1);
+        $monthStart  = $chartPeriod->copy()->startOfMonth()->toDateString();
+        $monthEnd    = $chartPeriod->copy()->endOfMonth()->toDateString();
+        $daysInMonth = $chartPeriod->daysInMonth;
 
         // Daftar bahan untuk dropdown (yang pernah dipakai bulan ini)
         $usedIngredientIds = DailyUsage::whereIn('store_id', $storeIds)
@@ -150,7 +157,12 @@ class DashboardController extends Controller
             ->leftJoin('ingredient_packagings as ip', 'ip.id', '=', 'du.packaging_id')
             ->whereIn('du.store_id', $storeIds)
             ->whereBetween('du.usage_date', [$monthStart, $monthEnd])
-            ->where('du.qty_pack', '>', 0);
+            ->where('du.qty_pack', '>', 0)
+            ->whereExists(fn($q) => $q
+                ->from('daily_confirmations')
+                ->whereColumn('daily_confirmations.store_id', 'du.store_id')
+                ->whereColumn('daily_confirmations.confirmation_date', 'du.usage_date')
+            );
 
         $chartData = array_fill(1, $daysInMonth, 0.0);
 
@@ -229,6 +241,7 @@ class DashboardController extends Controller
             'selectedStore', 'stockValue',
             'chartIngredients', 'chartSelectedId', 'chartIngredientName',
             'chartLabels', 'chartData', 'chartMode', 'chartUnit',
+            'chartMonth', 'chartYear',
             'topWaste', 'topWasteMax', 'recentActivity'
         ));
     }

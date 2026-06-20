@@ -19,7 +19,7 @@ class RecipeController extends Controller
     public function create()
     {
         $menus       = Menu::where('is_active', true)->orderBy('name')->get();
-        $ingredients = Ingredient::where('is_active', true)->orderBy('name')->get();
+        $ingredients = Ingredient::where('ingredients.is_active', true)->orderedByCategory()->get();
         $stores      = Store::where('is_active', true)->orderBy('name')->get();
         return view('master.recipes.form', compact('menus', 'ingredients', 'stores'));
     }
@@ -31,7 +31,7 @@ class RecipeController extends Controller
             ->unique('ingredient_id')->values();
 
         $menus       = Menu::where('is_active', true)->orderBy('name')->get();
-        $ingredients = Ingredient::where('is_active', true)->orderBy('name')->get();
+        $ingredients = Ingredient::where('ingredients.is_active', true)->orderedByCategory()->get();
         $stores      = Store::where('is_active', true)->orderBy('name')->get();
 
         return view('master.recipes.form', compact('menus', 'ingredients', 'stores', 'sourceItems', 'recipe'));

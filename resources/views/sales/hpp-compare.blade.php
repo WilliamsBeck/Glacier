@@ -305,11 +305,11 @@ $hasAnyAktual   = false;
                         @php $sel = $d->summary?->selisih_hpp; @endphp
                         <td class="text-end fw-bold">
                             @if($sel !== null)
-                                <span class="{{ $sel > 0 ? 'text-danger' : ($sel < 0 ? 'text-success' : 'text-muted') }}">
+                                <span class="{{ $sel < 0 ? 'text-danger' : ($sel > 0 ? 'text-success' : 'text-muted') }}">
                                     {{ $sel >= 0 ? '+' : '' }}{{ $rp($sel) }}
                                 </span>
-                                <div style="font-size:.72rem" class="{{ $sel > 0 ? 'text-danger' : ($sel < 0 ? 'text-success' : 'text-muted') }}">
-                                    {{ $sel > 0 ? 'Boros' : ($sel < 0 ? 'Efisien' : 'Sesuai') }}
+                                <div style="font-size:.72rem" class="{{ $sel < 0 ? 'text-danger' : ($sel > 0 ? 'text-success' : 'text-muted') }}">
+                                    {{ $sel < 0 ? 'Boros' : ($sel > 0 ? 'Efisien' : 'Sesuai') }}
                                 </div>
                             @else <span class="text-muted">—</span> @endif
                         </td>
@@ -453,19 +453,19 @@ const MODES = {
         }),
     },
     selisih: {
-        subtitle: 'Positif (+) = boros (aktual > ideal) · Negatif (−) = efisien (aktual < ideal)',
+        subtitle: 'Positif (+) = efisien (aktual < ideal) · Negatif (−) = boros (aktual > ideal)',
         build: () => ({
             datasets: [{
                 label: 'Selisih HPP',
                 data: SELISIH,
-                backgroundColor: SELISIH.map(v => v === null ? '#e5e7eb' : v > 0 ? '#ef444499' : '#22c55e99'),
-                borderColor:     SELISIH.map(v => v === null ? '#e5e7eb' : v > 0 ? '#ef4444'   : '#22c55e'),
+                backgroundColor: SELISIH.map(v => v === null ? '#e5e7eb' : v < 0 ? '#ef444499' : '#22c55e99'),
+                borderColor:     SELISIH.map(v => v === null ? '#e5e7eb' : v < 0 ? '#ef4444'   : '#22c55e'),
                 borderWidth: 2, borderRadius: 6,
             }],
             yFmt:   v => (v >= 0 ? '+' : '') + 'Rp ' + (v/1e6).toFixed(1).replace('.', ',') + 'jt',
             tipFmt: (label, v) => {
                 if (v === null) return label + ': Belum ada opname';
-                return label + ': ' + (v >= 0 ? '+' : '') + rpFmt(v) + (v > 0 ? ' (Boros)' : v < 0 ? ' (Efisien)' : ' (Sesuai)');
+                return label + ': ' + (v >= 0 ? '+' : '') + rpFmt(v) + (v < 0 ? ' (Boros)' : v > 0 ? ' (Efisien)' : ' (Sesuai)');
             },
             legend: false,
             zeroLine: true,

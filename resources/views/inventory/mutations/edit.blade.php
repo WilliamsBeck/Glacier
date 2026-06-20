@@ -241,7 +241,7 @@
             <i class="bi bi-save me-1"></i> Simpan Draft
         </button>
         <button type="submit" name="action" value="confirm" class="btn btn-success px-4"
-                onclick="return confirm('Konfirmasi mutasi ini? Stok akan langsung diupdate dan tidak bisa diubah lagi.')">
+                data-confirm="Konfirmasi mutasi ini? Stok akan langsung diupdate dan tidak bisa diubah lagi." data-confirm-type="info" data-confirm-ok="Ya, konfirmasi">
             <i class="bi bi-check-circle me-1"></i> Konfirmasi & Update Stok
         </button>
         <a href="{{ route('inventory.mutations.show', $mutation) }}" class="btn btn-outline-secondary px-4">

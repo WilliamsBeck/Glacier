@@ -36,76 +36,43 @@ $monthNames = ['','Januari','Februari','Maret','April','Mei','Juni',
 <table>
     <thead>
         <tr>
-            <th rowspan="2" class="left">Bahan</th>
-            <th rowspan="2">Satuan<br>(Packaging)</th>
-            <th colspan="2">Konsumsi {{ $monthNames[$refMonth] }}</th>
-            <th colspan="2">Stok Sekarang</th>
-            <th rowspan="2">Hari<br>Cover</th>
-            <th rowspan="2">Kebutuhan<br>(Pack)</th>
+            <th class="left">Bahan Baku</th>
+            <th>Satuan<br>(Packaging)</th>
+            <th>Konsumsi {{ $monthNames[$refMonth] }}<br>(Dus)</th>
+            <th>Stok Sekarang<br>(Dus)</th>
+            <th>Kebutuhan<br>(Dus)</th>
             @if($bufferPct > 0)
-            <th rowspan="2">Buffer<br>(Pack)</th>
+            <th>Buffer<br>(Dus)</th>
             @endif
-            @if($splitOrder)
-            <th>Order 1 (Dus)</th>
-            <th>Order 2 (Dus)</th>
-            @else
-            <th rowspan="2">BELI (Dus) ▲</th>
-            @endif
-        </tr>
-        <tr>
-            <th>Total Pack</th>
-            <th>Rata²/Hari</th>
-            <th>Stok Pack</th>
-            <th>Stok Dus</th>
-            @if($splitOrder)
-            <th>50%</th>
-            <th>50%</th>
-            @endif
+            <th>BELI (Dus) ▲</th>
         </tr>
     </thead>
     <tbody>
-    @php $totalDus = 0; $totalO1 = 0; $totalO2 = 0; @endphp
+    @php $totalDus = 0; $fmt = fn($v) => number_format($v, 2, ',', '.'); @endphp
     @foreach($tableData as $row)
-    @php $totalDus += $row->net_dus; $totalO1 += $row->order1_dus; $totalO2 += $row->order2_dus; @endphp
+    @php $totalDus += $row->net_dus; @endphp
     <tr>
         <td class="left">
             {{ $row->ingredient->name }}
-            @if($row->active_days < 7) *) @endif
+            @if($row->active_days < $daysInRef * 0.5) *) @endif
         </td>
         <td>{{ $row->packaging->packaging_name }}</td>
-        <td>{{ $row->ref_total_pack }}</td>
-        <td>{{ $row->avg_daily_pack }}</td>
-        <td>{{ $row->stock_pack }}</td>
-        <td class="muted">{{ number_format($row->stock_dus, 1, ',', '.') }}</td>
-        <td>{{ $row->days_cover }}</td>
-        <td>{{ $row->gross_pack }}</td>
+        <td>{{ $fmt($row->ref_total_dus) }}</td>
+        <td class="muted">{{ $fmt($row->stock_dus) }}</td>
+        <td>{{ $fmt($row->gross_dus) }}</td>
         @if($bufferPct > 0)
-        <td class="muted">+{{ $row->buffer_pack }}</td>
+        <td class="muted">+{{ $fmt($row->buffer_dus) }}</td>
         @endif
-        @if($splitOrder)
-        <td class="{{ $row->order1_dus > 0 ? 'blue' : '' }}">
-            {{ $row->order1_dus > 0 ? $row->order1_dus : '—' }}
-        </td>
-        <td class="{{ $row->order2_dus > 0 ? 'cyan' : '' }}">
-            {{ $row->order2_dus > 0 ? $row->order2_dus : '—' }}
-        </td>
-        @else
         <td class="{{ $row->net_dus > 0 ? 'green' : '' }}">
             {{ $row->net_dus > 0 ? $row->net_dus : '—' }}
         </td>
-        @endif
     </tr>
     @endforeach
     </tbody>
     <tfoot>
         <tr class="total-row">
-            <td colspan="{{ 7 + ($bufferPct > 0 ? 1 : 0) }}" style="text-align:right">TOTAL</td>
-            @if($splitOrder)
-            <td>{{ $totalO1 }} Dus</td>
-            <td>{{ $totalO2 }} Dus</td>
-            @else
+            <td colspan="{{ 4 + ($bufferPct > 0 ? 1 : 0) }}" style="text-align:right">TOTAL</td>
             <td>{{ $totalDus }} Dus</td>
-            @endif
         </tr>
     </tfoot>
 </table>

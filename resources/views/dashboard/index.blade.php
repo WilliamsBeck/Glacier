@@ -93,13 +93,29 @@
             <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <span class="fw-semibold">
                     <i class="bi bi-graph-up-arrow text-muted me-1"></i>
-                    Pemakaian Bahan — {{ now()->isoFormat('MMMM Y') }}
+                    Pemakaian Bahan
                 </span>
-                <form method="GET" class="d-flex align-items-center gap-2" id="chartIngredientForm">
+                <form method="GET" class="d-flex align-items-center gap-2 flex-wrap" id="chartIngredientForm">
                     @if(request('store_id'))
                         <input type="hidden" name="store_id" value="{{ request('store_id') }}">
                     @endif
-                    <select name="chart_ingredient" class="form-select form-select-sm" style="min-width:180px"
+                    @php
+                        $bulanID = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+                        $currentYear = now()->year;
+                    @endphp
+                    <select name="chart_month" class="form-select form-select-sm" style="min-width:110px"
+                            onchange="document.getElementById('chartIngredientForm').submit()">
+                        @for($m = 1; $m <= 12; $m++)
+                            <option value="{{ $m }}" {{ $chartMonth == $m ? 'selected' : '' }}>{{ $bulanID[$m] }}</option>
+                        @endfor
+                    </select>
+                    <select name="chart_year" class="form-select form-select-sm" style="min-width:80px"
+                            onchange="document.getElementById('chartIngredientForm').submit()">
+                        @for($y = 2024; $y <= $currentYear; $y++)
+                            <option value="{{ $y }}" {{ $chartYear == $y ? 'selected' : '' }}>{{ $y }}</option>
+                        @endfor
+                    </select>
+                    <select name="chart_ingredient" class="form-select form-select-sm" style="min-width:160px"
                             onchange="document.getElementById('chartIngredientForm').submit()">
                         <option value="">Semua Bahan (nilai Rp)</option>
                         @foreach($chartIngredients as $ing)
@@ -423,11 +439,11 @@
                 datasets: [{
                     label: mode === 'value' ? 'Nilai Pemakaian' : ('Pemakaian ' + (name || '')),
                     data: @json($chartData),
-                    borderColor: '#5B6CF0',
-                    backgroundColor: 'rgba(91,108,240,.10)',
+                    borderColor: '#006275',
+                    backgroundColor: 'rgba(0,98,117,.10)',
                     borderWidth: 2, tension: .35, fill: true,
                     pointRadius: 2, pointHoverRadius: 5,
-                    pointBackgroundColor: '#5B6CF0'
+                    pointBackgroundColor: '#006275'
                 }]
             },
             options: {

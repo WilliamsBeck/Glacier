@@ -6,7 +6,7 @@
 ])
 
 <li>
-    <form method="POST" action="{{ $action }}" onsubmit="return confirm('{{ $confirm }}')">
+    <form method="POST" action="{{ $action }}" data-confirm="{{ $confirm }}" data-confirm-type="error" data-confirm-danger="1" data-confirm-ok="Ya, hapus">
         @csrf
         @method($method)
         <button type="submit" class="dropdown-item text-danger">

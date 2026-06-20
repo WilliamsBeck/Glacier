@@ -48,7 +48,7 @@
                 </td>
             </tr>
             @empty
-            <tr><td colspan="6" class="py-4 text-soft"><i class="bi bi-trash3 fs-2 d-block mb-2 opacity-25"></i>Belum ada data waste</td></tr>
+            <tr><td colspan="6" class="py-5 text-center text-soft"><i class="bi bi-trash3 fs-2 d-block mb-2 opacity-25"></i>Belum ada data waste</td></tr>
             @endforelse
         </tbody>
     </table>

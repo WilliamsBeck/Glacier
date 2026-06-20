@@ -52,36 +52,41 @@
             <div class="card">
                 <div class="card-header fw-semibold">Daftar Menu Terjual</div>
                 <div class="card-body p-0">
-                    <table class="table table-sm align-middle mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Menu</th>
-                                <th style="width:180px">Qty Terjual (pcs)</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @php
-                                $existingMap = $sales->keyBy('menu_id');
-                                $allMenus    = $menus->sortBy('name');
-                                $idx = 0;
-                            @endphp
-                            @foreach($allMenus as $menu)
-                            @php $existing = $existingMap[$menu->id] ?? null; @endphp
-                            <tr>
-                                <td>
-                                    <input type="hidden" name="items[{{ $idx }}][menu_id]" value="{{ $menu->id }}">
-                                    <span class="{{ $existing ? 'fw-semibold' : 'text-muted' }}">{{ $menu->name }}</span>
-                                </td>
-                                <td>
-                                    <input type="number" name="items[{{ $idx }}][total_sold]"
-                                           class="form-control form-control-sm" min="0" placeholder="0"
-                                           value="{{ old("items.{$idx}.total_sold", $existing?->total_sold ?? 0) }}">
-                                </td>
-                            </tr>
-                            @php $idx++; @endphp
-                            @endforeach
-                        </tbody>
-                    </table>
+                    @php
+                        $existingMap = $sales->keyBy('menu_id');
+                        $allMenus    = $menus; // sudah terurut kategori → input dari controller
+                        $half        = (int) ceil($allMenus->count() / 2);
+                    @endphp
+                    <div class="row g-0">
+                        @foreach([$allMenus->take($half), $allMenus->slice($half)] as $col => $chunk)
+                        <div class="col-md-6 {{ $col === 0 ? 'border-end' : '' }}">
+                            <table class="table table-sm align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Menu</th>
+                                        <th style="width:110px">Qty (pcs)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($chunk as $idx => $menu)
+                                    @php $existing = $existingMap[$menu->id] ?? null; @endphp
+                                    <tr>
+                                        <td>
+                                            <input type="hidden" name="items[{{ $idx }}][menu_id]" value="{{ $menu->id }}">
+                                            <span class="{{ $existing ? 'fw-semibold' : 'text-muted' }}">{{ $menu->name }}</span>
+                                        </td>
+                                        <td>
+                                            <input type="number" name="items[{{ $idx }}][total_sold]"
+                                                   class="form-control form-control-sm" min="0" placeholder="0"
+                                                   value="{{ old("items.{$idx}.total_sold", $existing?->total_sold ?? 0) }}">
+                                        </td>
+                                    </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                        @endforeach
+                    </div>
                 </div>
             </div>
 

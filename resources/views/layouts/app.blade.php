@@ -226,6 +226,8 @@
 
     <script src="{{ asset('js/jquery.min.js') }}"></script>
     <script src="{{ asset('js/bootstrap.bundle.min.js') }}"></script>
+
+    @include('layouts.partials.ui-dialog')
     <script>
         // Toggle sidebar
         $('#sidebarToggle').on('click', function () {

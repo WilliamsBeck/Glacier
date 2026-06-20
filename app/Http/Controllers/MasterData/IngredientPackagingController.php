@@ -8,7 +8,7 @@ class IngredientPackagingController extends Controller
 {
     public function create(Request $request)
     {
-        $ingredients = Ingredient::where('is_active',true)->orderBy('name')->get();
+        $ingredients = Ingredient::where('ingredients.is_active',true)->orderedByCategory()->get();
         $suppliers   = Supplier::where('is_active',true)->orderBy('name')->get();
         $selectedIngredient = $request->ingredient_id;
         return view('master.packagings.form', compact('ingredients','suppliers','selectedIngredient'));
@@ -29,7 +29,7 @@ class IngredientPackagingController extends Controller
     }
     public function edit(IngredientPackaging $packaging)
     {
-        $ingredients = Ingredient::where('is_active',true)->orderBy('name')->get();
+        $ingredients = Ingredient::where('ingredients.is_active',true)->orderedByCategory()->get();
         $suppliers   = Supplier::where('is_active',true)->orderBy('name')->get();
         return view('master.packagings.form', compact('packaging','ingredients','suppliers'));
     }

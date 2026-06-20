@@ -9,7 +9,7 @@ class ForecastingController extends Controller
     public function index()
     {
         $stores      = auth()->user()->accessibleStores();
-        $ingredients = Ingredient::where('is_active', true)->where('type', 'raw')->orderBy('name')->get();
+        $ingredients = Ingredient::where('ingredients.is_active', true)->where('type', 'raw')->orderedByCategory()->get();
         return view('forecasting.index', compact('stores', 'ingredients'));
     }
 
@@ -79,7 +79,7 @@ class ForecastingController extends Controller
         }
 
         $stores      = auth()->user()->accessibleStores();
-        $ingredients = Ingredient::where('is_active', true)->where('type', 'raw')->orderBy('name')->get();
+        $ingredients = Ingredient::where('ingredients.is_active', true)->where('type', 'raw')->orderedByCategory()->get();
         return view('forecasting.index', compact('results', 'stores', 'ingredients'));
     }
 }

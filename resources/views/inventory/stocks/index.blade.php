@@ -224,18 +224,26 @@ $warnAt = $leadTimeDays ? ($leadTimeDays + ($orderCycleDays ? (int)ceil($orderCy
 
                         {{-- Total Dus --}}
                         <td class="text-end">
-                            <span class="{{ $totalDus > 0 ? 'fw-bold fs-6' : 'text-muted' }}">{{ $totalDus ?: 0 }}</span>
+                            @if($totalDus > 0)
+                                <span class="fw-semibold" style="font-size:.92rem">{{ $totalDus }}</span>
+                            @else
+                                <span class="text-muted opacity-50 small">-</span>
+                            @endif
                         </td>
 
                         {{-- Total Pack --}}
                         <td class="text-end">
-                            <span class="{{ $totalPack > 0 ? 'fw-bold fs-6' : 'text-muted' }}">{{ $totalPack ?: 0 }}</span>
+                            @if($totalPack > 0)
+                                <span class="fw-semibold" style="font-size:.92rem">{{ $totalPack }}</span>
+                            @else
+                                <span class="text-muted opacity-50 small">-</span>
+                            @endif
                         </td>
 
                         {{-- Harga/Dus (avg) --}}
                         <td class="text-end">
                             @if($avgPerDus > 0)
-                                <span class="fw-semibold">Rp {{ number_format($avgPerDus, 0, ',', '.') }}</span>
+                                <span>Rp {{ number_format($avgPerDus, 0, ',', '.') }}</span>
                             @else <span class="text-muted">–</span> @endif
                         </td>
 
@@ -248,7 +256,7 @@ $warnAt = $leadTimeDays ? ($leadTimeDays + ($orderCycleDays ? (int)ceil($orderCy
 
                         {{-- DOS --}}
                         <td class="text-center" style="padding-left:calc(4.5rem + 20px)">
-                            @if($totalBalance <= 0)
+                            @if($totalDus <= 0 && $totalPack <= 0)
                                 <span class="badge bg-dark" style="font-size:.6rem">Habis</span>
                             @elseif($primaryRow->dosValue !== null)
                                 @php
@@ -300,10 +308,18 @@ $warnAt = $leadTimeDays ? ($leadTimeDays + ($orderCycleDays ? (int)ceil($orderCy
                                 @endif
                             </td>
                             <td class="text-end">
-                                <span class="{{ $row->dus > 0 ? 'fw-semibold' : 'text-muted' }}">{{ $row->dus }}</span>
+                                @if($row->dus > 0)
+                                    <span>{{ $row->dus }}</span>
+                                @else
+                                    <span class="text-muted opacity-50 small">-</span>
+                                @endif
                             </td>
                             <td class="text-end">
-                                <span class="{{ $row->pack > 0 ? 'fw-semibold' : 'text-muted' }}">{{ $row->pack }}</span>
+                                @if($row->pack > 0)
+                                    <span>{{ $row->pack }}</span>
+                                @else
+                                    <span class="text-muted opacity-50 small">-</span>
+                                @endif
                             </td>
                             <td class="text-end">
                                 @if($row->pricePerDus > 0)
@@ -331,7 +347,7 @@ $warnAt = $leadTimeDays ? ($leadTimeDays + ($orderCycleDays ? (int)ceil($orderCy
                                 @else <span class="text-muted">–</span> @endif
                             </td>
                             <td class="text-center">
-                                @if($row->balance <= 0)
+                                @if($row->dus <= 0 && $row->pack <= 0)
                                     <span class="badge bg-dark" style="font-size:.55rem">Habis</span>
                                 @else
                                     <span class="text-muted small">—</span>

@@ -7,9 +7,12 @@
         <h4 class="page-title">Pencatatan Harian</h4>
         <p class="text-muted small mb-0">Rekap pemakaian &amp; pembelian bahan per hari</p>
     </div>
-    @if(request('store_id') && request('month') && request('year'))
+    @if(request('store_id'))
     <div class="d-flex gap-2">
-        <a href="{{ route('inventory.daily-ledger.export-template', request()->only('store_id','month','year')) }}"
+        @php
+            $tplParams = ['store_id' => request('store_id'), 'month' => request('month', date('n')), 'year' => request('year', date('Y'))];
+        @endphp
+        <a href="{{ route('inventory.daily-ledger.export-template', $tplParams) }}"
            class="btn btn-outline-success">
             <i class="bi bi-file-earmark-excel me-1"></i>Download Template
         </a>
@@ -21,14 +24,14 @@
 </div>
 
 {{-- ═══════════ MODAL IMPORT EXCEL ═══════════ --}}
-@if(request('store_id') && request('month') && request('year'))
+@if(request('store_id'))
 <div class="modal fade" id="modalImportUsage" tabindex="-1">
     <div class="modal-dialog">
         <form method="POST" action="{{ route('inventory.daily-ledger.import-usage') }}" enctype="multipart/form-data">
             @csrf
             <input type="hidden" name="store_id" value="{{ request('store_id') }}">
-            <input type="hidden" name="month"    value="{{ request('month') }}">
-            <input type="hidden" name="year"     value="{{ request('year') }}">
+            <input type="hidden" name="month"    value="{{ request('month', date('n')) }}">
+            <input type="hidden" name="year"     value="{{ request('year', date('Y')) }}">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title"><i class="bi bi-upload me-2"></i>Import Pemakaian Harian</h5>
@@ -308,7 +311,7 @@
 <div class="card">
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-bordered mb-0 daily-ledger-table">
+            <table class="table table-bordered mb-0 daily-ledger-table" data-store="{{ $storeId }}">
                 <thead>
                     {{-- ROW 1: section group headers --}}
                     <tr class="text-center" style="font-size:0.68rem;font-weight:700">
@@ -330,8 +333,8 @@
                     </tr>
                     {{-- ROW 2: sub-headers --}}
                     <tr class="text-center" style="font-size:0.63rem;font-weight:600">
-                        <th style="background:#27ae60;color:#fff">DUS</th>
-                        <th style="background:#27ae60;color:#fff">PACK</th>
+                        <th style="background:#27ae60;color:#fff;width:46px">DUS</th>
+                        <th style="background:#27ae60;color:#fff;width:46px">PACK</th>
                         @for($d = 1; $d <= $daysInMonth; $d++)
                         @php
                             $isConfirmed = isset($confirmedDates[$d]);
@@ -348,8 +351,8 @@
                         </th>
                         @endfor
                         <th style="background:#922b21;color:#fff">TOT</th>
-                        <th style="background:#27ae60;color:#fff">DUS</th>
-                        <th style="background:#27ae60;color:#fff">PACK</th>
+                        <th style="background:#27ae60;color:#fff;width:46px">DUS</th>
+                        <th style="background:#27ae60;color:#fff;width:46px">PACK</th>
                         @foreach($sectionLabels as $key => $label)
                             @foreach($activeDays[$key] as $d)
                                 <th class="dl-sec-col" style="background:{{ $sectionH2[$key] }};color:#fff">{{ $d }}</th>
@@ -360,7 +363,6 @@
                 @php
                     // Kelompokkan tableRows per ingredient (1 tbody per bahan → bisa di-drag-drop)
                     $rowsByIng = collect($tableRows)->groupBy('ing_id');
-                    $no = 1;
                 @endphp
                 @foreach($rowsByIng as $groupIngId => $groupRows)
                 <tbody class="ing-group" data-ing-id="{{ $groupIngId }}" style="font-size:0.7rem">
@@ -393,9 +395,10 @@
 
                             // ── Stok akhir per KEMASAN (boleh MINUS, pemakaian tdk pengaruhi kemasan lain) ──
                             $usageBase = $totalPack * $ptb;
-                            if ($isCurrentMonth && isset($closingBreakdown[$ingId][$pkgId])) {
-                                // Bulan berjalan: pakai saldo bertanda yang SAMA dengan halaman Saldo Stok
-                                $closingBase = (float) $closingBreakdown[$ingId][$pkgId];
+                            $closingKey = $pkgId ?? 0;
+                            if (isset($closingBreakdown[$ingId][$closingKey])) {
+                                // Bulan berjalan atau sudah ada opname end_month: pakai snapshot
+                                $closingBase = (float) $closingBreakdown[$ingId][$closingKey];
                                 $availBase   = $closingBase + $usageBase; // utk recompute live di JS
                             } else {
                                 // Bulan lain: alur bulanan per kemasan (opening hanya di baris pertama)
@@ -411,9 +414,7 @@
                             $closing = $toDusPack($closingBase, $pkg);
                         @endphp
 
-                        <tr data-opening="{{ $trow['opening_base'] }}"
-                            data-in="{{ $trow['opening_base'] }}"
-                            data-avail="{{ $availBase }}"
+                        <tr data-avail="{{ $availBase }}"
                             data-ptb="{{ $ptb }}"
                             data-ctb="{{ $ctb }}"
                             data-ing="{{ $ingId }}"
@@ -426,34 +427,24 @@
                                     <span class="drag-handle d-none me-1" style="cursor:grab;color:#999" title="Geser untuk atur urutan">
                                         <i class="bi bi-grip-vertical"></i>
                                     </span>
-                                    <span class="fw-semibold"><span class="ing-no">{{ $no++ }}</span>. {{ $ing->name }}</span>
                                 @endif
+                                <span class="fw-semibold">{{ $ing->name }}</span>
                                 @if($pkg && $multiPkg && $pkg->crate_to_pack)
-                                    <div class="text-muted" style="font-size:0.62rem;line-height:1.2">
-                                        {{ '@'.$pkg->crate_to_pack }} pack
-                                    </div>
+                                    <span class="text-muted" style="font-size:0.62rem">{{ '@'.$pkg->crate_to_pack }} pack</span>
                                 @endif
                             </td>
 
                             {{-- Stok Awal per kemasan --}}
-                            <td class="text-center" style="background:#eafaf1">{{ $opening['dus'] ?: '' }}</td>
-                            <td class="text-center" style="background:#eafaf1">{{ $opening['pack'] ?: '' }}</td>
+                            <td class="text-center" style="background:#eafaf1">{!! $opening['dus'] ?: '<span class="text-muted opacity-50 small">-</span>' !!}</td>
+                            <td class="text-center" style="background:#eafaf1">{!! $opening['pack'] ?: '<span class="text-muted opacity-50 small">-</span>' !!}</td>
 
-                            {{-- Pemakaian per hari — EDITABLE --}}
+                            {{-- Pemakaian per hari — EDITABLE (lazy: input dibuat saat sel difokus) --}}
                             @for($d = 1; $d <= $daysInMonth; $d++)
                                 @php $val = $trow['days'][$d]['pemakaian']; @endphp
-                                <td class="p-0 td-usage-cell" style="{{ $val > 0 ? 'background:#fdecea' : '' }}">
-                                    <input type="text" inputmode="numeric" pattern="[0-9]*"
-                                           class="usage-input"
-                                           data-store="{{ $storeId }}"
-                                           data-ing="{{ $ingId }}"
-                                           data-pkg="{{ $pkgId ?? '' }}"
-                                           data-date="{{ sprintf('%04d-%02d-%02d', $year, $month, $d) }}"
-                                           value="{{ $val > 0 ? (int)$val : '' }}"
-                                           autocomplete="off"
-                                           {{ $isLocked ? 'disabled' : '' }}
-                                           style="width:100%;border:none;background:transparent;text-align:center;font-size:0.7rem;padding:2px 1px{{ $isLocked ? ';cursor:not-allowed;opacity:0.6' : '' }}">
-                                </td>
+                                <td class="td-usage-cell{{ $val > 0 ? ' has-val' : '' }}"
+                                    tabindex="{{ $isLocked ? '-1' : '0' }}"
+                                    data-date="{{ sprintf('%04d-%02d-%02d', $year, $month, $d) }}"
+                                    data-val="{{ $val > 0 ? (int)$val : '' }}">{{ $val > 0 ? (int)$val : '' }}</td>
                             @endfor
 
                             {{-- Total pemakaian baris ini --}}
@@ -463,11 +454,11 @@
 
                             {{-- Stok Akhir: bulan ini → per packaging; bulan lalu → hanya baris pertama --}}
                             @if($isCurrentMonth)
-                                <td class="text-center fw-semibold td-closing-dus" style="background:#eafaf1">{{ $closing['dus'] }}</td>
-                                <td class="text-center fw-semibold td-closing-pack" style="background:#eafaf1">{{ $closing['pack'] }}</td>
+                                <td class="text-center td-closing-dus" style="background:#eafaf1">{!! $closing['dus'] ?: '<span class="text-muted opacity-50 small">-</span>' !!}</td>
+                                <td class="text-center td-closing-pack" style="background:#eafaf1">{!! $closing['pack'] ?: '<span class="text-muted opacity-50 small">-</span>' !!}</td>
                             @elseif($isFirst)
-                                <td class="text-center fw-semibold td-closing-dus" style="background:#eafaf1">{{ $closing['dus'] ?: '' }}</td>
-                                <td class="text-center fw-semibold td-closing-pack" style="background:#eafaf1">{{ $closing['pack'] ?: '' }}</td>
+                                <td class="text-center td-closing-dus" style="background:#eafaf1">{!! $closing['dus'] ?: '<span class="text-muted opacity-50 small">-</span>' !!}</td>
+                                <td class="text-center td-closing-pack" style="background:#eafaf1">{!! $closing['pack'] ?: '<span class="text-muted opacity-50 small">-</span>' !!}</td>
                             @else
                                 <td style="background:#f8f9fa"></td>
                                 <td style="background:#f8f9fa"></td>
@@ -516,12 +507,25 @@
     border-right: 2px solid #666 !important;
 }
 .daily-ledger-table thead .sticky-col { z-index: 3; }
-.usage-input:focus {
-    outline: 2px solid #3498db;
-    background: #ebf5fb !important;
+/* Sel pemakaian (lazy): tampil sebagai teks, jadi input saat difokus */
+.daily-ledger-table .td-usage-cell {
+    text-align: center;
+    cursor: text;
+    padding: 2px 1px !important;
+    min-width: 30px;
 }
-/* Hanya angka yang boleh diketik */
-.usage-input { -moz-appearance: textfield; }
+.daily-ledger-table .td-usage-cell.has-val { background: #fdecea; }
+.daily-ledger-table .td-usage-cell:focus { outline: 2px solid #3498db; background: #ebf5fb; }
+.usage-input {
+    width: 100%;
+    border: none;
+    background: transparent;
+    text-align: center;
+    font-size: 0.7rem;
+    padding: 0;
+    -moz-appearance: textfield;
+}
+.usage-input:focus { outline: none; }
 /* Overstock alert */
 .input-overstock {
     background: #f8d7da !important;
@@ -553,15 +557,34 @@ var confirmUrl = '{{ route("inventory.daily-ledger.confirm-date") }}';
 var csrfToken  = '{{ csrf_token() }}';
 var saveTimers = {};
 
-// ── Event delegation: satu listener di tbody, bukan per-input ──
+// ── Lazy input: sel pemakaian tampil sebagai teks; <input> dibuat hanya saat difokus.
+//    Ini memangkas ribuan input dari DOM → load jauh lebih cepat & scroll tidak nge-lag.
 var ledgerTable = document.querySelector('.daily-ledger-table');
 if (ledgerTable) {
+    var ledgerStore = ledgerTable.dataset.store;
 
-    // FOCUS: catat nilai awal untuk revert bila server menolak
+    function makeEditable(td) {
+        if (td.querySelector('input')) return;
+        var val   = td.dataset.val || '';
+        var input = document.createElement('input');
+        input.type         = 'text';
+        input.className    = 'usage-input';
+        input.value        = val;
+        input.autocomplete = 'off';
+        input.setAttribute('inputmode', 'numeric');
+        td.textContent = '';
+        td.appendChild(input);
+        input.focus();
+        input.select();
+    }
+
+    // FOCUS sel → jadikan input
     ledgerTable.addEventListener('focusin', function(e) {
         var el = e.target;
-        if (!el.classList.contains('usage-input') || el.dataset.saved !== undefined) return;
-        el.dataset.saved = el.value;
+        if (el.classList.contains('usage-input')) return;
+        var td = el.closest('.td-usage-cell');
+        if (!td || td.getAttribute('tabindex') === '-1') return;
+        makeEditable(td);
     });
 
     // INPUT: buang karakter non-angka, update stok akhir realtime
@@ -573,19 +596,62 @@ if (ledgerTable) {
         updateRowSummary(el.closest('tr'));
     });
 
-    // CHANGE: simpan ke server
+    // CHANGE (value berubah saat blur/enter): simpan ke server
     ledgerTable.addEventListener('change', function(e) {
         var el = e.target;
         if (!el.classList.contains('usage-input')) return;
+        saveUsage(el);
+    });
 
-        var ingId   = el.dataset.ing;
-        var qtyPack = parseFloat(el.value) || 0;
-        el.closest('td').style.background = qtyPack > 0 ? '#fdecea' : '';
+    // BLUR: kembalikan sel jadi teks biasa + recompute ringkasan baris
+    ledgerTable.addEventListener('focusout', function(e) {
+        var el = e.target;
+        if (!el.classList.contains('usage-input')) return;
+        var td = el.closest('.td-usage-cell');
+        if (!td) return;
+        var tr   = td.closest('tr');
+        var v    = (el.value || '').replace(/[^0-9]/g, '');
+        var show = (parseFloat(v) || 0) > 0 ? v : '';
+        td.dataset.val = show;
+        td.classList.toggle('has-val', show !== '');
+        td.textContent = show;
+        updateRowSummary(tr); // pastikan TOT & stok akhir selalu sinkron saat keluar sel
+    });
 
-        clearTimeout(saveTimers[ingId + el.dataset.date]);
-        document.getElementById('saveStatus').textContent = 'Menyimpan...';
+    // ENTER: pindah ke sel di baris bawah kolom yang sama
+    ledgerTable.addEventListener('keydown', function(e) {
+        if (e.key !== 'Enter') return;
+        var el = e.target;
+        if (!el.classList.contains('usage-input')) return;
+        e.preventDefault();
+        var td    = el.closest('.td-usage-cell');
+        var date  = td.dataset.date;
+        var cells = Array.from(ledgerTable.querySelectorAll('.td-usage-cell[data-date="' + date + '"]'));
+        var idx   = cells.indexOf(td);
+        if (idx >= 0 && idx < cells.length - 1) {
+            cells[idx + 1].focus(); // blur sel kini → focusin sel berikut → jadi input
+        }
+    });
 
-        saveTimers[ingId + el.dataset.date] = setTimeout(function() {
+    function saveUsage(input) {
+        var td      = input.closest('.td-usage-cell');
+        var tr      = td.closest('tr');
+        var date    = td.dataset.date;
+        var ingId   = tr.dataset.ing;
+        var pkg     = tr.dataset.pkg || null;
+        var qtyPack = parseFloat(input.value) || 0;
+        var newVal  = qtyPack > 0 ? String(qtyPack) : '';
+        var prevVal = td.dataset.val;
+        var key     = ingId + date;
+
+        td.dataset.val = newVal;
+        td.classList.toggle('has-val', qtyPack > 0);
+
+        var status = document.getElementById('saveStatus');
+        clearTimeout(saveTimers[key]);
+        status.textContent = 'Menyimpan...';
+
+        saveTimers[key] = setTimeout(function() {
             fetch(saveUrl, {
                 method: 'POST',
                 headers: {
@@ -594,83 +660,60 @@ if (ledgerTable) {
                     'Accept': 'application/json'
                 },
                 body: JSON.stringify({
-                    store_id:      el.dataset.store,
+                    store_id:      ledgerStore,
                     ingredient_id: ingId,
-                    packaging_id:  el.dataset.pkg || null,
-                    date:          el.dataset.date,
+                    packaging_id:  pkg,
+                    date:          date,
                     qty_pack:      qtyPack
                 })
             })
             .then(function(r) { return r.json().then(function(d){ return { ok: r.ok, data: d }; }); })
             .then(function(res) {
                 if (!res.ok || (res.data && res.data.error)) {
-                    document.getElementById('saveStatus').textContent = '⚠ ' + ((res.data && res.data.error) || 'Gagal simpan');
-                    el.value = el.dataset.saved || '';
-                    el.closest('td').style.background = (parseFloat(el.value) || 0) > 0 ? '#fdecea' : '';
-                    updateRowSummary(el.closest('tr'));
+                    status.textContent = '⚠ ' + ((res.data && res.data.error) || 'Gagal simpan');
+                    td.dataset.val = prevVal;
+                    td.classList.toggle('has-val', (parseFloat(prevVal) || 0) > 0);
+                    var live = td.querySelector('input');
+                    if (live) live.value = prevVal; else td.textContent = prevVal;
+                    updateRowSummary(tr);
                     return;
                 }
-                el.dataset.saved = el.value;
-                document.getElementById('saveStatus').textContent = 'Tersimpan ✓';
-                setTimeout(function() { document.getElementById('saveStatus').textContent = ''; }, 1500);
-                updateRowSummary(el.closest('tr'));
+                status.textContent = 'Tersimpan ✓';
+                setTimeout(function() { status.textContent = ''; }, 1500);
             })
-            .catch(function() {
-                document.getElementById('saveStatus').textContent = '⚠ Gagal simpan';
-            });
+            .catch(function() { status.textContent = '⚠ Gagal simpan'; });
         }, 500);
-    });
-
-    // KEYDOWN Enter: pindah ke baris bawah kolom yang sama (lazy query)
-    ledgerTable.addEventListener('keydown', function(e) {
-        if (e.key !== 'Enter') return;
-        var el = e.target;
-        if (!el.classList.contains('usage-input')) return;
-        e.preventDefault();
-        var date      = el.dataset.date;
-        var colInputs = Array.from(ledgerTable.querySelectorAll('.usage-input[data-date="' + date + '"]'));
-        var curIdx    = colInputs.indexOf(el);
-        if (curIdx >= 0 && curIdx < colInputs.length - 1) {
-            colInputs[curIdx + 1].focus();
-            colInputs[curIdx + 1].select();
-        }
-    });
+    }
 }
 
-// ── Over-stok DIBIARKAN: pemakaian boleh melebihi stok → stok akhir minus (per kemasan).
-//    Tidak ada peringatan; fungsi ini hanya membersihkan sisa alert/highlight lama.
-function checkOverstock(tr, changedInput) {
-    var alertRow = tr.nextElementSibling;
-    if (alertRow && alertRow.classList.contains('overstock-alert-row')) alertRow.remove();
-    tr.querySelectorAll('.usage-input').forEach(function(i) { i.classList.remove('input-overstock'); });
-    return true;
-}
-
-// ── Update TOT + Stok Akhir setelah save ──────────────────────
-// data-avail = total stok masuk (opening + pembelian/transfer in) minus deductions
-// selain pemakaian harian (sales, waste, dll) — sudah dihitung server-side.
-// Stok akhir estimasi = data-avail - (totalPack * ptb)
+// ── Update TOT + Stok Akhir ──────────────────────
+// Jumlahkan dari data-val tiap sel (sel yang sedang diedit pakai nilai input live).
 function updateRowSummary(tr) {
-    var inputs    = tr.querySelectorAll('.usage-input');
+    if (!tr) return;
+    var cells     = tr.querySelectorAll('.td-usage-cell');
     var totalPack = 0;
-    inputs.forEach(function(i) { totalPack += parseFloat(i.value) || 0; });
+    cells.forEach(function(td) {
+        var inp = td.querySelector('input');
+        var v   = inp ? inp.value : td.dataset.val;
+        totalPack += parseFloat(v) || 0;
+    });
 
     // Update TOT
     var tdTot = tr.querySelector('.td-total');
     if (tdTot) tdTot.textContent = totalPack > 0 ? Math.round(totalPack) : '';
 
-    // Update stok akhir
+    // Update stok akhir (boleh negatif jika pemakaian > stok)
     var availBase   = parseFloat(tr.dataset.avail) || 0;
     var ptb         = parseFloat(tr.dataset.ptb)   || 1;
     var ctb         = parseFloat(tr.dataset.ctb)   || 0;
-    // Boleh negatif: kalau pemakaian melebihi stok, stok akhir tampil minus
     var closingBase = availBase - (totalPack * ptb);
     var dp          = toDusPack(closingBase, ctb, ptb);
 
+    var DASH   = '<span class="text-muted opacity-50 small">-</span>';
     var tdDus  = tr.querySelector('.td-closing-dus');
     var tdPack = tr.querySelector('.td-closing-pack');
-    if (tdDus)  tdDus.textContent  = dp.dus;
-    if (tdPack) tdPack.textContent = dp.pack;
+    if (tdDus)  tdDus.innerHTML  = dp.dus  ? dp.dus  : DASH;
+    if (tdPack) tdPack.innerHTML = dp.pack ? dp.pack : DASH;
 }
 
 function toDusPack(base, ctb, ptb) {
@@ -788,15 +831,7 @@ document.querySelectorAll('.confirm-date-th').forEach(function(th) {
         }
     });
 
-    function renumber() {
-        Array.from(table.querySelectorAll('tbody.ing-group')).forEach((tb, i) => {
-            const n = tb.querySelector('.ing-no');
-            if (n) n.textContent = (i + 1);
-        });
-    }
-
     function saveOrder() {
-        renumber();
         const ids = Array.from(table.querySelectorAll('tbody.ing-group'))
                          .map(tb => tb.dataset.ingId);
         status.textContent = 'Menyimpan urutan…';
@@ -810,8 +845,8 @@ document.querySelectorAll('.confirm-date-th').forEach(function(th) {
         .catch(() => { status.textContent = '⚠ Gagal simpan urutan'; });
     }
 
-    btnReset.addEventListener('click', function() {
-        if (!confirm('Reset urutan ke default (kategori → nama)?')) return;
+    btnReset.addEventListener('click', async function() {
+        if (!(await uiConfirm('Reset urutan ke default (kategori → nama)?', { type: 'warning', confirmText: 'Ya, reset' }))) return;
         fetch(resetUrl, {
             method: 'POST',
             headers: {'X-CSRF-TOKEN':csrf,'Accept':'application/json'},

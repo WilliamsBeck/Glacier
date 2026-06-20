@@ -7,7 +7,7 @@
         <a href="{{ route('production.logs.index') }}" class="btn btn-outline-secondary btn-sm btn-back"><i class="bi bi-arrow-left me-1"></i>Kembali</a>
         <a href="{{ route('production.logs.edit', $log) }}" class="btn btn-warning btn-sm"><i class="bi bi-pencil me-1"></i>Edit</a>
         <form method="POST" action="{{ route('production.logs.destroy', $log) }}"
-              onsubmit="return confirm('Hapus data produksi ini?')">
+              data-confirm="Hapus data produksi ini?" data-confirm-type="error" data-confirm-danger="1" data-confirm-ok="Ya, hapus">
             @csrf @method('DELETE')
             <button type="submit" class="btn btn-danger btn-sm"><i class="bi bi-trash3 me-1"></i>Hapus</button>
         </form>

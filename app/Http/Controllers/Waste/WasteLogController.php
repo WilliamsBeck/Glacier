@@ -27,9 +27,8 @@ class WasteLogController extends Controller
                 'packagings'   => fn($q) => $q->where('is_active', true)->orderBy('id'),
                 'compositions.child',
             ])
-            ->where('is_active', true)
-            ->orderBy('type')   // semi_finished dulu (s < r), lalu raw
-            ->orderBy('name')
+            ->where('ingredients.is_active', true)
+            ->orderedByCategory()   // kategori → urutan input (id); grouping type diatur blade
             ->get();
 
         // Data untuk JS: ingredient + packagings + compositions
@@ -283,9 +282,8 @@ class WasteLogController extends Controller
                 'packagings'   => fn($q) => $q->where('is_active', true)->orderBy('id'),
                 'compositions.child',
             ])
-            ->where('is_active', true)
-            ->orderBy('type')
-            ->orderBy('name')
+            ->where('ingredients.is_active', true)
+            ->orderedByCategory()
             ->get();
 
         $ingredientJs = $ingredients->map(fn($i) => [

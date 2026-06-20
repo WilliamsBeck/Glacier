@@ -164,7 +164,7 @@
                                                         <span class="text-muted small"><i class="bi bi-geo-alt-fill me-1"></i>{{ $s->area }}</span>
                                                     </div>
                                                 </div>
-                                                <form method="POST" action="{{ route('master.users.revoke-store', [$user, $s]) }}" class="d-inline m-0 ms-3" onsubmit="return confirm('Apakah Anda yakin ingin mencabut otorisasi akses toko {{ $s->name }} dari user ini?')">
+                                                <form method="POST" action="{{ route('master.users.revoke-store', [$user, $s]) }}" class="d-inline m-0 ms-3" data-confirm="Apakah Anda yakin ingin mencabut otorisasi akses toko {{ $s->name }} dari user ini?" data-confirm-type="warning" data-confirm-ok="Ya, cabut">
                                                     @csrf @method('DELETE')
                                                     <button type="submit" class="btn btn-outline-danger btn-sm p-3" title="Cabut Otorisasi">
                                                         <i class="bi bi-x-lg fw-bold"></i>
