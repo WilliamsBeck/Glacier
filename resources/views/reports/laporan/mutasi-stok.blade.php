@@ -7,6 +7,14 @@
         <h4 class="page-title mb-0">Laporan Mutasi Stok</h4>
         <p class="text-muted mb-0 small">Rekap pembelian & penerimaan stok (PI, Zhisheng, Supplier)</p>
     </div>
+    <div class="d-flex gap-2 align-items-center">
+        <a href="{{ route('reports.laporan.mutasi-stok.export', request()->query()) }}" class="btn btn-outline-success">
+            <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
+        </a>
+        <a href="{{ route('reports.laporan.index') }}" class="btn btn-outline-secondary btn-sm btn-back">
+            <i class="bi bi-arrow-left me-1"></i>Kembali
+        </a>
+    </div>
 </div>
 
 {{-- FILTER --}}
@@ -33,7 +41,8 @@
                 <label class="form-label fw-semibold small">Tipe Mutasi</label>
                 <select name="tipe" class="form-select form-select-sm">
                     <option value="semua" {{ $tipe === 'semua' ? 'selected' : '' }}>Semua</option>
-                    <option value="pi"        {{ $tipe === 'pi'        ? 'selected' : '' }}>PI (Pengiriman Internal)</option>
+                    <option value="internal_in"  {{ $tipe === 'internal_in'  ? 'selected' : '' }}>Internal Masuk</option>
+                    <option value="internal_out" {{ $tipe === 'internal_out' ? 'selected' : '' }}>Internal Keluar</option>
                     <option value="eksternal" {{ $tipe === 'eksternal' ? 'selected' : '' }}>Pembelian Eksternal</option>
                     <option value="zhisheng"  {{ $tipe === 'zhisheng'  ? 'selected' : '' }}>Zhisheng</option>
                     <option value="supplier" {{ $tipe === 'supplier' ? 'selected' : '' }}>Supplier</option>
@@ -43,10 +52,6 @@
                 <button type="submit" class="btn btn-primary btn-laporan">
                     <i class="bi bi-search me-1"></i>Tampilkan
                 </button>
-                <a href="{{ route('reports.laporan.mutasi-stok.export', request()->query()) }}"
-                   class="btn btn-success btn-laporan">
-                    <i class="bi bi-file-earmark-excel me-1"></i>Export
-                </a>
             </div>
         </form>
     </div>
@@ -54,18 +59,16 @@
 
 @if($storeId)
 
-{{-- TYPE TABS --}}
-<div class="d-flex gap-2 mb-4 flex-wrap">
-    @php
-    $tabs = ['semua' => ['label' => 'Semua', 'color' => 'secondary'], 'pi' => ['label' => 'PI (Internal)', 'color' => 'primary'], 'eksternal' => ['label' => 'Eksternal', 'color' => 'info'], 'zhisheng' => ['label' => 'Zhisheng', 'color' => 'warning'], 'supplier' => ['label' => 'Supplier', 'color' => 'success']];
-    @endphp
-    @foreach($tabs as $key => $tab)
-    <a href="{{ route('reports.laporan.mutasi-stok', array_merge(request()->query(), ['tipe' => $key])) }}"
-       class="btn btn-sm btn-{{ $tipe === $key ? $tab['color'] : 'outline-'.$tab['color'] }}">
-        {{ $tab['label'] }}
-    </a>
-    @endforeach
-</div>
+@php
+$tabs = [
+    'semua'        => ['label' => 'Semua'],
+    'internal_in'  => ['label' => 'Internal Masuk'],
+    'internal_out' => ['label' => 'Internal Keluar'],
+    'eksternal'    => ['label' => 'Eksternal'],
+    'zhisheng'     => ['label' => 'Zhisheng'],
+    'supplier'     => ['label' => 'Supplier'],
+];
+@endphp
 
 {{-- SUMMARY CARDS --}}
 @php
@@ -125,15 +128,15 @@ $byType     = $rows->groupBy('type')->map->count();
             <table class="table table-index mb-0 align-middle">
                 <thead>
                     <tr>
-                        <th>Tanggal</th>
-                        <th>Tipe</th>
-                        <th class="col-name">No Ref</th>
-                        <th class="col-name">No Invoice</th>
-                        <th class="col-name">Supplier / Sumber</th>
-                        <th class="col-name">Toko Tujuan</th>
-                        <th class="text-end">Nilai</th>
-                        <th class="text-center">Item</th>
-                        <th class="text-center">Detail</th>
+                        <th style="width:8%">Tanggal</th>
+                        <th style="width:15%">Tipe</th>
+                        <th style="width:15%">No Ref</th>
+                        <th style="width:10%">No Invoice</th>
+                        <th style="width:15%">Supplier / Sumber</th>
+                        <th style="width:15%">Toko Tujuan</th>
+                        <th class="text-start" style="width:12%">Nilai</th>
+                        <th class="text-center" style="width:6%">Item</th>
+                        <th class="text-center" style="width:4%">Detail</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -151,7 +154,7 @@ $byType     = $rows->groupBy('type')->map->count();
                     @endphp
                     <tr>
                         <td class="text-muted small text-nowrap">
-                            {{ \Carbon\Carbon::parse($mutation->transaction_date)->isoFormat('D MMM Y') }}
+                            {{ \Carbon\Carbon::parse($mutation->delivery_date ?? $mutation->transaction_date)->isoFormat('D MMM Y') }}
                         </td>
                         <td>
                             <span class="badge bg-{{ $tc }}-subtle text-{{ $tc }} border border-{{ $tc }}-subtle">
@@ -162,7 +165,7 @@ $byType     = $rows->groupBy('type')->map->count();
                         <td class="col-name small">{{ $mutation->invoice_no ?? '-' }}</td>
                         <td class="col-name small">{{ $mutation->supplier?->name ?? $mutation->sourceStore?->name ?? '-' }}</td>
                         <td class="col-name small">{{ $mutation->destinationStore?->name ?? '-' }}</td>
-                        <td class="text-end fw-semibold">Rp {{ number_format($val, 0, ',', '.') }}</td>
+                        <td class="text-start fw-semibold">Rp {{ number_format($val, 0, ',', '.') }}</td>
                         <td class="text-center">
                             <span class="badge bg-secondary-subtle text-secondary">{{ $mutation->items->count() }} item</span>
                         </td>
@@ -184,19 +187,30 @@ $byType     = $rows->groupBy('type')->map->count();
                                     <thead>
                                         <tr class="text-muted small">
                                             <th>Bahan</th>
-                                            <th class="text-end">Qty Base</th>
-                                            <th class="text-end">Harga/Base</th>
+                                            <th class="text-end">Qty (Dus / Pack / Pcs/Gr)</th>
+                                            <th class="text-end">Harga/Dus</th>
                                             <th class="text-end">Subtotal</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         @foreach($mutation->items as $item)
+                                        @php
+                                            $pkg  = $item->packaging;
+                                            $ctb  = $pkg ? (float)$pkg->crate_to_pack * (float)$pkg->pack_to_base : 0;
+                                            $unit = $item->ingredient?->unit_base ?? '';
+                                            $parts = [];
+                                            if ((int)$item->qty_crate)  $parts[] = (int)$item->qty_crate.' Dus';
+                                            if ((int)$item->qty_pack)   $parts[] = (int)$item->qty_pack.' Pack';
+                                            if ((float)$item->qty_base)  $parts[] = rtrim(rtrim(number_format($item->qty_base, 2, ',', '.'), '0'), ',').' '.$unit;
+                                            $qtyStr   = $parts ? implode(' · ', $parts) : '—';
+                                            $hargaDus = $ctb > 0 ? round($item->price_per_base * $ctb) : $item->price_per_base;
+                                        @endphp
                                         <tr class="small">
                                             <td>{{ $item->ingredient?->name ?? '-' }}
-                                                <span class="text-muted">({{ $item->ingredient?->unit_base }})</span>
+                                                <span class="text-muted">({{ $unit }})</span>
                                             </td>
-                                            <td class="text-end">{{ number_format($item->total_in_base, 0, ',', '.') }}</td>
-                                            <td class="text-end">Rp {{ number_format($item->price_per_base, 0, ',', '.') }}</td>
+                                            <td class="text-end">{{ $qtyStr }}</td>
+                                            <td class="text-end">Rp {{ number_format($hargaDus, 0, ',', '.') }}</td>
                                             <td class="text-end fw-semibold">Rp {{ number_format($item->cost_subtotal, 0, ',', '.') }}</td>
                                         </tr>
                                         @endforeach
@@ -211,7 +225,7 @@ $byType     = $rows->groupBy('type')->map->count();
                 <tfoot class="table-primary fw-semibold">
                     <tr>
                         <td colspan="6">TOTAL ({{ $rows->count() }} transaksi)</td>
-                        <td class="text-end">Rp {{ number_format($grandTotal, 0, ',', '.') }}</td>
+                        <td class="text-start">Rp {{ number_format($grandTotal, 0, ',', '.') }}</td>
                         <td colspan="2"></td>
                     </tr>
                 </tfoot>

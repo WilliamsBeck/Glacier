@@ -40,7 +40,7 @@
                         <i class="bi bi-percent fs-4 text-success"></i>
                     </div>
                     <div>
-                        <h6 class="fw-bold mb-1 text-dark">Cetak Laporan HPP</h6>
+                        <h6 class="fw-bold mb-1 text-dark">Laporan HPP</h6>
                         <p class="text-muted small mb-0">Rekap Harga Pokok Produksi per toko — omset, HPP ideal vs aktual, dan margin.</p>
                     </div>
                 </div>
@@ -61,7 +61,7 @@
                         <i class="bi bi-trash3 fs-4 text-danger"></i>
                     </div>
                     <div>
-                        <h6 class="fw-bold mb-1 text-dark">Cetak Laporan Waste</h6>
+                        <h6 class="fw-bold mb-1 text-dark">Laporan Waste</h6>
                         <p class="text-muted small mb-0">Rekap kerugian waste bahan baku per rentang tanggal beserta analisis bahan paling sering waste.</p>
                     </div>
                 </div>
@@ -82,7 +82,7 @@
                         <i class="bi bi-gear fs-4 text-warning"></i>
                     </div>
                     <div>
-                        <h6 class="fw-bold mb-1 text-dark">Cetak Laporan Produksi</h6>
+                        <h6 class="fw-bold mb-1 text-dark">Laporan Produksi</h6>
                         <p class="text-muted small mb-0">Rekap log produksi semi-finished, jumlah batch, bahan dikonsumsi, dan total biaya produksi.</p>
                     </div>
                 </div>
@@ -103,7 +103,7 @@
                         <i class="bi bi-arrow-left-right fs-4 text-info"></i>
                     </div>
                     <div>
-                        <h6 class="fw-bold mb-1 text-dark">Cetak Laporan Mutasi Stok</h6>
+                        <h6 class="fw-bold mb-1 text-dark">Laporan Mutasi Stok</h6>
                         <p class="text-muted small mb-0">Rekap pembelian & penerimaan stok dari PI, Zhisheng, maupun Supplier per periode.</p>
                     </div>
                 </div>

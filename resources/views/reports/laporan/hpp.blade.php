@@ -7,6 +7,14 @@
         <h4 class="page-title mb-0">Laporan Data HPP</h4>
         <p class="text-muted mb-0 small">Harga Pokok Penjualan semua toko per periode</p>
     </div>
+    <div class="d-flex gap-2 align-items-center">
+        <a href="{{ route('reports.laporan.hpp.export', request()->query()) }}" class="btn btn-outline-success">
+            <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
+        </a>
+        <a href="{{ route('reports.laporan.index') }}" class="btn btn-outline-secondary btn-sm btn-back">
+            <i class="bi bi-arrow-left me-1"></i>Kembali
+        </a>
+    </div>
 </div>
 
 {{-- FILTER --}}
@@ -42,10 +50,6 @@
                 <button type="submit" class="btn btn-primary btn-laporan">
                     <i class="bi bi-search me-1"></i>Tampilkan
                 </button>
-                <a href="{{ route('reports.laporan.hpp.export', request()->query()) }}"
-                   class="btn btn-success btn-laporan">
-                    <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
-                </a>
             </div>
         </form>
     </div>
@@ -55,22 +59,14 @@
 
 {{-- SUMMARY CARDS --}}
 @php
-$totalOmset   = $rows->sum('omset');
+$totalOmset    = $rows->sum('omset');
 $totalHppIdeal = $rows->sum('hpp_ideal');
-$avgPctIdeal  = $rows->whereNotNull('pct_hpp_ideal')->avg('pct_hpp_ideal');
-$avgPctAktual = $rows->whereNotNull('pct_hpp_aktual')->avg('pct_hpp_aktual');
+$totalHppAktual = $rows->whereNotNull('hpp_aktual')->sum('hpp_aktual');
+$avgPctIdeal   = $rows->whereNotNull('pct_hpp_ideal')->avg('pct_hpp_ideal');
+$avgPctAktual  = $rows->whereNotNull('pct_hpp_aktual')->avg('pct_hpp_aktual');
 @endphp
 <div class="row g-3 mb-4">
-    <div class="col-md-3">
-        <div class="stat-card border-primary">
-            <div class="stat-icon bg-primary-subtle text-primary"><i class="bi bi-shop fs-3"></i></div>
-            <div class="stat-info">
-                <div class="stat-number text-primary">{{ $rows->count() }}</div>
-                <div class="stat-label">Toko dengan Data</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
+    <div class="col">
         <div class="stat-card border-success">
             <div class="stat-icon bg-success-subtle text-success"><i class="bi bi-cash-stack fs-3"></i></div>
             <div class="stat-info">
@@ -79,7 +75,7 @@ $avgPctAktual = $rows->whereNotNull('pct_hpp_aktual')->avg('pct_hpp_aktual');
             </div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col">
         <div class="stat-card border-warning">
             <div class="stat-icon bg-warning-subtle text-warning"><i class="bi bi-calculator fs-3"></i></div>
             <div class="stat-info">
@@ -88,12 +84,30 @@ $avgPctAktual = $rows->whereNotNull('pct_hpp_aktual')->avg('pct_hpp_aktual');
             </div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col">
         <div class="stat-card border-info">
             <div class="stat-icon bg-info-subtle text-info"><i class="bi bi-percent fs-3"></i></div>
             <div class="stat-info">
                 <div class="stat-number text-info">{{ $avgPctIdeal ? number_format($avgPctIdeal, 1, ',', '.') . '%' : '-' }}</div>
                 <div class="stat-label">Rata-rata % HPP Ideal</div>
+            </div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="stat-card border-warning">
+            <div class="stat-icon bg-warning-subtle text-warning"><i class="bi bi-receipt-cutoff fs-3"></i></div>
+            <div class="stat-info">
+                <div class="stat-number text-warning" style="font-size:14px">Rp {{ number_format($totalHppAktual, 0, ',', '.') }}</div>
+                <div class="stat-label">Total HPP Aktual</div>
+            </div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="stat-card border-danger">
+            <div class="stat-icon bg-danger-subtle text-danger"><i class="bi bi-percent fs-3"></i></div>
+            <div class="stat-info">
+                <div class="stat-number text-danger">{{ $avgPctAktual ? number_format($avgPctAktual, 1, ',', '.') . '%' : '-' }}</div>
+                <div class="stat-label">Rata-rata % HPP Aktual</div>
             </div>
         </div>
     </div>
@@ -111,14 +125,14 @@ $avgPctAktual = $rows->whereNotNull('pct_hpp_aktual')->avg('pct_hpp_aktual');
             <table class="table table-index mb-0 align-middle">
                 <thead>
                     <tr>
-                        <th class="col-name">Toko</th>
-                        <th class="text-end">Omset</th>
-                        <th class="text-end">HPP Ideal</th>
-                        <th class="text-end">% HPP Ideal</th>
-                        <th class="text-end">HPP Aktual</th>
-                        <th class="text-end">% HPP Aktual</th>
-                        <th class="text-end">Margin Ideal</th>
-                        <th class="text-center">Status</th>
+                        <th class="col-name" style="width:16%">Toko</th>
+                        <th class="text-end" style="width:12%">Omset</th>
+                        <th class="text-end" style="width:12%">HPP Ideal</th>
+                        <th class="text-end" style="width:12%">% HPP Ideal</th>
+                        <th class="text-end" style="width:12%">HPP Aktual</th>
+                        <th class="text-end" style="width:12%">% HPP Aktual</th>
+                        <th class="text-end" style="width:12%">Margin Ideal</th>
+                        <th class="text-center" style="width:12%">Status</th>
                     </tr>
                 </thead>
                 <tbody>

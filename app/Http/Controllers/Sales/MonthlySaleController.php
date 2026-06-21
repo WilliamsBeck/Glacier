@@ -27,15 +27,18 @@ class MonthlySaleController extends Controller
             $revQuery->where('store_id', $request->store_id);
             $saleQuery->where('store_id', $request->store_id);
         }
-        if ($request->date_from) {
-            $from = \Carbon\Carbon::parse($request->date_from);
-            $revQuery->whereRaw('(year * 100 + month) >= ?', [$from->year * 100 + $from->month]);
-            $saleQuery->whereRaw('(year * 100 + month) >= ?', [$from->year * 100 + $from->month]);
+        // Filter by Tipe periode + Bulan + Tahun (bukan range tanggal)
+        if ($request->period_type) {
+            $revQuery->where('period_type', $request->period_type);
+            $saleQuery->where('period_type', $request->period_type);
         }
-        if ($request->date_to) {
-            $to = \Carbon\Carbon::parse($request->date_to);
-            $revQuery->whereRaw('(year * 100 + month) <= ?', [$to->year * 100 + $to->month]);
-            $saleQuery->whereRaw('(year * 100 + month) <= ?', [$to->year * 100 + $to->month]);
+        if ($request->month) {
+            $revQuery->where('month', (int) $request->month);
+            $saleQuery->where('month', (int) $request->month);
+        }
+        if ($request->year) {
+            $revQuery->where('year', (int) $request->year);
+            $saleQuery->where('year', (int) $request->year);
         }
 
         // UNION kedua sumber → periode unik

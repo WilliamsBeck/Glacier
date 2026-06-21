@@ -301,11 +301,21 @@ function updateRow(rowKey) {
         }
     }
 
-    // Nilai: tetap pakai physBase lengkap (termasuk Pcs/Gr)
+    // Nilai: hitung per komponen (Dus/Pack/Base) dari harga per-dus agar presisi
+    // tidak hilang. Mengalikan physBase × price_per_base menimbulkan galat
+    // floating-point (mis. 10.353.271,4999… → keliru jadi ...271).
     var nilaiCell = document.getElementById('nilai-' + safeKey);
     if (nilaiCell) {
-        var nilaiVal = price > 0 ? Math.round(physBase * price) : 0;
-        nilaiCell.innerHTML = (price > 0 && nilaiVal !== 0)
+        var nilaiVal;
+        if (priceInput && crate > 0) {
+            var pdNow = parsePriceInput(priceInput);   // harga per dus
+            var pPack = crate > 0 ? pdNow / crate : 0;  // crate = pack per dus
+            var pBase = crateToBase > 0 ? pdNow / crateToBase : 0;
+            nilaiVal = Math.round((c * pdNow) + (p * pPack) + (b * pBase));
+        } else {
+            nilaiVal = price > 0 ? Math.round(physBase * price) : 0;
+        }
+        nilaiCell.innerHTML = nilaiVal !== 0
             ? 'Rp ' + nilaiVal.toLocaleString('id-ID')
             : DASH;
     }
@@ -322,8 +332,19 @@ function updateGrandTotal() {
         var c = parseFloat(row.querySelector('[name$="[physical_crate]"]')?.value) || 0;
         var p = parseFloat(row.querySelector('[name$="[physical_pack]"]')?.value)  || 0;
         var b = parseFloat(row.querySelector('[name$="[physical_base]"]')?.value)  || 0;
-        var physBase = crate > 0 ? (c * crate * pack) + (p * pack) + b : (p * pack) + b;
-        total += physBase * price;
+        var crateToBase = crate > 0 ? crate * pack : 0;
+        // Akumulasi nilai MENTAH (belum dibulatkan), total dibulatkan sekali di akhir
+        // → lebih akurat daripada menjumlahkan hasil bulat per baris.
+        var priceInput = row.querySelector('[name$="[price_per_dus]"]');
+        if (priceInput && crate > 0) {
+            var pd    = parsePriceInput(priceInput);
+            var pPack = crate > 0 ? pd / crate : 0;
+            var pBase = crateToBase > 0 ? pd / crateToBase : 0;
+            total += (c * pd) + (p * pPack) + (b * pBase);
+        } else {
+            var physBase = crate > 0 ? (c * crate * pack) + (p * pack) + b : (p * pack) + b;
+            total += physBase * price;
+        }
     });
     var gt = document.getElementById('grand-total');
     if (gt) gt.textContent = 'Rp ' + Math.round(total).toLocaleString('id-ID');

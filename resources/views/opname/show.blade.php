@@ -207,13 +207,27 @@ function fmtVariance(float $var, ?int $ctrPack, ?int $packBase): string {
                         $isZero   = abs($displayVar) < 0.01;
                         $varClass = $isZero ? 'text-muted' : ($displayVar < 0 ? 'text-danger' : 'text-success');
 
-                        // Harga: stok_awal → pakai price_per_base per item (batch individual)
-                        //        bulanan   → weighted-avg priceMap dari FIFO
+                        // Harga: stok_awal → price_per_base per item (batch individual)
+                        //        bulanan   → harga efektif FIFO BERLAPIS (akurat) per item,
+                        //                    fallback weighted bila tak ada batch.
                         $harga = ($opname->opname_mode === 'stok_awal' && $item->price_per_base > 0)
                             ? (float) $item->price_per_base
-                            : ($priceMap[$item->ingredient_id] ?? 0);
+                            : (($fifoPrice[$item->id] ?? null) ?: ($priceMap[$item->ingredient_id] ?? 0));
                         $hargaDus   = ($ctrPack && $packBase) ? $harga * $ctrPack * $packBase : $harga;
-                        $nilaiFisik = $item->physical_qty * $harga;
+                        // Nilai dihitung per komponen (Dus/Pack/Base) dari harga per-dus
+                        // yang dibulatkan, agar konsisten & bebas galat floating-point.
+                        $pdRound = ($ctrPack && $packBase) ? round($hargaDus) : 0;
+                        if ($pdRound > 0) {
+                            $pPack = $ctrPack > 0 ? $pdRound / $ctrPack : 0;
+                            $pBase = ($ctrPack * $packBase) > 0 ? $pdRound / ($ctrPack * $packBase) : 0;
+                            $nilaiFisik = round(
+                                ($item->physical_crate ?? 0) * $pdRound
+                                + ($item->physical_pack ?? 0) * $pPack
+                                + ($item->physical_base ?? 0) * $pBase
+                            );
+                        } else {
+                            $nilaiFisik = round($item->physical_qty * $harga);
+                        }
                     @endphp
                     <tr
                         data-id="{{ $item->id }}"
@@ -343,12 +357,22 @@ function fmtVariance(float $var, ?int $ctrPack, ?int $packBase): string {
                     @endforeach
                 </tbody>
                 @php
-                    $grandTotal = $opname->items->sum(function($i) use ($priceMap, $opname) {
+                    // Akumulasi nilai MENTAH per baris, total dibulatkan sekali di akhir
+                    // (round-of-sum) agar total akurat & sesuai penjumlahan sebenarnya.
+                    $grandTotal = round($opname->items->sum(function($i) use ($priceMap, $fifoPrice, $opname) {
                         $h = ($opname->opname_mode === 'stok_awal' && $i->price_per_base > 0)
                             ? (float) $i->price_per_base
-                            : ($priceMap[$i->ingredient_id] ?? 0);
+                            : (($fifoPrice[$i->id] ?? null) ?: ($priceMap[$i->ingredient_id] ?? 0));
+                        $ctr = (float) ($i->packaging->crate_to_pack ?? 0);
+                        $pkb = (float) ($i->packaging->pack_to_base ?? 0);
+                        if ($ctr > 0 && $pkb > 0) {
+                            $pd = round($h * $ctr * $pkb);
+                            return ($i->physical_crate ?? 0) * $pd
+                                + ($i->physical_pack ?? 0) * ($pd / $ctr)
+                                + ($i->physical_base ?? 0) * ($pd / ($ctr * $pkb));
+                        }
                         return $i->physical_qty * $h;
-                    });
+                    }));
                 @endphp
                 <tfoot>
                     <tr class="table-light fw-bold">
@@ -491,6 +515,21 @@ function fmtVar(varBase, crate, pack) {
     return parts.join(' ');
 }
 
+// Nilai per komponen (Dus/Pack/Base) dari harga per-dus dibulatkan — hindari
+// galat floating-point dari physBase × harga_per_base (mis. ...271,4999 → ...271).
+function nilaiRaw(crate, pack, c, p, b, priceBase) {
+    if (crate > 0 && pack > 0 && priceBase > 0) {
+        var pd = Math.round(priceBase * crate * pack);   // harga per dus (bulat)
+        return (c * pd) + (p * (pd / crate)) + (b * (pd / (crate * pack)));
+    }
+    var physBase = crate > 0 ? (c * crate * pack) + (p * pack) + b : (p * pack) + b;
+    return physBase * priceBase;
+}
+// Nilai per baris (dibulatkan) untuk kolom Nilai.
+function nilaiPerKomponen(crate, pack, c, p, b, priceBase) {
+    return Math.round(nilaiRaw(crate, pack, c, p, b, priceBase));
+}
+
 // Saat user mengetik harga/dus, update data-price dan nilai fisik secara live
 document.querySelectorAll('.price-input').forEach(function(el) {
     el.addEventListener('input', function() {
@@ -507,9 +546,8 @@ document.querySelectorAll('.price-input').forEach(function(el) {
             var c2 = parseFloat(row.querySelector('[name$="[physical_crate]"]')?.value) || 0;
             var p2 = parseFloat(row.querySelector('[name$="[physical_pack]"]')?.value)  || 0;
             var b2 = parseFloat(row.querySelector('[name$="[physical_base]"]')?.value)  || 0;
-            var physBase = crate > 0 ? (c2 * crate * pack) + (p2 * pack) + b2 : (p2 * pack) + b2;
-            var nilai = physBase * priceBase;
-            nilaiCell.textContent = priceBase > 0 ? 'Rp ' + Math.round(nilai).toLocaleString('id-ID') : '—';
+            var nilai = nilaiPerKomponen(crate, pack, c2, p2, b2, priceBase);
+            nilaiCell.textContent = priceBase > 0 ? 'Rp ' + nilai.toLocaleString('id-ID') : '—';
         }
 
         // Grand total
@@ -523,8 +561,7 @@ document.querySelectorAll('.price-input').forEach(function(el) {
             var c2    = parseFloat(r.querySelector('[name$="[physical_crate]"]')?.value) || 0;
             var p2    = parseFloat(r.querySelector('[name$="[physical_pack]"]')?.value)  || 0;
             var b2    = parseFloat(r.querySelector('[name$="[physical_base]"]')?.value)  || 0;
-            var base  = cr > 0 ? (c2 * cr * pk) + (p2 * pk) + b2 : (p2 * pk) + b2;
-            grandTotal += base * price;
+            grandTotal += nilaiRaw(cr, pk, c2, p2, b2, price);
         });
         var gtCell = document.getElementById('grand-total');
         if (gtCell) gtCell.textContent = 'Rp ' + Math.round(grandTotal).toLocaleString('id-ID');
@@ -572,8 +609,8 @@ document.querySelectorAll('.opname-input').forEach(function(el) {
         var nilaiCell = document.getElementById('nilai-' + id);
         if (nilaiCell) {
             var price = parseFloat(nilaiCell.dataset.price) || 0;
-            var nilai = physBase * price;
-            nilaiCell.textContent = price > 0 ? 'Rp ' + Math.round(nilai).toLocaleString('id-ID') : '—';
+            var nilai = nilaiPerKomponen(crate, pack, c, p, b, price);
+            nilaiCell.textContent = price > 0 ? 'Rp ' + nilai.toLocaleString('id-ID') : '—';
         }
 
         // Update grand total — hitung langsung dari semua input baris
@@ -587,8 +624,7 @@ document.querySelectorAll('.opname-input').forEach(function(el) {
             var c2    = parseFloat(r.querySelector('[name$="[physical_crate]"]')?.value) || 0;
             var p2    = parseFloat(r.querySelector('[name$="[physical_pack]"]')?.value)  || 0;
             var b2    = parseFloat(r.querySelector('[name$="[physical_base]"]')?.value)  || 0;
-            var base  = cr > 0 ? (c2 * cr * pk) + (p2 * pk) + b2 : (p2 * pk) + b2;
-            grandTotal += base * price;
+            grandTotal += nilaiRaw(cr, pk, c2, p2, b2, price);
         });
         var gtCell = document.getElementById('grand-total');
         if (gtCell) gtCell.textContent = 'Rp ' + Math.round(grandTotal).toLocaleString('id-ID');

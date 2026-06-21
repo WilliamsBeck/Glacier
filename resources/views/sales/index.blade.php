@@ -29,16 +29,7 @@
 
 <div class="card mb-3"><div class="card-body py-2">
     <form method="GET" class="row g-2 align-items-end">
-        <div class="col-md-3">
-            <label class="form-label small mb-1">Dari Tanggal</label>
-            <input type="date" name="date_from" class="form-control"
-                   value="{{ request('date_from') }}">
-        </div>
-        <div class="col-md-3">
-            <label class="form-label small mb-1">Sampai Tanggal</label>
-            <input type="date" name="date_to" class="form-control"
-                   value="{{ request('date_to') }}">
-        </div>
+        @php $bulanList = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']; @endphp
         <div class="col-md-3">
             <label class="form-label small mb-1">Toko</label>
             <select name="store_id" class="form-select">
@@ -46,6 +37,32 @@
                 @foreach($stores as $s)
                     <option value="{{ $s->id }}" {{ request('store_id')==$s->id?'selected':'' }}>{{ $s->name }}</option>
                 @endforeach
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label small mb-1">Bulan</label>
+            <select name="month" class="form-select">
+                <option value="">Semua</option>
+                @for($m=1;$m<=12;$m++)
+                    <option value="{{ $m }}" {{ (string)request('month')===(string)$m?'selected':'' }}>{{ $bulanList[$m] }}</option>
+                @endfor
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label small mb-1">Tahun</label>
+            <select name="year" class="form-select">
+                <option value="">Semua</option>
+                @for($y=now()->year+1;$y>=now()->year-4;$y--)
+                    <option value="{{ $y }}" {{ (string)request('year')===(string)$y?'selected':'' }}>{{ $y }}</option>
+                @endfor
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label small mb-1">Periode</label>
+            <select name="period_type" class="form-select">
+                <option value="">Semua</option>
+                <option value="end_month" {{ request('period_type')==='end_month'?'selected':'' }}>Akhir Bulan (1–30/31)</option>
+                <option value="mid_month" {{ request('period_type')==='mid_month'?'selected':'' }}>Tengah Bulan (1–15)</option>
             </select>
         </div>
         <div class="col-md-auto ms-auto d-flex gap-2 align-items-end">
@@ -81,7 +98,7 @@
                 <td>{{ $monthNames[$g->month] }} {{ $g->year }}</td>
                 <td>
                     <span class="badge bg-secondary">
-                        {{ $g->period_type === 'mid_month' ? '1 – 15' : '1 – 30/31' }}
+                        {{ $g->period_type === 'mid_month' ? 'Tengah Bulan' : 'Akhir Bulan' }}
                     </span>
                 </td>
                 <td>

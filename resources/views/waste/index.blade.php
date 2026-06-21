@@ -10,6 +10,9 @@
         <a href="{{ route('reports.waste', ['store_id' => request('store_id')]) }}" class="btn btn-outline-secondary">
             <i class="bi bi-bar-chart me-1"></i>Analisis Waste
         </a>
+        <a href="{{ route('waste.logs.export', request()->query()) }}" class="btn btn-outline-success">
+            <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
+        </a>
         <a href="{{ route('waste.logs.create') }}" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i> Tambah Waste</a>
     </div>
 </div>

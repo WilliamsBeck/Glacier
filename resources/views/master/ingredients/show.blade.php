@@ -11,8 +11,8 @@
         <a href="{{ route('master.ingredients.edit', $ingredient) }}" class="btn btn-primary">
             <i class="bi bi-pencil me-1"></i> Edit
         </a>
-        <a href="{{ route('master.ingredients.index') }}" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left me-1"></i> Kembali
+        <a href="{{ route('master.ingredients.index') }}" class="btn btn-outline-secondary btn-sm btn-back">
+            <i class="bi bi-arrow-left me-1"></i>Kembali
         </a>
     </div>
 </div>

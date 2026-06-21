@@ -16,8 +16,8 @@
         <h4 class="page-title">Edit Draft Mutasi</h4>
         <span class="font-monospace text-muted small">{{ $mutation->reference_no }}</span>
     </div>
-    <a href="{{ route('inventory.mutations.show', $mutation) }}" class="btn btn-outline-secondary btn-sm">
-        <i class="bi bi-arrow-left me-1"></i> Kembali
+    <a href="{{ route('inventory.mutations.show', $mutation) }}" class="btn btn-outline-secondary btn-sm btn-back">
+        <i class="bi bi-arrow-left me-1"></i>Kembali
     </a>
 </div>
 
@@ -58,6 +58,12 @@
                 <div class="col-md-4">
                     <label class="form-label fw-semibold">Supplier</label>
                     <input type="text" class="form-control bg-light" value="{{ $mutation->supplier->name ?? '-' }}" readonly>
+                </div>
+                @endif
+                @if($mutation->external_sender)
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Pengirim</label>
+                    <input type="text" name="external_sender" class="form-control" value="{{ old('external_sender', $mutation->external_sender) }}">
                 </div>
                 @endif
 

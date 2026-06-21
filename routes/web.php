@@ -135,6 +135,8 @@ Route::middleware(['auth'])->group(function () {
         Route::put('period/update',  [MonthlySaleController::class, 'periodUpdate'])->name('period.update');
         Route::delete('period/destroy', [MonthlySaleController::class, 'periodDestroy'])->name('period.destroy');
         Route::get('hpp', [HppController::class, 'index'])->name('hpp.index');
+        Route::post('hpp/lock', [HppController::class, 'lock'])->name('hpp.lock');
+        Route::post('hpp/unlock', [HppController::class, 'unlock'])->name('hpp.unlock');
         Route::get('hpp/compare', [HppController::class, 'compare'])->name('hpp.compare');
         Route::get('hpp/trend', [HppTrendController::class, 'index'])->name('hpp.trend');
         Route::get('hpp/export', [HppController::class, 'export'])->name('hpp.export');
@@ -143,6 +145,7 @@ Route::middleware(['auth'])->group(function () {
     // LAPORAN
     Route::prefix('reports')->name('reports.')->group(function () {
         Route::get('ringkasan', [RingkasanController::class, 'index'])->name('ringkasan');
+        Route::get('ringkasan/export', [RingkasanController::class, 'export'])->name('ringkasan.export');
         Route::get('purchase', [PurchaseReportController::class, 'index'])->name('purchase');
         Route::get('waste', [WasteAnalysisController::class, 'index'])->name('waste');
         Route::get('export/waste', [RekapController::class, 'exportWaste'])->name('export.waste');

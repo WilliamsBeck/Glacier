@@ -147,11 +147,16 @@ class HppController extends Controller
         }
         // Kalau masih kosong (tidak ada SO juga), tidak ada yang bisa dihitung
         if (empty($rawIngIds)) return null;
-        $rawIngIds  = array_unique($rawIngIds);
+        // Sertakan SEMUA bahan dari SO Akhir & SO Awal (bukan hanya bahan resep),
+        // supaya map nilai/qty pembelian/opname lengkap & total HPP Aktual tidak bocor.
+        if ($soAkhir) $rawIngIds = array_merge($rawIngIds, $soAkhir->items->pluck('ingredient_id')->all());
+        if ($soAwal)  $rawIngIds = array_merge($rawIngIds, $soAwal->items->pluck('ingredient_id')->all());
+        $rawIngIds  = array_values(array_unique($rawIngIds));
         $batchPrice = $this->buildBatchPrice($storeId, $rawIngIds, $dateEnd);
 
-        // Nilai SO Akhir: qty × harga beku (price_per_base yg dikunci saat opname approved).
-        // Fallback ke harga rata-rata sisa batch terkini bila item belum punya harga beku.
+        // Nilai SO Akhir = qty × harga BEKU opname (price_per_base yg dikunci saat
+        // approve — sudah FIFO-berlapis). Itu nilai historis yg benar; JANGAN dinilai
+        // ulang dgn batch sekarang (batch sudah berubah). Fallback weighted bila kosong.
         $remainingPriceMap = $this->buildRemainingPriceMap($storeId, $rawIngIds);
         $closingValMap = $soAkhir ? $soAkhir->items->groupBy('ingredient_id')
             ->map(fn($g) => $g->sum(fn($i) => (float)$i->physical_qty
@@ -159,15 +164,63 @@ class HppController extends Controller
                     ? $i->price_per_base
                     : ($remainingPriceMap[$i->ingredient_id] ?? 0))))->all() : [];
 
+        // ── Map nilai & qty per bahan (untuk HPP AKTUAL) — dihitung lebih awal ──
+        // supaya harga AKTUAL per-unit juga bisa dipakai untuk HPP Ideal.
+        $closingMap     = $soAkhir ? $soAkhir->items->groupBy('ingredient_id')->map(fn($g) => (float)$g->sum('physical_qty'))->all() : [];
+        $openingMap     = $soAwal  ? $soAwal->items->groupBy('ingredient_id')->map(fn($g) => (float)$g->sum('physical_qty'))->all()  : [];
+        // Nilai SO Awal = qty × harga BEKU opname periode lalu (nilai historis benar).
+        $openingValMap  = $soAwal  ? $soAwal->items->groupBy('ingredient_id')
+            ->map(fn($g) => $g->sum(fn($i) => (float)$i->physical_qty * (float)$i->price_per_base))->all()  : [];
+
+        $purchaseValMap = MutationItem::whereHas('mutation', fn($q) =>
+                $q->where('destination_store_id', $storeId)->where('status', 'confirmed')
+                  ->whereBetween(\DB::raw('COALESCE(delivery_date, transaction_date)'), [$monthStart, $dateTo])
+                  ->whereIn('type', ['purchase_zhisheng', 'purchase_supplier', 'sale_internal', 'sale_external']))
+            ->whereIn('ingredient_id', $rawIngIds)->get(['ingredient_id', 'cost_subtotal'])
+            ->groupBy('ingredient_id')->map(fn($g) => (float)$g->sum('cost_subtotal'));
+        $salesOutValMap = MutationItem::whereHas('mutation', fn($q) =>
+                $q->where('source_store_id', $storeId)->where('status', 'confirmed')
+                  ->whereBetween(\DB::raw('COALESCE(delivery_date, transaction_date)'), [$monthStart, $dateTo])
+                  ->where('type', 'sale_internal'))
+            ->whereIn('ingredient_id', $rawIngIds)->get(['ingredient_id', 'cost_subtotal'])
+            ->groupBy('ingredient_id')->map(fn($g) => (float)$g->sum('cost_subtotal'));
+        $purchaseMap = MutationItem::whereHas('mutation', fn($q) =>
+                $q->where('destination_store_id', $storeId)->where('status', 'confirmed')
+                  ->whereBetween(\DB::raw('COALESCE(delivery_date, transaction_date)'), [$monthStart, $dateTo])
+                  ->whereIn('type', ['purchase_zhisheng', 'purchase_supplier', 'sale_internal', 'sale_external']))
+            ->whereIn('ingredient_id', $rawIngIds)->get(['ingredient_id', 'total_in_base'])
+            ->groupBy('ingredient_id')->map(fn($g) => $g->sum('total_in_base'));
+        $salesOutMap = MutationItem::whereHas('mutation', fn($q) =>
+                $q->where('source_store_id', $storeId)->where('status', 'confirmed')
+                  ->whereBetween(\DB::raw('COALESCE(delivery_date, transaction_date)'), [$monthStart, $dateTo])
+                  ->where('type', 'sale_internal'))
+            ->whereIn('ingredient_id', $rawIngIds)->get(['ingredient_id', 'total_in_base'])
+            ->groupBy('ingredient_id')->map(fn($g) => $g->sum('total_in_base'));
+
+        // Harga per-unit AKTUAL periode ini = HPP aktual ÷ qty terpakai.
+        // Dipakai sebagai harga untuk HPP IDEAL juga → Selisih HPP murni mencerminkan
+        // selisih KUANTITAS (boros/hemat), bukan beda harga. Fallback ke harga beli
+        // terakhir (batchPrice) bila tidak ada data aktual untuk bahan itu.
+        $idealPriceMap = [];
+        foreach ($rawIngIds as $iid) {
+            $actBase = (float)($openingMap[$iid] ?? 0) + (float)($purchaseMap[$iid] ?? 0)
+                     - (float)($salesOutMap[$iid] ?? 0) - (float)($closingMap[$iid] ?? 0);
+            $actVal  = (float)($openingValMap[$iid] ?? 0) + (float)($purchaseValMap[$iid] ?? 0)
+                     - (float)($salesOutValMap[$iid] ?? 0) - (float)($closingValMap[$iid] ?? 0);
+            $unit = ($actBase > 0 && $actVal > 0) ? $actVal / $actBase : 0;
+            $idealPriceMap[$iid] = $unit > 0 ? $unit : (float)($batchPrice[$iid] ?? 0);
+        }
+        $idealPrice = fn($id) => (float)($idealPriceMap[$id] ?? ($batchPrice[$id] ?? 0));
+
         // ── menuRows ──────────────────────────────────────────────────────────
-        $menuRows = $sales->map(function ($sale) use ($allRecipes, $compositionMap, $batchPrice) {
+        $menuRows = $sales->map(function ($sale) use ($allRecipes, $compositionMap, $idealPrice) {
             $hppPerPcs = 0;
             $ingRows   = [];
             foreach ($allRecipes[$sale->menu_id] ?? collect() as $recipe) {
                 $id = $recipe->ingredient_id;
                 if (isset($compositionMap[$id])) {
                     foreach ($compositionMap[$id] as $comp) {
-                        $price     = (float)($batchPrice[$comp->child_id] ?? 0);
+                        $price     = $idealPrice($comp->child_id);
                         $qtyPerPcs = $recipe->qty_usage * $comp->qty_needed;
                         $usage     = $sale->total_sold * $qtyPerPcs;
                         $hppPerPcs += $qtyPerPcs * $price;
@@ -181,7 +234,7 @@ class HppController extends Controller
                         ];
                     }
                 } else {
-                    $price     = (float)($batchPrice[$id] ?? 0);
+                    $price     = $idealPrice($id);
                     $usage     = $sale->total_sold * $recipe->qty_usage;
                     $hppPerPcs += $recipe->qty_usage * $price;
                     $ingRows[] = (object)[
@@ -216,65 +269,13 @@ class HppController extends Controller
             }
         }
 
-        // soAkhir & soAwal sudah diambil di atas
+        // (Map nilai & qty per bahan sudah dihitung lebih awal, sebelum menuRows.)
 
-        // Qty SO Akhir & Awal per ingredient
-        $closingMap     = $soAkhir ? $soAkhir->items->groupBy('ingredient_id')->map(fn($g) => (float)$g->sum('physical_qty'))->all() : [];
-        $openingMap     = $soAwal  ? $soAwal->items->groupBy('ingredient_id')->map(fn($g) => (float)$g->sum('physical_qty'))->all()  : [];
-        // Nilai SO Awal: gunakan price_per_base yg tersimpan di opname (harga periode lalu)
-        $openingValMap  = $soAwal  ? $soAwal->items->groupBy('ingredient_id')
-            ->map(fn($g) => $g->sum(fn($i) => (float)$i->physical_qty * (float)$i->price_per_base))->all()  : [];
-        // closingValMap dihitung setelah batchPrice tersedia (pakai harga FIFO terkini)
-
-        // Nilai pembelian MASUK (cost_subtotal dari mutation items)
-        $purchaseValMap = MutationItem::whereHas('mutation', fn($q) =>
-                $q->where('destination_store_id', $storeId)
-                  ->where('status', 'confirmed')
-                  ->whereBetween(\DB::raw('COALESCE(delivery_date, transaction_date)'), [$monthStart, $dateTo])
-                  ->whereIn('type', ['purchase_zhisheng', 'purchase_supplier', 'sale_internal', 'sale_external'])
-            )
-            ->whereIn('ingredient_id', $rawIngIds)
-            ->get(['ingredient_id', 'cost_subtotal'])
-            ->groupBy('ingredient_id')
-            ->map(fn($g) => (float)$g->sum('cost_subtotal'));
-
-        // Nilai penjualan KELUAR dari toko ini ke toko lain (cost_subtotal)
-        $salesOutValMap = MutationItem::whereHas('mutation', fn($q) =>
-                $q->where('source_store_id', $storeId)
-                  ->where('status', 'confirmed')
-                  ->whereBetween(\DB::raw('COALESCE(delivery_date, transaction_date)'), [$monthStart, $dateTo])
-                  ->where('type', 'sale_internal')
-            )
-            ->whereIn('ingredient_id', $rawIngIds)
-            ->get(['ingredient_id', 'cost_subtotal'])
-            ->groupBy('ingredient_id')
-            ->map(fn($g) => (float)$g->sum('cost_subtotal'));
-
-        // Tetap simpan purchaseMap & salesOutMap qty untuk actualBase (qty pemakaian)
-        $purchaseMap = MutationItem::whereHas('mutation', fn($q) =>
-                $q->where('destination_store_id', $storeId)
-                  ->where('status', 'confirmed')
-                  ->whereBetween(\DB::raw('COALESCE(delivery_date, transaction_date)'), [$monthStart, $dateTo])
-                  ->whereIn('type', ['purchase_zhisheng', 'purchase_supplier', 'sale_internal', 'sale_external'])
-            )
-            ->whereIn('ingredient_id', $rawIngIds)
-            ->get(['ingredient_id', 'total_in_base'])
-            ->groupBy('ingredient_id')
-            ->map(fn($g) => $g->sum('total_in_base'));
-
-        $salesOutMap = MutationItem::whereHas('mutation', fn($q) =>
-                $q->where('source_store_id', $storeId)
-                  ->where('status', 'confirmed')
-                  ->whereBetween(\DB::raw('COALESCE(delivery_date, transaction_date)'), [$monthStart, $dateTo])
-                  ->where('type', 'sale_internal')
-            )
-            ->whereIn('ingredient_id', $rawIngIds)
-            ->get(['ingredient_id', 'total_in_base'])
-            ->groupBy('ingredient_id')
-            ->map(fn($g) => $g->sum('total_in_base'));
-
-        // Kalau tidak ada menu terjual, bangun idealAgg dari semua bahan SO Akhir
-        if (empty($idealAgg) && $soAkhir) {
+        // SELALU sertakan SEMUA bahan dari SO Akhir (bukan hanya saat tak ada menu).
+        // Bahan yang tidak dipakai resep tetap punya HPP AKTUAL (terpakai/waste/selisih
+        // opname), jadi harus ikut di total. Tanpa ini, total HPP Aktual bocor begitu
+        // ada penjualan (idealAgg cuma berisi bahan resep).
+        if ($soAkhir) {
             foreach ($soAkhir->items as $item) {
                 $ingId = $item->ingredient_id;
                 if (!isset($idealAgg[$ingId])) {
@@ -288,15 +289,20 @@ class HppController extends Controller
             ->orderBy('id')->get()
             ->groupBy('ingredient_id')->map(fn($g) => $g->first());
 
+        // Urutan kategori (sama dengan halaman Stok Opname) untuk sorting baris.
+        $catOrder = \App\Models\IngredientCategory::pluck('sort_order', 'name');
+
         $ingredientRows = collect($idealAgg)->map(function ($agg, $ingId) use (
-            $batchPrice, $closingMap, $openingMap, $purchaseMap, $salesOutMap,
+            $batchPrice, $idealPriceMap, $closingMap, $openingMap, $purchaseMap, $salesOutMap,
             $closingValMap, $openingValMap, $purchaseValMap, $salesOutValMap,
             $packagingMap, $soAkhir
         ) {
             $pkg      = $packagingMap[$ingId] ?? null;
             $dusSize  = ($pkg && $pkg->crate_to_pack && $pkg->pack_to_base)
                         ? (int)$pkg->crate_to_pack * (int)$pkg->pack_to_base : null;
-            $avgPrice  = (float)($batchPrice[$ingId] ?? 0);
+            // Harga tampil = harga AKTUAL per-unit periode (HPP aktual ÷ qty), sama
+            // dengan yang dipakai untuk HPP Ideal. Fallback harga beli terakhir.
+            $avgPrice  = (float)($idealPriceMap[$ingId] ?? ($batchPrice[$ingId] ?? 0));
             $idealBase = (float)$agg['usage_base'];
             $hppIdeal  = (float)$agg['hpp'];
             $hasActual  = $soAkhir && array_key_exists($ingId, $closingMap);
@@ -309,12 +315,15 @@ class HppController extends Controller
                 $closingQty  = $closingMap[$ingId];
                 $actualBase  = max(0, $openingQty + $purchaseQty - $salesOutQty - $closingQty);
 
-                // HPP Aktual = Nilai SO Awal + Nilai Pembelian Masuk − Nilai Jual Keluar − Nilai SO Akhir
+                // HPP Aktual = Nilai SO Awal + Nilai Pembelian Masuk − Nilai Jual Keluar − Nilai SO Akhir.
+                // JANGAN di-max(0): bahan yang stok akhirnya dinilai lebih tinggi dari
+                // awal+beli (mis. sisa = batch baru lebih mahal) menghasilkan nilai
+                // negatif yang HARUS saling menutup di total agar akumulasi tepat.
                 $openingVal  = $openingValMap[$ingId]  ?? 0;
                 $purchaseVal = $purchaseValMap[$ingId] ?? 0;
                 $salesOutVal = $salesOutValMap[$ingId] ?? 0;
                 $closingVal  = $closingValMap[$ingId]  ?? 0;
-                $hppAktual   = max(0, $openingVal + $purchaseVal - $salesOutVal - $closingVal);
+                $hppAktual   = $openingVal + $purchaseVal - $salesOutVal - $closingVal;
             }
 
             return (object)[
@@ -331,8 +340,16 @@ class HppController extends Controller
                 'selisih_base' => $hasActual ? $idealBase - $actualBase : null,
                 'selisih_dus'  => ($dusSize && $hasActual) ? ($idealBase - $actualBase) / $dusSize : null,
                 'selisih_hpp'  => $hasActual ? $hppIdeal - $hppAktual : null,
+                // % selisih terhadap HPP Aktual (semua baris dapat angka). Negatif = boros.
+                'selisih_pct'  => ($hasActual && abs($hppAktual) > 0.0001)
+                    ? (($hppIdeal - $hppAktual) / abs($hppAktual) * 100) : null,
             ];
-        })->sortByDesc('hpp_ideal')->values();
+        })->sortBy([
+            // Urutan SAMA dengan Stok Opname: kategori (sort_order) lalu ingredient_id.
+            fn($a, $b) => ($catOrder[$a->ingredient->category ?? ''] ?? 9999)
+                      <=> ($catOrder[$b->ingredient->category ?? ''] ?? 9999),
+            fn($a, $b) => ($a->ingredient->id ?? 0) <=> ($b->ingredient->id ?? 0),
+        ])->values();
 
         // ── Summary ───────────────────────────────────────────────────────────
         $totalHppIdeal  = $menuRows->sum('hpp_ideal');
@@ -373,6 +390,24 @@ class HppController extends Controller
 
         if (!$storeId || !in_array($storeId, $storeIds)) return $empty();
 
+        // Bila ada SNAPSHOT terkunci untuk periode ini → tampilkan angka beku itu
+        // (tidak dihitung ulang), supaya laporan periode lampau tidak berubah.
+        $snapshot = \App\Models\HppSnapshot::with('lockedBy')
+            ->where('store_id', $storeId)->where('month', $month)
+            ->where('year', $year)->where('period_type', $periodType)->first();
+
+        if ($snapshot) {
+            $result = $this->restoreSnapshot($snapshot);
+            return view('sales.hpp', array_merge($result, [
+                'stores' => $stores, 'month' => $month,
+                'year'   => $year,   'storeId' => $storeId,
+                'periodType' => $periodType,
+                'locked'   => true,
+                'lockedAt' => $snapshot->created_at,
+                'lockedBy' => $snapshot->lockedBy?->name,
+            ]));
+        }
+
         $result = $this->calcHppForStore((int)$storeId, $month, $year, $periodType);
         if (!$result) return $empty();
 
@@ -380,7 +415,66 @@ class HppController extends Controller
             'stores' => $stores, 'month' => $month,
             'year'   => $year,   'storeId' => $storeId,
             'periodType' => $periodType,
+            'locked'   => false,
         ]));
+    }
+
+    // Ubah snapshot JSON kembali ke struktur yang dipakai view (Collection + objek).
+    private function restoreSnapshot(\App\Models\HppSnapshot $snapshot): array
+    {
+        $d = json_decode($snapshot->payload);
+        return [
+            'summary'        => $d->summary ?? null,
+            'menuRows'       => collect($d->menuRows ?? []),
+            'ingredientRows' => collect($d->ingredientRows ?? []),
+        ];
+    }
+
+    // ── Kunci HPP: simpan snapshot angka periode ini ─────────────────────────
+    public function lock(Request $request)
+    {
+        $request->validate([
+            'store_id'    => 'required|exists:stores,id',
+            'month'       => 'required|integer|between:1,12',
+            'year'        => 'required|integer|min:2020',
+            'period_type' => 'required|in:mid_month,end_month',
+        ]);
+        $storeId = (int) $request->store_id;
+        abort_unless(in_array($storeId, auth()->user()->accessibleStoreIds()), 403);
+
+        $result = $this->calcHppForStore($storeId, (int)$request->month, (int)$request->year, $request->period_type);
+        if (!$result) return back()->with('error', 'Tidak ada data HPP untuk dikunci.');
+
+        \App\Models\HppSnapshot::updateOrCreate(
+            ['store_id' => $storeId, 'month' => (int)$request->month,
+             'year' => (int)$request->year, 'period_type' => $request->period_type],
+            [
+                'omset'      => $result['summary']->omset ?? 0,
+                'hpp_ideal'  => $result['summary']->hpp_ideal ?? 0,
+                'hpp_aktual' => $result['summary']->hpp_aktual,
+                'payload'    => json_encode($result),
+                'locked_by'  => auth()->id(),
+            ]
+        );
+
+        return back()->with('success', 'HPP periode ini berhasil dikunci (snapshot tersimpan).');
+    }
+
+    // ── Buka kunci HPP (hanya Super Admin) ───────────────────────────────────
+    public function unlock(Request $request)
+    {
+        abort_unless(auth()->user()->isSuperAdmin(), 403, 'Hanya Super Admin yang dapat membuka kunci HPP.');
+        $request->validate([
+            'store_id'    => 'required|exists:stores,id',
+            'month'       => 'required|integer|between:1,12',
+            'year'        => 'required|integer|min:2020',
+            'period_type' => 'required|in:mid_month,end_month',
+        ]);
+        \App\Models\HppSnapshot::where('store_id', (int)$request->store_id)
+            ->where('month', (int)$request->month)->where('year', (int)$request->year)
+            ->where('period_type', $request->period_type)->delete();
+
+        return back()->with('success', 'Kunci HPP dibuka. Angka kembali dihitung live.');
     }
 
     // ── Export HPP ───────────────────────────────────────────────────────────

@@ -25,8 +25,8 @@
 @section('content')
 <div class="page-header d-flex justify-content-between align-items-center">
     <h4 class="page-title">Input Mutasi Baru</h4>
-    <a href="{{ route('inventory.mutations.index') }}" class="btn btn-outline-secondary btn-sm">
-        <i class="bi bi-arrow-left me-1"></i> Kembali
+    <a href="{{ route('inventory.mutations.index') }}" class="btn btn-outline-secondary btn-sm btn-back">
+        <i class="bi bi-arrow-left me-1"></i>Kembali
     </a>
 </div>
 
@@ -86,6 +86,12 @@
                             <option value="{{ $sup->id }}">{{ $sup->name }}</option>
                         @endforeach
                     </select>
+                </div>
+
+                <div class="col-md-3 d-none" id="wrapExtSender">
+                    <label class="form-label fw-semibold">Pengirim <span class="text-danger">*</span></label>
+                    <input type="text" name="external_sender" id="inputExtSender" class="form-control"
+                           placeholder="Nama pengirim / toko luar" value="{{ old('external_sender') }}">
                 </div>
 
                 <div class="col-md-3" id="wrapInvoice">
@@ -286,6 +292,9 @@ function handleTypeChange() {
     if (showSupplier) {
         rebuildSupplierSelect(type);
     }
+    // Field "Pengirim" hanya untuk Pembelian Eksternal (diketik manual)
+    document.getElementById('wrapExtSender').classList.toggle('d-none', type !== 'sale_external');
+
     document.getElementById('wrapInvoice').classList.toggle('d-none', isOpening);
     document.getElementById('wrapDelivery').classList.toggle('d-none', isOpening);
 
@@ -590,7 +599,7 @@ function checkRowStock(idx) {
 function onIngredientChange(ingId, idx) {
     loadPackagings(ingId, idx);
     var type = document.getElementById('typeSelect').value;
-    if (['sale_internal','sale_external'].includes(type)) {
+    if (type === 'sale_internal') { // transfer internal saja yg ambil harga dari stok sumber
         fetchStockPrice(ingId, idx);
     } else {
         var info = document.querySelector('#row-' + idx + ' .stock-price-info');
@@ -695,7 +704,7 @@ function fetchStockPrice(ingId, idx) {
 // Hitung harga FIFO berdasarkan qty yang diinput — konsumsi batch dari tertua ke terbaru
 function calcFifoPriceForQty(idx) {
     var type = document.getElementById('typeSelect').value;
-    if (!['sale_internal','sale_external'].includes(type)) return;
+    if (type !== 'sale_internal') return; // harga FIFO hanya utk transfer internal
 
     var row = document.querySelector('#row-' + idx);
     if (!row || !row._fifoBatches || row._fifoBatches.length === 0) return;
@@ -850,16 +859,17 @@ function onPackagingChange(idx) {
     var ingInput = document.querySelector('#row-' + idx + ' select[name$="[ingredient_id]"]');
     var type     = document.getElementById('typeSelect').value;
 
-    // Pembelian (pusat/supplier) → harga/dus BISA diedit. Transfer/penjualan → readonly (otomatis dari stok).
+    // Pembelian (pusat/supplier/EKSTERNAL) → harga/dus BISA diketik manual.
+    // Transfer internal → readonly (otomatis dari harga stok sumber).
     var priceCrate = document.querySelector('#row-' + idx + ' .price-crate-input');
     if (priceCrate) {
-        var editable = ['purchase_zhisheng','purchase_supplier'].includes(type);
+        var editable = ['purchase_zhisheng','purchase_supplier','sale_external'].includes(type);
         priceCrate.readOnly = !editable;
         priceCrate.classList.toggle('bg-light', !editable);
     }
-    // Fetch batch price untuk tipe yang mengurangi stok dari toko sumber
-    if (['sale_internal','sale_external'].includes(type)
-        && ingInput && ingInput.value) {
+    // Fetch batch price hanya untuk transfer internal (mengurangi stok toko sumber).
+    // Pembelian eksternal = stok MASUK, harga diketik manual → jangan fetch/timpa.
+    if (type === 'sale_internal' && ingInput && ingInput.value) {
         fetchStockPrice(ingInput.value, idx);
     }
     // Tipe Pembelian → auto-fill Harga/Dus dari pembelian terakhir GLOBAL (semua toko, per kemasan).

@@ -143,12 +143,14 @@
         $b   = abs($base);
         if (!$packaging || !$packaging->crate_to_pack || !$packaging->pack_to_base) {
             $p = (int)round($b);
-            return ['dus' => 0, 'pack' => $neg ? -$p : $p];
+            return ['dus' => 0, 'pack' => $neg ? -$p : $p, 'base' => 0.0];
         }
         $ctb  = $packaging->crate_to_pack * $packaging->pack_to_base;
         $dus  = (int)floor($b / $ctb);
         $pack = (int)floor(($b - $dus * $ctb) / $packaging->pack_to_base);
-        return ['dus' => $neg ? -$dus : $dus, 'pack' => $neg ? -$pack : $pack];
+        $rem  = $b - $dus * $ctb - $pack * $packaging->pack_to_base;
+        return ['dus' => $neg ? -$dus : $dus, 'pack' => $neg ? -$pack : $pack,
+                'base' => $neg ? -$rem : $rem];
     };
 
     $sectionLabels = [
@@ -384,8 +386,10 @@
                             // pkgKey: kunci packaging untuk lookup di tableData
                             $pkgKey = $pkgId ? (string)$pkgId : 'null';
 
-                            // Stok Awal PER KEMASAN (tiap baris punya stok awalnya sendiri)
-                            $opening     = $toDusPack($trow['opening_base'], $pkg);
+                            // Stok Awal PER KEMASAN (tiap baris punya stok awalnya sendiri).
+                            // Bila cocok dgn rincian opname (belum ada pergerakan), tampilkan
+                            // apa adanya — gram/pcs longgar tidak dipromosikan jadi pack.
+                            $opening = $toDusPack($trow['opening_base'], $pkg);
                             // totalInBase = net mutasi masuk-keluar bulan ini (semua pkg, hanya utk fallback closing bulan lalu)
                             $totalInBase = $isFirst
                                 ? collect($row['days'])->sum(fn($d) =>
@@ -419,6 +423,7 @@
                             data-ctb="{{ $ctb }}"
                             data-ing="{{ $ingId }}"
                             data-pkg="{{ $pkgId ?? '' }}"
+                            data-unit="{{ $ing->unit_base }}"
                             data-is-first="{{ $isFirst ? '1' : '0' }}">
 
                             {{-- Nama Bahan / Kemasan --}}
@@ -722,11 +727,12 @@ function toDusPack(base, ctb, ptb) {
     var b   = Math.abs(base);
     if (!ctb || !ptb) {
         var p = Math.round(b);
-        return { dus: 0, pack: neg ? -p : p };
+        return { dus: 0, pack: neg ? -p : p, base: 0 };
     }
     var dus  = Math.floor(b / ctb);
     var pack = Math.floor((b - dus * ctb) / ptb);
-    return { dus: neg ? -dus : dus, pack: neg ? -pack : pack };
+    var rem  = b - dus * ctb - pack * ptb;
+    return { dus: neg ? -dus : dus, pack: neg ? -pack : pack, base: neg ? -rem : rem };
 }
 
 document.querySelectorAll('.confirm-date-th').forEach(function(th) {

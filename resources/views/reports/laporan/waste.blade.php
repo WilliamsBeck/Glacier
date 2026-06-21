@@ -7,6 +7,14 @@
         <h4 class="page-title mb-0">Laporan Data Waste</h4>
         <p class="text-muted mb-0 small">Rekap kerugian waste bahan baku per rentang tanggal</p>
     </div>
+    <div class="d-flex gap-2 align-items-center">
+        <a href="{{ route('reports.laporan.waste.export', request()->query()) }}" class="btn btn-outline-success">
+            <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
+        </a>
+        <a href="{{ route('reports.laporan.index') }}" class="btn btn-outline-secondary btn-sm btn-back">
+            <i class="bi bi-arrow-left me-1"></i>Kembali
+        </a>
+    </div>
 </div>
 
 {{-- FILTER --}}
@@ -33,10 +41,6 @@
                 <button type="submit" class="btn btn-primary btn-laporan">
                     <i class="bi bi-search me-1"></i>Tampilkan
                 </button>
-                <a href="{{ route('reports.laporan.waste.export', request()->query()) }}"
-                   class="btn btn-success btn-laporan">
-                    <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
-                </a>
             </div>
         </form>
     </div>

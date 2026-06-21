@@ -361,8 +361,18 @@ code, .font-monospace { font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospa
 .table-balanced th.col-name { width: 28%; }
 .table-balanced td, .table-balanced th { overflow: hidden; text-overflow: ellipsis; }
 
-/* Tombol kembali — sedikit lebih besar dari btn-sm agar mudah diklik */
-.btn-back { padding: .42rem .9rem !important; font-size: var(--fs-base) !important; }
+/* Tombol kembali — seragam di seluruh sistem (font, ukuran, weight sama,
+   terlepas dari btn-sm/tidak). */
+.btn-back {
+    padding: .42rem .9rem !important;
+    font-size: var(--fs-base) !important;
+    font-weight: 500 !important;
+    line-height: 1.4 !important;
+    border-radius: .375rem !important;
+    display: inline-flex !important;
+    align-items: center !important;
+}
+.btn-back .bi { margin-right: .35rem !important; }
 
 /* Baris utama tabel Saldo Stok — tinggi seragam walau ukuran font angka
    (fs-6 saat ada stok vs kecil saat 0) berbeda. */

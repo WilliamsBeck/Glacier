@@ -352,20 +352,26 @@ class OpnameController extends Controller
     public function show(Opname $opname)
     {
         $opname->load(['store', 'items.ingredient', 'items.packaging.supplier', 'performedBy', 'approvedBy']);
+        // Draft bulanan: sinkronkan stok sistem dari transaksi terkini (mis. setelah
+        // mutasi diperbaiki) supaya fisik vs sistem tetap akurat.
+        $this->refreshDraftSystemQty($opname);
         $opname->setRelation('items', $this->sortedItems($opname));
         $priceMap   = $this->displayPriceMap($opname);
+        $fifoPrice  = $this->fifoEffectivePrice($opname);
         $lockData   = $this->buildLockData($opname);
-        return view('opname.show', compact('opname', 'priceMap') + $lockData);
+        return view('opname.show', compact('opname', 'priceMap', 'fifoPrice') + $lockData);
     }
 
     public function edit(Opname $opname)
     {
         abort_if($opname->status === 'approved', 403, 'Opname yang sudah approved tidak bisa diedit.');
         $opname->load(['items.ingredient', 'items.packaging.supplier', 'store', 'performedBy', 'approvedBy']);
+        $this->refreshDraftSystemQty($opname);
         $opname->setRelation('items', $this->sortedItems($opname));
         $priceMap = $this->displayPriceMap($opname);
+        $fifoPrice = $this->fifoEffectivePrice($opname);
         $lockData = $this->buildLockData($opname);
-        return view('opname.show', compact('opname', 'priceMap') + $lockData);
+        return view('opname.show', compact('opname', 'priceMap', 'fifoPrice') + $lockData);
     }
 
     // Harga untuk tampilan: opname approved → pakai harga beku (price_per_base item);
@@ -384,6 +390,53 @@ class OpnameController extends Controller
             return $map + $live;
         }
         return $this->buildPriceMap($opname);
+    }
+
+    // Harga efektif per item via FIFO BERLAPIS: stok fisik dinilai dari batch
+    // TERBARU dulu (karena FIFO — yang lama keluar duluan, sisa = yang baru).
+    // Hasil: price_per_base efektif = nilai_fifo / physical_qty. Lebih akurat
+    // daripada weighted (yang mencampur semua batch tanpa lihat berapa yg tersisa).
+    // Berlaku untuk opname BULANAN draft. (stok_awal pakai harga per-batch input;
+    // approved pakai harga beku.)
+    private function fifoEffectivePrice(Opname $opname): array
+    {
+        if ($opname->status === 'approved' || $opname->opname_mode === 'stok_awal') return [];
+
+        $map = [];
+        foreach ($opname->items as $item) {
+            $phys = (float) $item->physical_qty;
+            if ($phys <= 0) continue;
+
+            // Urut by TANGGAL transaksi (bukan id) — FIFO sejati. Stok yang tersisa
+            // dinilai dari batch TANGGAL TERBARU dulu (yang lama sudah keluar duluan).
+            $batches = MutationItem::query()
+                ->join('mutations', 'mutations.id', '=', 'mutation_items.mutation_id')
+                ->where('mutations.destination_store_id', $opname->store_id)
+                ->where('mutations.status', 'confirmed')
+                ->where('mutation_items.ingredient_id', $item->ingredient_id)
+                ->when($item->packaging_id,
+                    fn($q) => $q->where('mutation_items.packaging_id', $item->packaging_id),
+                    fn($q) => $q->whereNull('mutation_items.packaging_id'))
+                ->where('mutation_items.remaining_qty', '>', 0)
+                ->orderByDesc(\DB::raw('COALESCE(mutations.delivery_date, mutations.transaction_date)'))
+                ->orderByDesc('mutation_items.id')
+                ->get(['mutation_items.remaining_qty', 'mutation_items.price_per_base']);
+
+            if ($batches->isEmpty()) continue;
+
+            $left = $phys; $val = 0.0; $lastPpb = (float) $batches->first()->price_per_base;
+            foreach ($batches as $b) {
+                if ($left <= 0) break;
+                $take = min($left, (float) $b->remaining_qty);
+                $val += $take * (float) $b->price_per_base;
+                $left -= $take;
+                $lastPpb = (float) $b->price_per_base;
+            }
+            if ($left > 0) $val += $left * $lastPpb; // fisik > sistem → kelebihan pakai harga terbaru
+
+            $map[$item->id] = $phys > 0 ? $val / $phys : 0;
+        }
+        return $map;
     }
 
     private function sortedItems(Opname $opname)
@@ -439,9 +492,19 @@ class OpnameController extends Controller
         return $map;
     }
 
+    // Pesan kunci HPP bila periode opname ini sudah di-snapshot. null = tidak terkunci.
+    private function hppLockMsg(Opname $opname): ?string
+    {
+        return \App\Models\HppSnapshot::isPeriodLocked(
+                $opname->store_id, $opname->period_month, $opname->period_year, $opname->period_type)
+            ? \App\Models\HppSnapshot::lockMessageFor($opname->store_id, $opname->period_month, $opname->period_year)
+            : null;
+    }
+
     public function update(Request $request, Opname $opname)
     {
         abort_if($opname->status === 'approved', 403);
+        if ($m = $this->hppLockMsg($opname)) return back()->with('error', $m);
 
         // ── Lock check ──────────────────────────────────────────────────────────
         if (MonthLockService::isLocked('opname', $opname->id, $opname->period_month, $opname->period_year)) {
@@ -533,7 +596,40 @@ class OpnameController extends Controller
     }
 
     /**
-     * Hitung ulang variance untuk semua item (misal setelah fix floating point)
+     * Hitung ulang STOK SISTEM + variance untuk opname DRAFT, dari data transaksi
+     * terkini (mutasi/dll). Dipakai supaya saat user memperbaiki mutasi setelah
+     * membuat draft opname, stok sistem di draft ikut ter-update → fisik vs sistem
+     * tetap sinkron. Tidak menyentuh opname approved (sudah terkunci).
+     * Mode stok_awal dilewati (system_qty memang 0 / batch manual).
+     */
+    private function refreshDraftSystemQty(Opname $opname): void
+    {
+        if ($opname->status !== 'draft' || $opname->opname_mode === 'stok_awal') return;
+
+        $req  = new \Illuminate\Http\Request([
+            'store_id' => $opname->store_id,
+            'date'     => $opname->opname_date->toDateString(),
+        ]);
+        $rows = collect(json_decode($this->systemQty($req)->getContent(), true));
+        if ($rows->isEmpty()) return;
+
+        $map = $rows->keyBy(fn($r) => $r['ingredient_id'] . '_' . ($r['packaging_id'] ?? ''));
+
+        foreach ($opname->items as $item) {
+            $key = $item->ingredient_id . '_' . ($item->packaging_id ?? '');
+            $sys = isset($map[$key]) ? round((float) $map[$key]['system_qty'], 4) : 0.0;
+            $var = round((float) $item->physical_qty - $sys, 4);
+
+            if (abs($sys - (float) $item->system_qty) > 0.0001
+                || abs($var - (float) $item->variance) > 0.0001) {
+                $item->update(['system_qty' => $sys, 'variance' => $var]);
+            }
+        }
+        $opname->load('items');
+    }
+
+     /*
+     * Hitung ulang STOK SISTEM + variance dari data terkini (tombol manual).
      */
     public function recalculate(Opname $opname)
     {
@@ -542,6 +638,14 @@ class OpnameController extends Controller
         if (MonthLockService::isLocked('opname', $opname->id, $opname->period_month, $opname->period_year)) {
             return back()->with('error', MonthLockService::lockMessage($opname->period_month, $opname->period_year));
         }
+
+        // Mode bulanan: refresh stok sistem dari transaksi terkini lalu hitung variance.
+        if ($opname->opname_mode !== 'stok_awal') {
+            $this->refreshDraftSystemQty($opname);
+            return back()->with('success', 'Stok sistem & variance disinkronkan dari data terkini.');
+        }
+
+        // Mode stok_awal: cukup hitung ulang variance.
         foreach ($opname->items as $item) {
             $variance = round($item->physical_qty, 4) - round($item->system_qty, 4);
             $item->update(['variance' => round($variance, 4)]);
@@ -554,6 +658,11 @@ class OpnameController extends Controller
         // Approved hanya boleh dihapus oleh Super Admin
         if ($opname->status === 'approved' && !auth()->user()->isSuperAdmin()) {
             abort(403, 'Opname yang sudah disetujui hanya dapat dihapus oleh Super Admin.');
+        }
+
+        // Terkunci oleh snapshot HPP? Tidak boleh dihapus (snapshot bergantung padanya).
+        if ($m = $this->hppLockMsg($opname)) {
+            return redirect()->route('opname.opnames.show', $opname)->with('error', $m);
         }
 
         if (MonthLockService::isLocked('opname', $opname->id, $opname->period_month, $opname->period_year)) {
@@ -641,6 +750,16 @@ class OpnameController extends Controller
             return back()->with('error', MonthLockService::lockMessage($opname->period_month, $opname->period_year));
         }
 
+        // Opname BULANAN: kunci dulu harga efektif FIFO BERLAPIS ke tiap item
+        // (dihitung dari state FIFO SEBELUM approve) supaya nilai yang dibekukan =
+        // yang tampil di layar (akurat per-lapisan, bukan weighted).
+        if ($opname->opname_mode !== 'stok_awal') {
+            foreach ($this->fifoEffectivePrice($opname) as $itemId => $ppb) {
+                if ($ppb > 0) OpnameItem::where('id', $itemId)->update(['price_per_base' => $ppb]);
+            }
+            $opname->load('items');
+        }
+
         DB::transaction(function () use ($opname) {
             $opname->update(['status' => 'approved', 'approved_by' => auth()->id()]);
 
@@ -700,7 +819,11 @@ class OpnameController extends Controller
                     $physPack  = (int)($item->physical_pack  ?? 0);
                     $qty = ($crateToBase > 0 ? $physCrate * $crateToBase : 0)
                          + ($ptb > 0        ? $physPack  * $ptb         : 0);
-                    if ($qty <= 0) $qty = round($item->physical_qty, 4); // fallback tanpa packaging
+                    // Fallback HANYA untuk bahan tanpa kemasan. Bila ada kemasan tapi
+                    // dus+pack = 0 (hanya pcs/gr longgar), JANGAN buat batch — pcs/gr
+                    // longgar diabaikan dari stok (hanya dus & pack yang dihitung).
+                    if ($qty <= 0 && !$pkg) $qty = round($item->physical_qty, 4);
+                    if ($qty <= 0) continue;
 
                     \App\Models\MutationItem::create([
                         'mutation_id'            => $opening->id,
@@ -738,7 +861,9 @@ class OpnameController extends Controller
                     $physPack  = (int)($item->physical_pack  ?? 0);
                     $packedQty = ($crateToBase > 0 ? $physCrate * $crateToBase : 0)
                                + ($ptb > 0        ? $physPack  * $ptb         : 0);
-                    if ($packedQty <= 0) $packedQty = round($item->physical_qty, 4); // fallback
+                    // Fallback hanya untuk bahan tanpa kemasan; bila ada kemasan tapi
+                    // dus+pack = 0 (hanya pcs/gr longgar), abaikan (jangan masuk FIFO).
+                    if ($packedQty <= 0 && !$pkg) $packedQty = round($item->physical_qty, 4);
 
                     $delta = round($packedQty - $curr, 4);
                     if ($delta <= 0) continue;
@@ -796,11 +921,15 @@ class OpnameController extends Controller
         return back()->with('success', 'Opname disetujui. Stok otomatis disesuaikan.');
     }
 
-    // Kunci harga rata-rata tertimbang sisa batch ke setiap opname item.
+    // Kunci harga ke setiap opname item.
+    // PENTING: item yang sudah punya harga sendiri (diinput user / per-batch pada
+    // mode stok_awal) TIDAK ditimpa rata-rata gabungan — harga per-batch dijaga.
+    // Hanya item tanpa harga yang diisi dari rata-rata tertimbang FIFO.
     private function freezeItemPrices(Opname $opname): void
     {
         $priceMap = $this->buildPriceMap($opname); // weighted-avg sisa batch terkini
         foreach ($opname->items as $item) {
+            if ((float) $item->price_per_base > 0) continue; // jaga harga per-batch
             $frozen = $priceMap[$item->ingredient_id] ?? null;
             if ($frozen !== null && $frozen > 0) {
                 $item->update(['price_per_base' => $frozen]);

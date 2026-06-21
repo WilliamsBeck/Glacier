@@ -7,8 +7,8 @@
         <h1 class="page-title">Pratinjau Impor — {{ $cfg['label'] }}</h1>
         <p class="page-subtitle">Periksa tiap sheet di bawah sebelum disimpan.</p>
     </div>
-    <a href="{{ route($cfg['route_index']) }}" class="btn btn-outline-secondary">
-        <i class="bi bi-arrow-left me-1"></i> Kembali
+    <a href="{{ route($cfg['route_index']) }}" class="btn btn-outline-secondary btn-sm btn-back">
+        <i class="bi bi-arrow-left me-1"></i>Kembali
     </a>
 </div>
 

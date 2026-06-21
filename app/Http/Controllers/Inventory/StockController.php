@@ -181,17 +181,19 @@ class StockController extends Controller
             }
             if ($neg) { $dus = -$dus; $pack = -$pack; $baseRem = -$baseRem; }
 
-            // Nilai Rp hanya dari porsi Dus + Pack (sisa gram/pcs diabaikan)
-            $dusPackBase = ($crateToBase > 0 ? abs($dus) * $crateToBase : 0)
-                         + ($ptb > 0 ? abs($pack) * $ptb : 0);
-            $pkgSubtotal = ($neg ? -1 : 1) * $dusPackBase * $pkgAvgPrice;
-
-            // Price layers (untuk tooltip)
+            // Price layers (untuk tooltip & nilai). Dikelompokkan per HARGA/DUS BULAT
+            // (round price_per_base × ctb) — bukan price_per_base mentah 8-desimal —
+            // supaya batch ber-harga-sama menyatu & tidak ada selisih desimal gajelas.
             $priceLayers = $pkgBatches
-                ->groupBy('price_per_base')
+                ->groupBy(fn($b) => $crateToBase > 0
+                    ? (int) round((float) $b->price_per_base * $crateToBase)
+                    : (int) round((float) $b->price_per_base * ($ptb ?: 1)))
                 ->map(function ($grp) use ($crateToBase, $ptb) {
-                    $totalQty  = $grp->sum('remaining_qty');
-                    $priceBase = (float) $grp->first()->price_per_base;
+                    $totalQty   = $grp->sum('remaining_qty');
+                    $priceBase  = (float) $grp->first()->price_per_base;
+                    // HARGA/DUS & /PACK BULAT = sumber kebenaran tampilan & nilai
+                    $priceCrate = $crateToBase > 0 ? (int) round($priceBase * $crateToBase) : 0;
+                    $pricePack  = $ptb > 0 ? (int) round($priceBase * $ptb) : 0;
                     $dusB = $packB = 0; $baseB = $totalQty;
                     if ($crateToBase > 0) {
                         $dusB  = (int) floor($totalQty / $crateToBase);
@@ -207,13 +209,18 @@ class StockController extends Controller
                         'pack'            => $packB,
                         'base'            => round($baseB, 2),
                         'price_per_base'  => $priceBase,
-                        // round() supaya nilai input user (mis: 1.000.000, 1.533.818) kembali
-                        // persis sama setelah konversi balik dari price_per_base (floor kurang 1).
-                        'price_per_pack'  => $ptb > 0 ? (int) round($priceBase * $ptb) : 0,
-                        'price_per_crate' => $crateToBase > 0 ? (int) round($priceBase * $crateToBase) : 0,
+                        'price_per_pack'  => $pricePack,
+                        'price_per_crate' => $priceCrate,
                     ];
                 })
+                // Hanya batch yang punya Dus/Pack utuh — sisa < 1 pack tidak ditampilkan.
+                ->filter(fn($b) => $b->dus != 0 || $b->pack != 0)
                 ->values();
+
+            // Nilai Rp = (dus + pack) × harga rata-rata per-base, dibulatkan sekali.
+            // (Konsisten dgn valuasi inventaris standar qty × harga rata-rata.)
+            $dusPackBase = (abs($dus) * $crateToBase) + (abs($pack) * $ptb);
+            $pkgSubtotal = ($neg ? -1 : 1) * $dusPackBase * $pkgAvgPrice;
 
             $activeDays   = $usageRow?->active_days ?? 0;
             // Rata² pemakaian = total pack ÷ WINDOW SIZE (hari kalender),

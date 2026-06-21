@@ -1,5 +1,6 @@
 @php $currentHppTab = $currentHppTab ?? 'periode'; @endphp
-<div class="page-header mb-2">
+<div class="page-header mb-2 d-flex justify-content-between align-items-start flex-wrap gap-2">
+    <div>
     <h4 class="page-title mb-2">Analisa HPP</h4>
     <ul class="nav nav-pills">
         <li class="nav-item">
@@ -18,4 +19,6 @@
             </a>
         </li>
     </ul>
+    </div>
+    <div class="d-flex align-items-center gap-2 flex-wrap">@yield('hpp_actions')</div>
 </div>

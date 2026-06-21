@@ -38,10 +38,14 @@
                     <option value="mid_month" {{ $periodType === 'mid_month' ? 'selected' : '' }}>Tengah Bulan</option>
                 </select>
             </div>
-            <div class="col-md-4">
-                <button type="submit" class="btn btn-primary btn-sm w-100">
+            <div class="col-md-4 d-flex gap-2 justify-content-end align-items-end">
+                <button type="submit" class="btn btn-primary btn-laporan">
                     <i class="bi bi-search me-1"></i>Tampilkan
                 </button>
+                <a href="{{ route('reports.ringkasan.export', request()->query()) }}"
+                   class="btn btn-success btn-laporan">
+                    <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
+                </a>
             </div>
         </form>
     </div>
@@ -54,7 +58,11 @@ $totalWaste  = $rows->sum('total_waste');
 $totalProd   = $rows->sum('prod_cost');
 $totalBatch  = $rows->sum('prod_batch');
 $totalHppAktual = $rows->whereNotNull('hpp_aktual')->sum('hpp_aktual');
-$avgHppPct   = $rows->whereNotNull('pct_hpp_ideal')->avg('pct_hpp_ideal');
+$totalHppIdeal = $rows->whereNotNull('hpp_ideal')->sum('hpp_ideal');
+// % menyeluruh dihitung dari TOTAL (bukan rata-rata kasar) → lebih akurat.
+$avgHppPct       = $totalOmset > 0 ? $totalHppIdeal  / $totalOmset * 100 : null;
+$avgHppAktualPct = $totalOmset > 0 ? $totalHppAktual / $totalOmset * 100 : null;
+$totalMargin     = $totalOmset > 0 ? (1 - $totalHppIdeal / $totalOmset) * 100 : null;
 @endphp
 
 {{-- STAT CARDS --}}
@@ -78,20 +86,20 @@ $avgHppPct   = $rows->whereNotNull('pct_hpp_ideal')->avg('pct_hpp_ideal');
         </div>
     </div>
     <div class="col-md-3">
+        <div class="stat-card border-warning">
+            <div class="stat-icon bg-warning-subtle text-warning"><i class="bi bi-percent fs-3"></i></div>
+            <div class="stat-info">
+                <div class="stat-number text-warning">{{ $avgHppAktualPct ? number_format($avgHppAktualPct, 1, ',', '.') . '%' : '-' }}</div>
+                <div class="stat-label">Rata-rata % HPP Aktual</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
         <div class="stat-card border-danger">
             <div class="stat-icon bg-danger-subtle text-danger"><i class="bi bi-trash3 fs-3"></i></div>
             <div class="stat-info">
                 <div class="stat-number text-danger" style="font-size:14px">Rp {{ number_format($totalWaste, 0, ',', '.') }}</div>
                 <div class="stat-label">Total Kerugian Waste</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="stat-card border-warning">
-            <div class="stat-icon bg-warning-subtle text-warning"><i class="bi bi-gear fs-3"></i></div>
-            <div class="stat-info">
-                <div class="stat-number text-warning">{{ $totalBatch }} batch</div>
-                <div class="stat-label">Total Produksi · Rp {{ number_format($totalProd, 0, ',', '.') }}</div>
             </div>
         </div>
     </div>
@@ -152,7 +160,8 @@ $avgHppPct   = $rows->whereNotNull('pct_hpp_ideal')->avg('pct_hpp_ideal');
                         </td>
                         <td class="text-end">
                             @if($pctA)
-                                <span class="badge bg-{{ $hppColor($pctA) }}">{{ number_format($pctA, 1, ',', '.') }}%</span>
+                                @php $aktualColor = $pctI === null ? 'secondary' : ($pctA > $pctI ? 'danger' : 'success'); @endphp
+                                <span class="badge bg-{{ $aktualColor }}">{{ number_format($pctA, 1, ',', '.') }}%</span>
                             @else <span class="text-muted">—</span> @endif
                         </td>
                         <td class="text-end {{ $row->total_waste > 0 ? 'text-danger' : 'text-muted' }}">
@@ -174,15 +183,20 @@ $avgHppPct   = $rows->whereNotNull('pct_hpp_ideal')->avg('pct_hpp_ideal');
                 @if($hasAnyData)
                 <tfoot class="table-secondary fw-semibold">
                     <tr>
-                        <td class="col-name">TOTAL / RATA-RATA</td>
+                        <td class="col-name">TOTAL</td>
                         <td class="text-end">Rp {{ number_format($totalOmset, 0, ',', '.') }}</td>
-                        <td class="text-end">—</td>
-                        <td class="text-end">{{ $avgHppPct ? number_format($avgHppPct, 1, ',', '.') . '%' : '—' }}</td>
+                        <td class="text-end">Rp {{ number_format($totalHppIdeal, 0, ',', '.') }}</td>
+                        <td class="text-end">{{ $avgHppPct !== null ? number_format($avgHppPct, 1, ',', '.') . '%' : '—' }}</td>
                         <td class="text-end">Rp {{ number_format($totalHppAktual, 0, ',', '.') }}</td>
-                        <td class="text-end">—</td>
+                        <td class="text-end">
+                            @if($avgHppAktualPct !== null)
+                                @php $totAktualColor = $avgHppPct === null ? 'secondary' : ($avgHppAktualPct > $avgHppPct ? 'danger' : 'success'); @endphp
+                                <span class="badge bg-{{ $totAktualColor }}">{{ number_format($avgHppAktualPct, 1, ',', '.') }}%</span>
+                            @else — @endif
+                        </td>
                         <td class="text-end text-danger">Rp {{ number_format($totalWaste, 0, ',', '.') }}</td>
                         <td class="text-end">Rp {{ number_format($totalProd, 0, ',', '.') }}</td>
-                        <td class="text-end">—</td>
+                        <td class="text-end">{{ $totalMargin !== null ? number_format($totalMargin, 1, ',', '.') . '%' : '—' }}</td>
                     </tr>
                 </tfoot>
                 @endif

@@ -341,15 +341,19 @@ class LaporanController extends Controller
         $rows = collect(); $grandTotal = 0;
 
         if ($storeId) {
-            $query = Mutation::with(['supplier', 'items.ingredient', 'sourceStore', 'destinationStore'])
+            $query = Mutation::with(['supplier', 'items.ingredient', 'items.packaging', 'sourceStore', 'destinationStore'])
                 ->where(fn($q) =>
                     $q->where('destination_store_id', $storeId)
                       ->orWhere('source_store_id', $storeId)
                 )
                 ->where('status', 'confirmed')
-                ->whereBetween('transaction_date', [$dateFrom, $dateTo]);
+                ->whereRaw('COALESCE(delivery_date, transaction_date) BETWEEN ? AND ?', [$dateFrom, $dateTo]);
 
-            if ($tipe !== 'semua' && isset($typeMap[$tipe])) {
+            if ($tipe === 'internal_in') {
+                $query->where('type', 'sale_internal')->where('destination_store_id', $storeId);
+            } elseif ($tipe === 'internal_out') {
+                $query->where('type', 'sale_internal')->where('source_store_id', $storeId);
+            } elseif ($tipe !== 'semua' && isset($typeMap[$tipe])) {
                 $query->whereIn('type', $typeMap[$tipe]);
             } else {
                 $query->whereIn('type', ['purchase_zhisheng', 'purchase_supplier', 'sale_internal', 'sale_external', 'opening_stock']);
@@ -386,9 +390,13 @@ class LaporanController extends Controller
                   ->orWhere('source_store_id', $storeId)
             )
             ->where('status', 'confirmed')
-            ->whereBetween('transaction_date', [$dateFrom, $dateTo]);
+            ->whereRaw('COALESCE(delivery_date, transaction_date) BETWEEN ? AND ?', [$dateFrom, $dateTo]);
 
-        if ($tipe !== 'semua' && isset($typeMap[$tipe])) {
+        if ($tipe === 'internal_in') {
+            $query->where('type', 'sale_internal')->where('destination_store_id', $storeId);
+        } elseif ($tipe === 'internal_out') {
+            $query->where('type', 'sale_internal')->where('source_store_id', $storeId);
+        } elseif ($tipe !== 'semua' && isset($typeMap[$tipe])) {
             $query->whereIn('type', $typeMap[$tipe]);
         }
 

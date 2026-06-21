@@ -90,12 +90,14 @@
     {{-- ── Pemakaian Bahan Baku (Pencatatan Harian) ──────────────────── --}}
     <div class="col-lg-7">
         <div class="card h-100">
-            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <span class="fw-semibold">
-                    <i class="bi bi-graph-up-arrow text-muted me-1"></i>
-                    Pemakaian Bahan
-                </span>
-                <form method="GET" class="d-flex align-items-center gap-2 flex-wrap" id="chartIngredientForm">
+            <div class="card-header">
+                <div class="d-flex align-items-center mb-2">
+                    <span class="fw-semibold">
+                        <i class="bi bi-graph-up-arrow text-muted me-1"></i>
+                        Pemakaian Bahan
+                    </span>
+                </div>
+                <form method="GET" class="d-flex align-items-center gap-2" id="chartIngredientForm">
                     @if(request('store_id'))
                         <input type="hidden" name="store_id" value="{{ request('store_id') }}">
                     @endif
@@ -115,7 +117,7 @@
                             <option value="{{ $y }}" {{ $chartYear == $y ? 'selected' : '' }}>{{ $y }}</option>
                         @endfor
                     </select>
-                    <select name="chart_ingredient" class="form-select form-select-sm" style="min-width:160px"
+                    <select name="chart_ingredient" class="form-select form-select-sm flex-grow-1" style="min-width:160px"
                             onchange="document.getElementById('chartIngredientForm').submit()">
                         <option value="">Semua Bahan (nilai Rp)</option>
                         @foreach($chartIngredients as $ing)

@@ -1,5 +1,41 @@
 ﻿@extends('layouts.app')
 @section('title','Analisa HPP')
+
+{{-- Aksi di header (sejajar judul): Export Excel + Kunci/Buka Kunci HPP --}}
+@section('hpp_actions')
+    @if($storeId)
+    <a href="{{ route('sales.hpp.export', request()->query()) }}" class="btn btn-outline-success">
+        <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
+    </a>
+    @endif
+    @if(($summary ?? null) && ($summary->omset > 0 || $summary->hpp_ideal > 0 || ($summary->hpp_aktual ?? 0) > 0))
+        @if($locked ?? false)
+            <span class="badge bg-dark align-self-center"><i class="bi bi-lock-fill me-1"></i>Terkunci</span>
+            @if(auth()->user()->isSuperAdmin())
+            <form method="POST" action="{{ route('sales.hpp.unlock') }}" class="m-0"
+                  data-confirm="Buka kunci HPP periode ini? Angka akan kembali dihitung live." data-confirm-type="warning" data-confirm-ok="Ya, buka kunci">
+                @csrf
+                <input type="hidden" name="store_id" value="{{ $storeId }}">
+                <input type="hidden" name="month" value="{{ $month }}">
+                <input type="hidden" name="year" value="{{ $year }}">
+                <input type="hidden" name="period_type" value="{{ $periodType }}">
+                <button class="btn btn-outline-secondary"><i class="bi bi-unlock me-1"></i>Buka Kunci HPP</button>
+            </form>
+            @endif
+        @else
+            <form method="POST" action="{{ route('sales.hpp.lock') }}" class="m-0"
+                  data-confirm="Kunci HPP periode ini? Angka dibekukan sebagai snapshot agar tidak berubah." data-confirm-type="info" data-confirm-ok="Ya, kunci">
+                @csrf
+                <input type="hidden" name="store_id" value="{{ $storeId }}">
+                <input type="hidden" name="month" value="{{ $month }}">
+                <input type="hidden" name="year" value="{{ $year }}">
+                <input type="hidden" name="period_type" value="{{ $periodType }}">
+                <button class="btn btn-success"><i class="bi bi-lock me-1"></i>Kunci HPP</button>
+            </form>
+        @endif
+    @endif
+@endsection
+
 @section('content')
 @include('sales._hpp_tabs', ['currentHppTab' => 'periode'])
 
@@ -10,17 +46,7 @@
     $pct = fn($v) => $v !== null ? number_format($v, 1, ',', '.') . '%' : '—';
 @endphp
 
-<div class="d-flex justify-content-between align-items-start mb-3">
-    <p class="text-muted mb-0 small">Per Periode — HPP Ideal vs Aktual</p>
-    <div class="d-flex gap-2">
-        <a href="{{ route('sales.hpp.export', request()->query()) }}" class="btn btn-outline-success">
-            <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
-        </a>
-        <a href="{{ route('sales.monthly.create') }}" class="btn btn-primary">
-            <i class="bi bi-plus-lg me-1"></i> Tambah Penjualan
-        </a>
-    </div>
-</div>
+<p class="text-muted mb-3 small">Per Periode — HPP Ideal vs Aktual</p>
 
 {{-- Filter --}}
 <div class="card mb-3">
@@ -43,11 +69,11 @@
                     @endforeach
                 </select>
             </div>
-            <div class="col-md-1">
+            <div class="col-md-2">
                 <label class="form-label small fw-semibold mb-1">Tahun</label>
                 <input type="number" name="year" class="form-control" value="{{ $year }}" min="2020">
             </div>
-            <div class="col-md-2">
+            <div class="col-md-3">
                 <label class="form-label small fw-semibold mb-1">Periode</label>
                 <select name="period_type" class="form-select">
                     <option value="end_month" {{ ($periodType??'end_month')==='end_month'?'selected':'' }}>Akhir Bulan (1–30/31)</option>
@@ -75,6 +101,14 @@
         Pilih toko untuk menampilkan laporan HPP.
     </div>
 @else
+
+{{-- Status kunci (info ringkas) --}}
+@if(($locked ?? false) && $summary)
+<div class="alert alert-dark py-1 px-2 small mb-3">
+    <i class="bi bi-lock-fill me-1"></i>HPP periode ini <strong>terkunci</strong>
+    {{ ($lockedAt ?? null) ? '· dikunci '.optional($lockedAt)->isoFormat('D MMM Y, HH:mm') : '' }}{{ ($lockedBy ?? null) ? ' oleh '.$lockedBy : '' }} — angka beku, opname & mutasi periode ini tidak bisa diubah.
+</div>
+@endif
 
 {{-- Summary Cards --}}
 @if($summary && ($summary->omset > 0 || $summary->hpp_ideal > 0 || $summary->hpp_aktual > 0))
@@ -302,12 +336,13 @@
                         <thead>
                             <tr>
                                 <th class="col-name" style="width:22%">Bahan Baku</th>
-                                <th class="text-end" style="width:13%">Ideal<br><small class="fw-normal opacity-75">Dus</small></th>
-                                <th class="text-end" style="width:13%">Aktual<br><small class="fw-normal opacity-75">Dus</small></th>
-                                <th class="text-end" style="width:13%">Selisih<br><small class="fw-normal opacity-75">Dus</small></th>
-                                <th class="text-end" style="width:13%">HPP Ideal</th>
-                                <th class="text-end" style="width:13%">HPP Aktual</th>
-                                <th class="text-end" style="width:13%">Selisih HPP</th>
+                                <th class="text-end" style="width:11.5%">Ideal<br><small class="fw-normal opacity-75">Dus</small></th>
+                                <th class="text-end" style="width:11.5%">Aktual<br><small class="fw-normal opacity-75">Dus</small></th>
+                                <th class="text-end" style="width:11.5%">Selisih<br><small class="fw-normal opacity-75">Dus</small></th>
+                                <th class="text-end" style="width:11.5%">HPP Ideal</th>
+                                <th class="text-end" style="width:11.5%">HPP Aktual</th>
+                                <th class="text-end" style="width:11.5%">Selisih HPP</th>
+                                <th class="text-end" style="width:9%">% Selisih</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -381,6 +416,15 @@
                                         —
                                     @endif
                                 </td>
+
+                                {{-- % Selisih (terhadap HPP Ideal) --}}
+                                <td class="text-end fw-semibold {{ $selClass }}">
+                                    @if($r->selisih_pct !== null)
+                                        {{ $r->selisih_pct >= 0 ? '+' : '' }}{{ number_format($r->selisih_pct, 1, ',', '.') }}%
+                                    @else
+                                        <span class="text-muted">—</span>
+                                    @endif
+                                </td>
                             </tr>
                             @endforeach
                         </tbody>
@@ -400,6 +444,16 @@
                                     @if($ingredientRows->whereNotNull('selisih_hpp')->isNotEmpty())
                                         <span class="{{ $totSelisih < 0 ? 'text-danger' : ($totSelisih > 0 ? 'text-success' : '') }}">
                                             {{ $totSelisih >= 0 ? '+' : '' }}{{ $rp($totSelisih) }}
+                                        </span>
+                                    @else —
+                                    @endif
+                                </td>
+                                <td class="text-end">
+                                    @php $totAktual = $ingredientRows->where('has_actual', true)->sum('hpp_aktual'); @endphp
+                                    @if(abs($totAktual) > 0.0001)
+                                        @php $totPct = $totSelisih / abs($totAktual) * 100; @endphp
+                                        <span class="{{ $totPct < 0 ? 'text-danger' : ($totPct > 0 ? 'text-success' : '') }}">
+                                            {{ $totPct >= 0 ? '+' : '' }}{{ number_format($totPct, 1, ',', '.') }}%
                                         </span>
                                     @else —
                                     @endif

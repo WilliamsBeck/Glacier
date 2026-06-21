@@ -55,7 +55,9 @@ class DailyLedgerController extends Controller
             $physPack    = (int)($item->physical_pack  ?? 0);
             $qty = ($crateToBase > 0 ? $physCrate * $crateToBase : 0)
                  + ($ptb > 0        ? $physPack  * $ptb         : 0);
-            if ($qty <= 0) $qty = round((float)$item->physical_qty, 4);
+            // Fallback ke physical_qty HANYA untuk bahan tanpa kemasan. Bila ada
+            // kemasan tapi dus+pack = 0 (hanya pcs/gr longgar) → 0 (loose diabaikan).
+            if ($qty <= 0 && !$pkg) $qty = round((float)$item->physical_qty, 4);
             return (float)$qty;
         };
 
@@ -691,6 +693,11 @@ class DailyLedgerController extends Controller
         // Periode tertutup oleh opname: tanggal <= opname approved terakhir tidak bisa diinput.
         if (Opname::isDateLocked($storeId, $date)) {
             return Opname::lockMessageFor($storeId);
+        }
+        // Periode tertutup oleh snapshot HPP: pencatatan harian bulan itu tidak bisa diubah.
+        if (\App\Models\HppSnapshot::isDateLocked($storeId, $date)) {
+            $c = \Carbon\Carbon::parse($date);
+            return \App\Models\HppSnapshot::lockMessageFor($storeId, $c->month, $c->year);
         }
         return null;
     }

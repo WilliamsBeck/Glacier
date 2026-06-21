@@ -108,7 +108,8 @@ class MutationController extends Controller
             'destination_store_id'   => ($needsDest   ? 'required' : 'nullable').'|exists:stores,id',
             'source_store_id'        => ($needsSource ? 'required' : 'nullable').'|exists:stores,id',
             'supplier_id'            => 'nullable|exists:suppliers,id',
-            'invoice_no'             => 'nullable|string',
+            'external_sender'        => 'nullable|string|max:255|required_if:type,sale_external',
+            'invoice_no'             => 'nullable|string|max:255|unique:mutations,invoice_no',
             'transaction_date'       => 'required|date',
             'delivery_date'          => 'nullable|date|after_or_equal:transaction_date',
             'notes'                  => 'nullable|string',
@@ -122,6 +123,8 @@ class MutationController extends Controller
         ], [
             'destination_store_id.required' => 'Toko penerima wajib dipilih.',
             'source_store_id.required'      => 'Toko pengirim wajib dipilih.',
+            'external_sender.required_if'   => 'Pengirim wajib diisi untuk Pembelian Eksternal.',
+            'invoice_no.unique'             => 'No. SJ sudah dipakai di mutasi lain. Gunakan nomor yang berbeda.',
             'delivery_date.required'        => 'Tanggal penerimaan wajib diisi untuk pembelian.',
             'delivery_date.after_or_equal'  => 'Tanggal penerimaan tidak boleh lebih awal dari tanggal pengiriman.',
         ]);
@@ -168,9 +171,13 @@ class MutationController extends Controller
 
         // ── Lock periode oleh opname: transaksi <= tanggal opname approved ditolak ──
         $txDateStr = $request->delivery_date ?: $request->transaction_date;
+        $c = \Carbon\Carbon::parse($txDateStr);
         foreach (array_filter([$request->destination_store_id, $request->source_store_id]) as $sid) {
             if (\App\Models\Opname::isDateLocked((int)$sid, $txDateStr)) {
                 return back()->withInput()->with('error', \App\Models\Opname::lockMessageFor((int)$sid));
+            }
+            if (\App\Models\HppSnapshot::isDateLocked((int)$sid, $txDateStr)) {
+                return back()->withInput()->with('error', \App\Models\HppSnapshot::lockMessageFor((int)$sid, $c->month, $c->year));
             }
         }
 
@@ -194,6 +201,7 @@ class MutationController extends Controller
                 'destination_store_id' => $request->destination_store_id,
                 'source_store_id'      => $request->source_store_id,
                 'supplier_id'          => $supplierId,
+                'external_sender'      => $request->type === 'sale_external' ? $request->external_sender : null,
                 'invoice_no'           => $request->invoice_no,
                 'transaction_date'     => $request->transaction_date,
                 'delivery_date'        => $request->delivery_date,
@@ -230,9 +238,13 @@ class MutationController extends Controller
         // Periode mutasi tertutup oleh opname approved? Pakai mekanisme lock yang sama
         // dengan store()/confirm() (berbasis periode, mode-agnostic) agar konsisten.
         $date = ($mutation->delivery_date ?? $mutation->transaction_date)->toDateString();
+        $c = \Carbon\Carbon::parse($date);
         foreach (array_filter([$mutation->destination_store_id, $mutation->source_store_id]) as $sid) {
             if (\App\Models\Opname::isDateLocked((int)$sid, $date)) {
                 abort(403, \App\Models\Opname::lockMessageFor((int)$sid));
+            }
+            if (\App\Models\HppSnapshot::isDateLocked((int)$sid, $date)) {
+                abort(403, \App\Models\HppSnapshot::lockMessageFor((int)$sid, $c->month, $c->year));
             }
         }
     }
@@ -263,7 +275,8 @@ class MutationController extends Controller
             'transaction_date'  => 'required|date',
             'delivery_date'     => ($needsDelivery ? 'required' : 'nullable')
                                    . '|date|after_or_equal:transaction_date',
-            'invoice_no'        => 'nullable|string',
+            'invoice_no'        => 'nullable|string|max:255|unique:mutations,invoice_no,' . $mutation->id,
+            'external_sender'   => 'nullable|string|max:255',
             'notes'             => 'nullable|string',
             'items'             => 'required|array|min:1',
             'items.*.item_id'   => 'required|exists:mutation_items,id',
@@ -274,13 +287,18 @@ class MutationController extends Controller
         ], [
             'delivery_date.required'       => 'Tanggal penerimaan wajib diisi sebelum konfirmasi.',
             'delivery_date.after_or_equal' => 'Tanggal penerimaan tidak boleh lebih awal dari tanggal pengiriman.',
+            'invoice_no.unique'            => 'No. SJ sudah dipakai di mutasi lain. Gunakan nomor yang berbeda.',
         ]);
 
-        // Lock periode oleh opname
+        // Lock periode oleh opname / snapshot HPP
         $txDateStr = $request->delivery_date ?: $request->transaction_date;
+        $c = \Carbon\Carbon::parse($txDateStr);
         foreach (array_filter([$mutation->destination_store_id, $mutation->source_store_id]) as $sid) {
             if (\App\Models\Opname::isDateLocked((int)$sid, $txDateStr)) {
                 return back()->withInput()->with('error', \App\Models\Opname::lockMessageFor((int)$sid));
+            }
+            if (\App\Models\HppSnapshot::isDateLocked((int)$sid, $txDateStr)) {
+                return back()->withInput()->with('error', \App\Models\HppSnapshot::lockMessageFor((int)$sid, $c->month, $c->year));
             }
         }
 
@@ -290,7 +308,8 @@ class MutationController extends Controller
                 'delivery_date'    => $request->delivery_date ?: null,
                 'invoice_no'       => $request->invoice_no,
                 'notes'            => $request->notes,
-            ]);
+            ] + ($mutation->type === 'sale_external' && $request->filled('external_sender')
+                    ? ['external_sender' => $request->external_sender] : []));
 
             foreach ($request->items as $itemData) {
                 $item = $mutation->items->firstWhere('id', $itemData['item_id']);
@@ -442,11 +461,15 @@ class MutationController extends Controller
                 'Tanggal penerimaan belum diisi. Edit draft ini dan isi tanggal penerimaan terlebih dahulu.');
         }
 
-        // Lock periode oleh opname
+        // Lock periode oleh opname / snapshot HPP
         $txDateStr = ($mutation->delivery_date ?? $mutation->transaction_date)->format('Y-m-d');
+        $c = \Carbon\Carbon::parse($txDateStr);
         foreach (array_filter([$mutation->destination_store_id, $mutation->source_store_id]) as $sid) {
             if (\App\Models\Opname::isDateLocked((int)$sid, $txDateStr)) {
                 return back()->with('error', \App\Models\Opname::lockMessageFor((int)$sid));
+            }
+            if (\App\Models\HppSnapshot::isDateLocked((int)$sid, $txDateStr)) {
+                return back()->with('error', \App\Models\HppSnapshot::lockMessageFor((int)$sid, $c->month, $c->year));
             }
         }
 

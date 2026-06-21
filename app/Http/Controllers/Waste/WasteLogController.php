@@ -3,6 +3,8 @@ namespace App\Http\Controllers\Waste;
 use App\Http\Controllers\Controller;
 use App\Models\{WasteLog, WasteLogItem, Ingredient, IngredientPackaging, Store};
 use App\Services\{FifoService, StockLedgerService};
+use App\Exports\ArrayExport;
+use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -18,6 +20,46 @@ class WasteLogController extends Controller
         $logs   = $query->with('items.ingredient')->latest('waste_date')->paginate(20);
         $stores = auth()->user()->accessibleStores();
         return view('waste.index', compact('logs','stores'));
+    }
+
+    // ── Export Excel daftar waste (per bahan) ────────────────────────────────
+    public function export(Request $request)
+    {
+        $storeIds = auth()->user()->accessibleStoreIds();
+        $query = WasteLog::with(['store', 'items.ingredient', 'items.packaging'])
+            ->whereIn('store_id', $storeIds);
+        if ($request->store_id)  $query->where('store_id', $request->store_id);
+        if ($request->date_from) $query->where('waste_date', '>=', $request->date_from);
+        if ($request->date_to)   $query->where('waste_date', '<=', $request->date_to);
+        $logs = $query->orderBy('waste_date')->get();
+
+        $data = [[
+            'Tanggal', 'Toko', 'Bahan', 'Dus', 'Pack', 'Pcs/Gr',
+            'Harga/Satuan', 'Nilai Rugi (Rp)', 'Catatan',
+        ]];
+
+        $totalLoss = 0;
+        foreach ($logs as $log) {
+            foreach ($log->items as $it) {
+                $totalLoss += (float) $it->subtotal_loss;
+                $data[] = [
+                    $log->waste_date->format('d/m/Y'),
+                    $log->store->name ?? '-',
+                    $it->ingredient->name ?? '-',
+                    (int) ($it->qty_crate ?? 0),
+                    (int) ($it->qty_pack ?? 0),
+                    (float) ($it->qty_base ?? 0),
+                    (float) ($it->price_per_base ?? 0),
+                    (float) $it->subtotal_loss,
+                    $log->notes ?? '',
+                ];
+            }
+        }
+
+        $data[] = ['', '', '', '', '', '', 'TOTAL', $totalLoss, ''];
+
+        $filename = 'Daftar-Waste_' . now()->format('Ymd-His') . '.xlsx';
+        return Excel::download(new ArrayExport($data), $filename);
     }
 
     public function create()

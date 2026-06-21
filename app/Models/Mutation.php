@@ -7,7 +7,7 @@ class Mutation extends Model
 {
     protected $fillable = [
         'reference_no', 'type', 'source_store_id', 'destination_store_id',
-        'supplier_id', 'invoice_no', 'transaction_date', 'delivery_date',
+        'supplier_id', 'external_sender', 'invoice_no', 'transaction_date', 'delivery_date',
         'status', 'notes', 'created_by', 'confirmed_by',
     ];
 
@@ -28,9 +28,14 @@ class Mutation extends Model
 
     public static function generateReferenceNo(): string
     {
-        $date  = now()->format('Ymd');
-        $count = self::whereDate('created_at', today())->count() + 1;
-        return 'MUT-' . $date . '-' . str_pad($count, 3, '0', STR_PAD_LEFT);
+        $date   = now()->format('Ymd');
+        $prefix = 'MUT-' . $date . '-';
+        // Pakai nomor urut TERTINGGI yang ada + 1 (bukan count) supaya tidak bentrok
+        // bila ada mutasi yang sudah dihapus (count berkurang → nomor lama dipakai lagi).
+        $last = self::where('reference_no', 'like', $prefix . '%')
+            ->orderByDesc('reference_no')->value('reference_no');
+        $seq  = $last ? ((int) substr($last, -3)) + 1 : 1;
+        return $prefix . str_pad($seq, 3, '0', STR_PAD_LEFT);
     }
 
     public function items()

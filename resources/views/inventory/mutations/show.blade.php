@@ -7,8 +7,8 @@
         <h4 class="page-title">Detail Mutasi</h4>
         <span class="font-monospace text-muted">{{ $mutation->reference_no }}</span>
     </div>
-    <a href="{{ route('inventory.mutations.index') }}" class="btn btn-outline-secondary btn-sm">
-        <i class="bi bi-arrow-left me-1"></i> Kembali
+    <a href="{{ route('inventory.mutations.index') }}" class="btn btn-outline-secondary btn-sm btn-back">
+        <i class="bi bi-arrow-left me-1"></i>Kembali
     </a>
 </div>
 
@@ -79,6 +79,10 @@
                         <td>{{ $mutation->sourceStore->name ?? '-' }}</td></tr>
                     <tr><td class="text-muted">Supplier</td>
                         <td>{{ $mutation->supplier->name ?? '-' }}</td></tr>
+                    @if($mutation->external_sender)
+                    <tr><td class="text-muted">Pengirim</td>
+                        <td>{{ $mutation->external_sender }}</td></tr>
+                    @endif
                     <tr><td class="text-muted">No. SJ</td>
                         <td>{{ $mutation->invoice_no ?? '-' }}</td></tr>
                     <tr><td class="text-muted">Tgl Pengiriman</td>
